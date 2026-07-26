@@ -75,7 +75,7 @@ export default async function RestritoHistoricoPage() {
       tipo: "Distribuição lançada",
       usuario: d.criadoPor.name ?? d.criadoPor.email,
       valor: d.valorTotal,
-      detalhe: `${d.percentual}% · ${d.participantes ? "" : ""}${formatData(d.periodoInicio)} a ${formatData(d.periodoFim)}`,
+      detalhe: `${d.percentual}% · ${formatData(d.periodoInicio)} a ${formatData(d.periodoFim)}`,
       cor: "text-sky-300",
     })),
   ].sort((a, b) => b.data.getTime() - a.data.getTime());

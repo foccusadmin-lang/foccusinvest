@@ -36,7 +36,7 @@ export function StatusActions({
           Aprovar
         </button>
       )}
-      {statusCadastro !== "SUSPENSO" && statusCadastro !== "INCOMPLETO" && (
+      {statusCadastro !== "SUSPENSO" && (
         <button
           disabled={isPending}
           onClick={() =>

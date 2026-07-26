@@ -7,7 +7,7 @@ import { atualizarModoSaque } from "@/lib/configuracao";
 import { prisma } from "@/lib/prisma";
 
 export async function definirModoSaque(
-  campo: "modoSaqueCapital" | "modoSaqueRendimento",
+  campo: "modoSaqueCapital" | "modoSaqueRendimento" | "modoVerificacaoCadastro",
   modo: ModoProcessamento
 ) {
   const session = await auth();
