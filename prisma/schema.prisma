@@ -1,0 +1,285 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum TipoPessoa {
+  FISICA
+  JURIDICA
+}
+
+enum PerfilUsuario {
+  USUARIO
+  LIDER
+  ADMIN
+}
+
+enum StatusCadastro {
+  INCOMPLETO
+  PENDENTE
+  APROVADO
+  SUSPENSO
+  REJEITADO
+}
+
+enum OrigemAplicacao {
+  NOVA_APLICACAO
+  REAPLICACAO
+}
+
+enum StatusAplicacao {
+  CONFIRMADA
+  SAQUE_SOLICITADO
+  RETIRADA
+}
+
+enum TipoCredito {
+  RENDIMENTO
+  BONUS
+}
+
+enum TipoSaque {
+  CAPITAL
+  RENDIMENTO
+}
+
+enum StatusSaque {
+  SOLICITADO
+  APROVADO
+  PAGO
+  RECUSADO
+  CANCELADO
+}
+
+enum ModoProcessamento {
+  MANUAL
+  AUTOMATICO
+}
+
+enum StatusDistribuicao {
+  ATIVA
+  CANCELADA
+}
+
+model User {
+  id              String         @id @default(cuid())
+  email           String         @unique
+  emailVerified   DateTime?
+  name            String?
+  image           String?
+  perfil          PerfilUsuario  @default(USUARIO)
+  tipoPessoa      TipoPessoa?
+  statusCadastro  StatusCadastro @default(INCOMPLETO)
+  senha           String?
+
+  codigoIndicacao String?  @unique
+  indicadoPorId   String?
+  indicadoPor     User?    @relation("Indicacoes", fields: [indicadoPorId], references: [id])
+  indicados       User[]   @relation("Indicacoes")
+
+  pessoaFisica    PessoaFisica?
+  pessoaJuridica  PessoaJuridica?
+  aceites         TermoAceite[]
+  logsAuditoria   LogAuditoria[]
+
+  accounts             Account[]
+  sessions             Session[]
+  tokensRecuperacao    PasswordResetToken[]
+  aplicacoes           Aplicacao[]
+  creditos             CreditoCarteira[]
+  solicitacoesSaque    SolicitacaoSaque[]
+  distribuicoesCriadas DistribuicaoMensal[]
+  participacoes        DistribuicaoParticipante[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+/** Lançamento de resultado real do período, feito manualmente pelo admin como uma porcentagem
+ *  (ex: "julho deu 3%"). Cada investidor recebe esse mesmo percentual sobre o próprio capital,
+ *  e o sistema só dilui o pagamento em fatias diárias ao longo do período — o percentual em si
+ *  não muda depois de lançado. */
+model DistribuicaoMensal {
+  id            String             @id @default(cuid())
+  periodoInicio DateTime
+  periodoFim    DateTime
+  percentual    Float
+  valorTotal    Float
+  moeda         String             @default("BRL")
+  resultadoApurado String
+  observacoes   String?
+  status        StatusDistribuicao @default(ATIVA)
+
+  criadoPorId String
+  criadoPor   User     @relation(fields: [criadoPorId], references: [id])
+  criadoEm    DateTime @default(now())
+
+  participantes DistribuicaoParticipante[]
+}
+
+/** Cota de cada investidor numa distribuição, com o capital elegível já congelado no momento do
+ *  lançamento (não muda se o investidor aplicar mais depois) e o controle de quantos dias já foram
+ *  convertidos em crédito disponível. */
+model DistribuicaoParticipante {
+  id             String             @id @default(cuid())
+  distribuicaoId String
+  distribuicao   DistribuicaoMensal @relation(fields: [distribuicaoId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  capitalElegivel    Float
+  valorTotalCota     Float
+  diasCreditados     Int      @default(0)
+
+  @@unique([distribuicaoId, userId])
+}
+
+model Aplicacao {
+  id       String          @id @default(cuid())
+  userId   String
+  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  valor    Float
+  moeda    String          @default("BRL")
+  origem   OrigemAplicacao @default(NOVA_APLICACAO)
+  status   StatusAplicacao @default(CONFIRMADA)
+  criadoEm DateTime        @default(now())
+  liberaEm DateTime
+
+  solicitacaoSaqueId String?
+  solicitacaoSaque   SolicitacaoSaque? @relation(fields: [solicitacaoSaqueId], references: [id])
+}
+
+model CreditoCarteira {
+  id          String      @id @default(cuid())
+  userId      String
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tipo        TipoCredito
+  valor       Float
+  moeda       String      @default("BRL")
+  origem      String
+  criadoEm    DateTime    @default(now())
+  utilizadoEm DateTime?
+
+  solicitacaoSaqueId String?
+  solicitacaoSaque   SolicitacaoSaque? @relation(fields: [solicitacaoSaqueId], references: [id])
+}
+
+model SolicitacaoSaque {
+  id                  String      @id @default(cuid())
+  userId              String
+  user                User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tipo                TipoSaque
+  valor               Float
+  moeda               String      @default("BRL")
+  status              StatusSaque @default(SOLICITADO)
+  justificativaRecusa String?
+  criadoEm            DateTime    @default(now())
+  processadoEm        DateTime?
+
+  aplicacoes Aplicacao[]
+  creditos   CreditoCarteira[]
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expires   DateTime
+  usado     Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model PessoaFisica {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  nomeCompleto   String
+  cpf            String   @unique
+  dataNascimento DateTime
+  telefone       String?
+  endereco       String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model PessoaJuridica {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  razaoSocial        String
+  nomeFantasia       String?
+  cnpj               String   @unique
+  representanteLegal String
+  cpfRepresentante   String
+  telefone           String?
+  endereco           String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model TermoAceite {
+  id       String   @id @default(cuid())
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tipo     String
+  versao   String
+  aceitoEm DateTime @default(now())
+  ip       String?
+}
+
+model ConfiguracaoSistema {
+  id                     String            @id @default("default")
+  modoSaqueCapital       ModoProcessamento @default(MANUAL)
+  modoSaqueRendimento    ModoProcessamento @default(MANUAL)
+  modoVerificacaoCadastro ModoProcessamento @default(MANUAL)
+  updatedAt              DateTime          @updatedAt
+}
+
+model LogAuditoria {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  acao      String
+  detalhes  String?
+  ip        String?
+  createdAt DateTime @default(now())
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
