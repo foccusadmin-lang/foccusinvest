@@ -64,8 +64,15 @@ export async function getResumoCarteira(userId: string): Promise<ResumoFinanceir
   let capitalCarencia = 0;
   let capitalDisponivel = 0;
   let valoresReaplicados = 0;
+  let aportesEmAnalise = 0;
 
   for (const ap of aplicacoes) {
+    if (ap.status === "AGUARDANDO_APROVACAO") {
+      aportesEmAnalise += ap.valor;
+      continue;
+    }
+    if (ap.status === "REJEITADA") continue;
+
     if (ap.status !== "RETIRADA") {
       capitalPrincipal += ap.valor;
       if (ap.status === "CONFIRMADA") {
@@ -123,6 +130,7 @@ export async function getResumoCarteira(userId: string): Promise<ResumoFinanceir
     valoresReaplicados,
     valoresEmProcessamento,
     saquesPendentes,
+    aportesEmAnalise,
     totalDoacoes: 0,
     rentabilidadePeriodo: 0,
     proximaLiberacao: proximaLote?.liberaEm ?? null,

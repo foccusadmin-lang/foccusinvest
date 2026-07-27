@@ -28,12 +28,24 @@ enum StatusCadastro {
 enum OrigemAplicacao {
   NOVA_APLICACAO
   REAPLICACAO
+  MIGRACAO
+  AJUSTE_ADMIN
+}
+
+enum StatusMigracao {
+  PENDENTE
+  SEM_DOCUMENTO
+  AGUARDANDO_APROVACAO
+  APLICADA
+  CANCELADA
 }
 
 enum StatusAplicacao {
+  AGUARDANDO_APROVACAO
   CONFIRMADA
   SAQUE_SOLICITADO
   RETIRADA
+  REJEITADA
 }
 
 enum TipoCredito {
@@ -89,13 +101,40 @@ model User {
   sessions             Session[]
   tokensRecuperacao    PasswordResetToken[]
   aplicacoes           Aplicacao[]
+  aplicacoesAprovadas  Aplicacao[]           @relation("AplicacaoAprovadaPor")
   creditos             CreditoCarteira[]
   solicitacoesSaque    SolicitacaoSaque[]
   distribuicoesCriadas DistribuicaoMensal[]
   participacoes        DistribuicaoParticipante[]
+  migracoesCriadas     MigracaoSaldo[]             @relation("MigracaoCriador")
+  migracaoRecebida     MigracaoSaldo[]             @relation("MigracaoUsuario")
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+}
+
+/** Saldo trazido de outra plataforma (ex: Mocha) para um investidor que já tinha capital
+ *  investido lá. Lançado manualmente/via planilha pelo admin. Se o CPF/CNPJ ainda não tem conta
+ *  aqui, fica PENDENTE e é aplicado automaticamente assim que a pessoa completar o cadastro com
+ *  o mesmo documento. */
+model MigracaoSaldo {
+  id             String         @id @default(cuid())
+  documento      String?        @unique
+  nomeReferencia String
+  emailReferencia String?
+  valor          Float
+  observacao     String?
+  status         StatusMigracao @default(PENDENTE)
+
+  userId      String?
+  user        User?   @relation("MigracaoUsuario", fields: [userId], references: [id])
+  aplicacaoId String?
+
+  criadoPorId String
+  criadoPor   User   @relation("MigracaoCriador", fields: [criadoPorId], references: [id])
+
+  criadoEm   DateTime  @default(now())
+  aplicadoEm DateTime?
 }
 
 /** Lançamento de resultado real do período, feito manualmente pelo admin como uma porcentagem
@@ -147,6 +186,15 @@ model Aplicacao {
   status   StatusAplicacao @default(CONFIRMADA)
   criadoEm DateTime        @default(now())
   liberaEm DateTime
+
+  comprovante     Bytes?
+  comprovanteNome String?
+  comprovanteTipo String?
+  motivoRejeicao  String?
+
+  aprovadoPorId String?
+  aprovadoPor   User?     @relation("AplicacaoAprovadaPor", fields: [aprovadoPorId], references: [id])
+  aprovadoEm    DateTime?
 
   solicitacaoSaqueId String?
   solicitacaoSaque   SolicitacaoSaque? @relation(fields: [solicitacaoSaqueId], references: [id])

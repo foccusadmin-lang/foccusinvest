@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { hashPassword, validarForcaSenha } from "@/lib/password";
 import { buildCodigoIndicacao } from "@/lib/codigo-indicacao";
+import { vincularMigracaoPorEmail } from "@/lib/migracao";
 import { signIn } from "@/auth";
 
 export type RegistrarState = { error?: string } | undefined;
@@ -14,6 +15,9 @@ export async function registrarConta(
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const senha = String(formData.get("senha") ?? "");
   const confirmarSenha = String(formData.get("confirmarSenha") ?? "");
+  const codigoIndicacaoInformado = String(formData.get("codigoIndicacao") ?? "")
+    .trim()
+    .toUpperCase();
 
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return { error: "Informe um e-mail válido." };
@@ -33,13 +37,20 @@ export async function registrarConta(
 
   const senhaHash = await hashPassword(senha);
 
-  await prisma.user.create({
+  const indicador = codigoIndicacaoInformado
+    ? await prisma.user.findUnique({ where: { codigoIndicacao: codigoIndicacaoInformado } })
+    : null;
+
+  const novoUsuario = await prisma.user.create({
     data: {
       email,
       senha: senhaHash,
       codigoIndicacao: buildCodigoIndicacao(email.split("@")[0]),
+      indicadoPorId: indicador?.id,
     },
   });
+
+  await vincularMigracaoPorEmail(novoUsuario.id, email);
 
   await signIn("credentials", {
     email,

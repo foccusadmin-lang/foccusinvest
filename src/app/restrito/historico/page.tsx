@@ -45,7 +45,12 @@ export default async function RestritoHistoricoPage() {
     ...aplicacoes.map((a) => ({
       id: `ap-${a.id}`,
       data: a.criadoEm,
-      tipo: a.origem === "REAPLICACAO" ? "Reaplicação" : "Aplicação",
+      tipo:
+        a.origem === "REAPLICACAO"
+          ? "Reaplicação"
+          : a.origem === "MIGRACAO"
+            ? "Migração de saldo"
+            : "Aplicação",
       usuario: a.user.name ?? a.user.email,
       valor: a.valor,
       detalhe: `Status: ${a.status}`,

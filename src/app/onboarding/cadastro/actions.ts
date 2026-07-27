@@ -5,6 +5,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { isValidCPF, isValidCNPJ, onlyDigits } from "@/lib/cpf-cnpj";
 import { getConfiguracao } from "@/lib/configuracao";
+import { aplicarMigracaoPendente } from "@/lib/migracao";
 
 export type CadastroState = { error?: string } | undefined;
 
@@ -59,8 +60,9 @@ export async function completarCadastroPF(
     return { error: "Este CPF já está cadastrado em outra conta." };
   }
 
-  await prisma.$transaction([
-    prisma.pessoaFisica.upsert({
+  const status = await statusAposCadastro();
+  await prisma.$transaction(async (tx) => {
+    await tx.pessoaFisica.upsert({
       where: { userId: session.user.id },
       create: {
         userId: session.user.id,
@@ -77,12 +79,13 @@ export async function completarCadastroPF(
         telefone,
         endereco,
       },
-    }),
-    prisma.user.update({
+    });
+    await tx.user.update({
       where: { id: session.user.id },
-      data: { email, tipoPessoa: "FISICA", statusCadastro: await statusAposCadastro() },
-    }),
-  ]);
+      data: { email, tipoPessoa: "FISICA", statusCadastro: status },
+    });
+    await aplicarMigracaoPendente(tx, session.user.id, cpf, nomeCompleto);
+  });
 
   redirect("/painel");
 }
@@ -125,8 +128,9 @@ export async function completarCadastroPJ(
     return { error: "Este CNPJ já está cadastrado em outra conta." };
   }
 
-  await prisma.$transaction([
-    prisma.pessoaJuridica.upsert({
+  const status = await statusAposCadastro();
+  await prisma.$transaction(async (tx) => {
+    await tx.pessoaJuridica.upsert({
       where: { userId: session.user.id },
       create: {
         userId: session.user.id,
@@ -147,12 +151,13 @@ export async function completarCadastroPJ(
         telefone,
         endereco,
       },
-    }),
-    prisma.user.update({
+    });
+    await tx.user.update({
       where: { id: session.user.id },
-      data: { email, tipoPessoa: "JURIDICA", statusCadastro: await statusAposCadastro() },
-    }),
-  ]);
+      data: { email, tipoPessoa: "JURIDICA", statusCadastro: status },
+    });
+    await aplicarMigracaoPendente(tx, session.user.id, cnpj, razaoSocial);
+  });
 
   redirect("/painel");
 }

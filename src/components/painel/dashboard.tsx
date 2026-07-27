@@ -17,6 +17,7 @@ export type ResumoFinanceiro = {
   valoresReaplicados: number;
   valoresEmProcessamento: number;
   saquesPendentes: number;
+  aportesEmAnalise: number;
   totalDoacoes: number;
   rentabilidadePeriodo: number;
   proximaLiberacao: Date | null;
@@ -122,6 +123,10 @@ export function PainelDashboard({
             value={formatMoeda(resumo.valoresEmProcessamento, moeda)}
           />
           <MiniStat label="Saques pendentes" value={formatMoeda(resumo.saquesPendentes, moeda)} />
+          <MiniStat
+            label="Aporte em análise"
+            value={formatMoeda(resumo.aportesEmAnalise, moeda)}
+          />
         </section>
 
         <section className="mt-6 flex flex-col justify-between gap-4 rounded-2xl border border-border bg-surface p-5 sm:flex-row sm:items-center">
@@ -165,6 +170,10 @@ export function PainelDashboard({
           saldoParaReaplicar={resumo.distribuicoesDisponiveis + resumo.bonusIndicacao}
           janelaSaqueRendimentoAberta={janelaSaqueRendimentoAberta}
           verificado={usuario.statusCadastro === "APROVADO"}
+          capitalDisponivel={resumo.capitalDisponivel}
+          capitalCarencia={resumo.capitalCarencia}
+          proximaLiberacao={resumo.proximaLiberacao}
+          moeda={usuario.moeda ?? "BRL"}
         />
 
         <p className="mb-3 mt-10 text-xs font-semibold uppercase tracking-[0.15em] text-muted">

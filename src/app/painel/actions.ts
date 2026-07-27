@@ -45,6 +45,8 @@ async function requireVerifiedUserId(): Promise<string> {
 const VALOR_MINIMO_APLICACAO = 50;
 const VALOR_MINIMO_REAPLICACAO = 100;
 
+const TAMANHO_MAXIMO_COMPROVANTE = 5 * 1024 * 1024;
+
 export async function criarAplicacao(
   _prevState: AcaoState,
   formData: FormData
@@ -64,19 +66,32 @@ export async function criarAplicacao(
     return { error: `O valor mínimo de aplicação é ${formatMoeda(VALOR_MINIMO_APLICACAO)}.` };
   }
 
+  const comprovante = formData.get("comprovante");
+  if (!(comprovante instanceof File) || comprovante.size === 0) {
+    return { error: "Envie o comprovante de pagamento do Pix." };
+  }
+  if (comprovante.size > TAMANHO_MAXIMO_COMPROVANTE) {
+    return { error: "Arquivo muito grande. Envie um comprovante de até 5MB." };
+  }
+
+  const bytes = Buffer.from(await comprovante.arrayBuffer());
+
   await prisma.aplicacao.create({
     data: {
       userId,
       valor,
       moeda: "BRL",
-      status: "CONFIRMADA",
+      status: "AGUARDANDO_APROVACAO",
       liberaEm: calcularLiberacao(),
+      comprovante: bytes,
+      comprovanteNome: comprovante.name,
+      comprovanteTipo: comprovante.type || "application/octet-stream",
     },
   });
 
   revalidatePath("/painel");
   return {
-    sucesso: `Aplicação de ${formatMoeda(valor)} confirmada. Carência de 90 dias iniciada.`,
+    sucesso: `Comprovante de ${formatMoeda(valor)} enviado! Assim que o admin confirmar o pagamento, o valor entra na sua carteira com carência de 90 dias.`,
   };
 }
 

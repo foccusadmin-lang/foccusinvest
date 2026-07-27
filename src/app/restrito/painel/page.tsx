@@ -26,14 +26,16 @@ export default async function RestritoPainelPage() {
     cadastrosPendentes,
     aplicacoesAtivas,
     saquesAtivos,
+    aportesAguardando,
     creditosRendimento,
     distribuicoesAtivas,
     configuracao,
   ] = await Promise.all([
     prisma.user.count({ where: { perfil: { not: "ADMIN" } } }),
     prisma.user.count({ where: { statusCadastro: "PENDENTE", perfil: { not: "ADMIN" } } }),
-    prisma.aplicacao.findMany({ where: { status: { not: "RETIRADA" } } }),
+    prisma.aplicacao.findMany({ where: { status: { in: ["CONFIRMADA", "SAQUE_SOLICITADO"] } } }),
     prisma.solicitacaoSaque.findMany({ where: { status: { in: ["SOLICITADO", "APROVADO"] } } }),
+    prisma.aplicacao.count({ where: { status: "AGUARDANDO_APROVACAO" } }),
     prisma.creditoCarteira.aggregate({ where: { tipo: "RENDIMENTO" }, _sum: { valor: true } }),
     prisma.distribuicaoMensal.count({ where: { status: "ATIVA" } }),
     getConfiguracao(),
@@ -115,6 +117,15 @@ export default async function RestritoPainelPage() {
           Há <strong>{saquesAtivos.length}</strong> solicitação(ões) de saque aguardando ação em{" "}
           <a href="/restrito/saques" className="underline">
             Saques
+          </a>
+          .
+        </div>
+      )}
+      {aportesAguardando > 0 && (
+        <div className="mt-3 rounded-2xl border border-green-500/30 bg-green-500/10 p-4 text-sm text-green-200">
+          Há <strong>{aportesAguardando}</strong> comprovante(s) de Pix aguardando conferência em{" "}
+          <a href="/restrito/aportes" className="underline">
+            Aportes
           </a>
           .
         </div>

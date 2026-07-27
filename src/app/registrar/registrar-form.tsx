@@ -4,7 +4,11 @@ import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { registrarConta } from "./actions";
 
-export function RegistrarForm() {
+export function RegistrarForm({
+  codigoIndicacaoPadrao,
+}: {
+  codigoIndicacaoPadrao?: string;
+}) {
   const [state, action, pending] = useActionState(registrarConta, undefined);
 
   return (
@@ -39,6 +43,19 @@ export function RegistrarForm() {
           required
           minLength={8}
           className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-foreground outline-none focus:border-gold/60"
+        />
+      </label>
+
+      <label className="block text-sm">
+        <span className="mb-1 block font-medium text-foreground/90">
+          Código de indicação (opcional)
+        </span>
+        <input
+          name="codigoIndicacao"
+          type="text"
+          defaultValue={codigoIndicacaoPadrao}
+          placeholder="Ex: 5LTW2-CEMERSON"
+          className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 uppercase text-foreground outline-none focus:border-gold/60"
         />
       </label>
 

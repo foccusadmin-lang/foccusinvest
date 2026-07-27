@@ -4,9 +4,14 @@ import { auth } from "@/auth";
 import { Logo } from "@/components/logo";
 import { RegistrarForm } from "./registrar-form";
 
-export default async function RegistrarPage() {
+export default async function RegistrarPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ ref?: string }>;
+}) {
   const session = await auth();
   if (session?.user) redirect("/painel");
+  const { ref } = await searchParams;
 
   return (
     <div className="flex min-h-screen flex-1 flex-col items-center justify-center bg-background px-4 py-12">
@@ -23,7 +28,7 @@ export default async function RegistrarPage() {
         </p>
 
         <div className="mt-8">
-          <RegistrarForm />
+          <RegistrarForm codigoIndicacaoPadrao={ref} />
         </div>
 
         <p className="mt-6 text-center text-sm text-muted">

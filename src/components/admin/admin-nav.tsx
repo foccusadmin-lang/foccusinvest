@@ -10,8 +10,10 @@ import { ViewSwitcher } from "./view-switcher";
 const LINKS = [
   { href: "/restrito/painel", label: "Painel" },
   { href: "/restrito/usuarios", label: "Usuários" },
+  { href: "/restrito/aportes", label: "Aportes" },
   { href: "/restrito/saques", label: "Saques" },
   { href: "/restrito/distribuicoes", label: "Distribuições" },
+  { href: "/restrito/migracao", label: "Migração" },
   { href: "/restrito/historico", label: "Histórico" },
 ];
 

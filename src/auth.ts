@@ -5,6 +5,7 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
 import { buildCodigoIndicacao } from "@/lib/codigo-indicacao";
 import { verifyPassword } from "@/lib/password";
+import { vincularMigracaoPorEmail } from "@/lib/migracao";
 import { ADMIN_EMAIL } from "@/lib/config";
 
 export const googleConfigurado = Boolean(
@@ -47,6 +48,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         where: { id: user.id },
         data: { codigoIndicacao: buildCodigoIndicacao(user.name) },
       });
+      if (user.email) await vincularMigracaoPorEmail(user.id, user.email);
     },
   },
   callbacks: {

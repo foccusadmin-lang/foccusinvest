@@ -24,6 +24,7 @@ export default function PreviewPainelPage() {
         valoresReaplicados: 0,
         valoresEmProcessamento: 0,
         saquesPendentes: 0,
+        aportesEmAnalise: 0,
         totalDoacoes: 0,
         rentabilidadePeriodo: 1.6,
         proximaLiberacao: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
