@@ -72,16 +72,25 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           token.perfil = dbUser.perfil;
           token.statusCadastro = dbUser.statusCadastro;
           token.codigoIndicacao = dbUser.codigoIndicacao;
+        } else {
+          // Conta não existe mais (excluída) — invalida o token pra não ficar preso num
+          // loop de redirecionamento entre páginas que checam a sessão de formas diferentes.
+          delete token.id;
+          delete token.perfil;
+          delete token.statusCadastro;
+          delete token.codigoIndicacao;
         }
       }
       return token;
     },
     async session({ session, token }) {
-      if (session.user) {
+      if (session.user && token.id) {
         session.user.id = token.id as string;
         session.user.perfil = token.perfil as typeof session.user.perfil;
         session.user.statusCadastro = token.statusCadastro as typeof session.user.statusCadastro;
         session.user.codigoIndicacao = token.codigoIndicacao as string | null;
+      } else {
+        session.user = undefined as unknown as typeof session.user;
       }
       return session;
     },

@@ -20,6 +20,7 @@ const statusStyle: Record<string, string> = {
 const tipoLabel: Record<string, string> = {
   CAPITAL: "Capital",
   RENDIMENTO: "Rendimento",
+  BONUS: "Bônus",
 };
 
 export default async function RestritoSaquesPage() {
@@ -87,9 +88,21 @@ function Tabela({
                     <p className="font-medium text-foreground">{s.user.name ?? "—"}</p>
                     <p className="text-xs text-muted">{s.user.email}</p>
                   </td>
-                  <td className="px-4 py-3 text-muted">{tipoLabel[s.tipo]}</td>
+                  <td className="px-4 py-3 text-muted">
+                    {tipoLabel[s.tipo]}
+                    {s.emergencial && (
+                      <span className="ml-1 rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-semibold text-red-300">
+                        Emergência
+                      </span>
+                    )}
+                  </td>
                   <td className="px-4 py-3 font-semibold text-foreground">
                     {formatMoeda(s.valor, s.moeda as "BRL")}
+                    {s.emergencial && s.valorBruto != null && s.taxaAntecipacao != null && (
+                      <p className="mt-0.5 text-[11px] font-normal text-amber-300">
+                        Bruto {formatMoeda(s.valorBruto)} · Taxa Antecipação -{formatMoeda(s.taxaAntecipacao)}
+                      </p>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <span
@@ -100,6 +113,11 @@ function Tabela({
                     {s.justificativaRecusa && (
                       <p className="mt-1 max-w-[220px] text-xs text-muted">
                         {s.justificativaRecusa}
+                      </p>
+                    )}
+                    {s.emergencial && s.motivoEmergencia && (
+                      <p className="mt-1 max-w-[220px] text-xs text-red-200/80">
+                        Motivo: {s.motivoEmergencia}
                       </p>
                     )}
                   </td>

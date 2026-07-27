@@ -36,6 +36,7 @@ export default async function PainelPage() {
         codigoIndicacao: user.codigoIndicacao,
         moeda: "BRL",
         ehAdmin: session.user.perfil === "ADMIN",
+        saqueEmergencialLiberado: user.saqueEmergencialLiberado,
       }}
       resumo={resumo}
       janelaSaqueRendimentoAberta={janelaSaqueRendimentoAberta()}

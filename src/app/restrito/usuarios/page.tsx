@@ -5,6 +5,7 @@ import { maskCPF, maskCNPJ } from "@/lib/cpf-cnpj";
 import { formatData, formatMoeda } from "@/lib/format";
 import { StatusActions } from "./status-actions";
 import { AjusteSaldoButton } from "./ajuste-modal";
+import { SaqueEmergencialToggle } from "./saque-emergencial-toggle";
 
 const statusStyle: Record<string, string> = {
   INCOMPLETO: "bg-white/10 text-muted",
@@ -117,6 +118,10 @@ export default async function RestritoUsuariosPage() {
                         usuarioId={u.id}
                         statusCadastro={u.statusCadastro}
                         perfil={u.perfil}
+                      />
+                      <SaqueEmergencialToggle
+                        userId={u.id}
+                        liberado={u.saqueEmergencialLiberado}
                       />
                     </div>
                   </td>

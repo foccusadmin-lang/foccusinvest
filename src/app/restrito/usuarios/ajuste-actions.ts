@@ -134,3 +134,23 @@ export async function ajustarSaldoUsuario(
 
   return { sucesso: `Saldo de ${usuario.name ?? usuario.email} atualizado.` };
 }
+
+export async function alternarSaqueEmergencial(userId: string, liberado: boolean) {
+  const session = await auth();
+  if (session?.user?.perfil !== "ADMIN") throw new Error("Acesso negado.");
+
+  const usuario = await prisma.user.update({
+    where: { id: userId },
+    data: { saqueEmergencialLiberado: liberado },
+  });
+
+  await prisma.logAuditoria.create({
+    data: {
+      userId: session.user.id,
+      acao: liberado ? "liberar_saque_emergencial" : "bloquear_saque_emergencial",
+      detalhes: usuario.email,
+    },
+  });
+
+  revalidatePath("/restrito/usuarios");
+}

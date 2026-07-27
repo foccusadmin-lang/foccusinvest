@@ -31,6 +31,7 @@ export type PainelUsuario = {
   codigoIndicacao?: string | null;
   moeda?: "BRL" | "USD" | "USDT";
   ehAdmin?: boolean;
+  saqueEmergencialLiberado?: boolean;
 };
 
 const statusLabel: Record<string, { label: string; className: string }> = {
@@ -174,6 +175,7 @@ export function PainelDashboard({
           capitalCarencia={resumo.capitalCarencia}
           proximaLiberacao={resumo.proximaLiberacao}
           moeda={usuario.moeda ?? "BRL"}
+          saqueEmergencialLiberado={usuario.saqueEmergencialLiberado ?? false}
         />
 
         <p className="mb-3 mt-10 text-xs font-semibold uppercase tracking-[0.15em] text-muted">

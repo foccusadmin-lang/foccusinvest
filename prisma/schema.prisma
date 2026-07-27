@@ -56,6 +56,7 @@ enum TipoCredito {
 enum TipoSaque {
   CAPITAL
   RENDIMENTO
+  BONUS
 }
 
 enum StatusSaque {
@@ -86,6 +87,7 @@ model User {
   tipoPessoa      TipoPessoa?
   statusCadastro  StatusCadastro @default(INCOMPLETO)
   senha           String?
+  saqueEmergencialLiberado Boolean @default(false)
 
   codigoIndicacao String?  @unique
   indicadoPorId   String?
@@ -226,6 +228,11 @@ model SolicitacaoSaque {
   justificativaRecusa String?
   criadoEm            DateTime    @default(now())
   processadoEm        DateTime?
+
+  emergencial      Boolean @default(false)
+  motivoEmergencia String?
+  valorBruto       Float?
+  taxaAntecipacao  Float?
 
   aplicacoes Aplicacao[]
   creditos   CreditoCarteira[]
