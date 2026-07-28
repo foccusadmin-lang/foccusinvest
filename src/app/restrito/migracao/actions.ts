@@ -3,8 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { calcularLiberacao } from "@/lib/carteira";
-import { parseCsvMigracao, normalizarNome } from "@/lib/migracao";
+import { parseCsvMigracao, normalizarNome, creditarValoresMigracao } from "@/lib/migracao";
 
 export type MigracaoState = { error?: string; sucesso?: string } | undefined;
 
@@ -38,7 +37,12 @@ export async function importarMigracaoCsv(
   let erros = 0;
 
   for (const linha of linhas) {
-    if (!linha.nome || !linha.valor || Number.isNaN(linha.valor) || linha.valor <= 0) {
+    const temAlgumValor =
+      (linha.valor > 0 || linha.valorPlr > 0 || linha.valorBonus > 0) &&
+      !Number.isNaN(linha.valor) &&
+      !Number.isNaN(linha.valorPlr) &&
+      !Number.isNaN(linha.valorBonus);
+    if (!linha.nome || !temAlgumValor) {
       erros++;
       continue;
     }
@@ -74,6 +78,8 @@ export async function importarMigracaoCsv(
             nomeReferencia: linha.nome,
             emailReferencia: linha.email,
             valor: linha.valor,
+            valorPlr: linha.valorPlr,
+            valorBonus: linha.valorBonus,
             status: "AGUARDANDO_APROVACAO",
             userId: usuarioPorEmail.id,
             criadoPorId: adminId,
@@ -88,6 +94,8 @@ export async function importarMigracaoCsv(
             nomeReferencia: linha.nome,
             emailReferencia: linha.email || null,
             valor: linha.valor,
+            valorPlr: linha.valorPlr,
+            valorBonus: linha.valorBonus,
             status: "SEM_DOCUMENTO",
             criadoPorId: adminId,
             observacao: linha.email
@@ -127,6 +135,8 @@ export async function importarMigracaoCsv(
           nomeReferencia: linha.nome,
           emailReferencia: linha.email || null,
           valor: linha.valor,
+          valorPlr: linha.valorPlr,
+          valorBonus: linha.valorBonus,
           status: "AGUARDANDO_APROVACAO",
           userId,
           criadoPorId: adminId,
@@ -138,6 +148,8 @@ export async function importarMigracaoCsv(
           nomeReferencia: linha.nome,
           emailReferencia: linha.email || null,
           valor: linha.valor,
+          valorPlr: linha.valorPlr,
+          valorBonus: linha.valorBonus,
           status: "AGUARDANDO_APROVACAO",
           userId,
           observacao: nomeConfere
@@ -154,6 +166,8 @@ export async function importarMigracaoCsv(
           nomeReferencia: linha.nome,
           emailReferencia: linha.email || null,
           valor: linha.valor,
+          valorPlr: linha.valorPlr,
+          valorBonus: linha.valorBonus,
           status: "PENDENTE",
           criadoPorId: adminId,
         },
@@ -161,6 +175,8 @@ export async function importarMigracaoCsv(
           nomeReferencia: linha.nome,
           emailReferencia: linha.email || null,
           valor: linha.valor,
+          valorPlr: linha.valorPlr,
+          valorBonus: linha.valorBonus,
           status: "PENDENTE",
         },
       });
@@ -199,19 +215,10 @@ export async function aprovarMigracao(id: string) {
   }
 
   await prisma.$transaction(async (tx) => {
-    const aplicacao = await tx.aplicacao.create({
-      data: {
-        userId: migracao.userId!,
-        valor: migracao.valor,
-        moeda: "BRL",
-        origem: "MIGRACAO",
-        status: "CONFIRMADA",
-        liberaEm: calcularLiberacao(),
-      },
-    });
+    const aplicacaoId = await creditarValoresMigracao(tx, migracao.userId!, migracao);
     await tx.migracaoSaldo.update({
       where: { id },
-      data: { status: "APLICADA", aplicacaoId: aplicacao.id, aplicadoEm: new Date() },
+      data: { status: "APLICADA", aplicacaoId, aplicadoEm: new Date() },
     });
   });
 
@@ -269,22 +276,13 @@ export async function lancarMigracaoManual(
   }
 
   await prisma.$transaction(async (tx) => {
-    const aplicacao = await tx.aplicacao.create({
-      data: {
-        userId: usuario.id,
-        valor: migracao.valor,
-        moeda: "BRL",
-        origem: "MIGRACAO",
-        status: "CONFIRMADA",
-        liberaEm: calcularLiberacao(),
-      },
-    });
+    const aplicacaoId = await creditarValoresMigracao(tx, usuario.id, migracao);
     await tx.migracaoSaldo.update({
       where: { id: migracao.id },
       data: {
         status: "APLICADA",
         userId: usuario.id,
-        aplicacaoId: aplicacao.id,
+        aplicacaoId,
         aplicadoEm: new Date(),
       },
     });

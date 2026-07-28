@@ -125,6 +125,8 @@ model MigracaoSaldo {
   nomeReferencia String
   emailReferencia String?
   valor          Float
+  valorPlr       Float          @default(0)
+  valorBonus     Float          @default(0)
   observacao     String?
   status         StatusMigracao @default(PENDENTE)
 

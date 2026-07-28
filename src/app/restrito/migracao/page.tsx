@@ -30,9 +30,11 @@ export default async function RestritoMigracaoPage() {
   const semDocumento = migracoes.filter((m) => m.status === "SEM_DOCUMENTO");
   const aplicadas = migracoes.filter((m) => m.status === "APLICADA");
 
-  const totalAguardando = aguardandoAprovacao.reduce((acc, m) => acc + m.valor, 0);
-  const totalPendente = pendentes.reduce((acc, m) => acc + m.valor, 0);
-  const totalAplicado = aplicadas.reduce((acc, m) => acc + m.valor, 0);
+  const total = (m: { valor: number; valorPlr: number; valorBonus: number }) =>
+    m.valor + m.valorPlr + m.valorBonus;
+  const totalAguardando = aguardandoAprovacao.reduce((acc, m) => acc + total(m), 0);
+  const totalPendente = pendentes.reduce((acc, m) => acc + total(m), 0);
+  const totalAplicado = aplicadas.reduce((acc, m) => acc + total(m), 0);
 
   return (
     <div>
@@ -90,12 +92,14 @@ export default async function RestritoMigracaoPage() {
         </p>
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-border">
-          <table className="w-full min-w-[880px] text-left text-sm">
+          <table className="w-full min-w-[1080px] text-left text-sm">
             <thead className="bg-surface-2 text-xs uppercase tracking-wider text-muted">
               <tr>
                 <th className="px-4 py-3">Nome (planilha)</th>
                 <th className="px-4 py-3">Documento</th>
-                <th className="px-4 py-3">Valor</th>
+                <th className="px-4 py-3">Capital</th>
+                <th className="px-4 py-3">PLR</th>
+                <th className="px-4 py-3">Bônus</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Conta vinculada</th>
                 <th className="px-4 py-3">Data</th>
@@ -114,6 +118,12 @@ export default async function RestritoMigracaoPage() {
                   <td className="px-4 py-3 text-muted">{maskDocumento(m.documento)}</td>
                   <td className="px-4 py-3 font-semibold text-gold-light">
                     {formatMoeda(m.valor)}
+                  </td>
+                  <td className="px-4 py-3 font-semibold text-emerald-300">
+                    {m.valorPlr > 0 ? formatMoeda(m.valorPlr) : "—"}
+                  </td>
+                  <td className="px-4 py-3 font-semibold text-fuchsia-300">
+                    {m.valorBonus > 0 ? formatMoeda(m.valorBonus) : "—"}
                   </td>
                   <td className="px-4 py-3">
                     {m.status === "APLICADA" && (

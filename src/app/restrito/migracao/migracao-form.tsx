@@ -11,7 +11,7 @@ export function MigracaoForm() {
     <form action={action} className="space-y-4">
       <label className="block text-sm">
         <span className="mb-1 block font-medium text-foreground/90">
-          Arquivo CSV (nome, documento, e-mail, valor)
+          Arquivo CSV (nome, documento, e-mail, capital, PLR, bônus)
         </span>
         <input
           name="arquivo"
@@ -21,13 +21,14 @@ export function MigracaoForm() {
           className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground outline-none file:mr-3 file:rounded-md file:border-0 file:bg-gold/20 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-gold-light"
         />
         <span className="mt-1 block text-xs text-muted">
-          Uma linha por cliente: <code>nome,documento,email,valor</code> — ex:{" "}
-          <code>João da Silva,52998224725,joao@email.com,55300.00</code>. Cabeçalho é opcional
-          (nesse caso a ordem das colunas não importa). Documento e e-mail podem vir vazios.
-          Nenhum valor é creditado sozinho: todo lançamento cai numa lista de aprovação pra você
-          conferir nome e valor antes de clicar em Aprovar. Sem CPF, o e-mail é usado pra achar a
-          conta automaticamente (útil para investidores antigos com nome corrompido na planilha);
-          sem achar ninguém, fica marcado para lançamento manual com o e-mail já preenchido.
+          Uma linha por cliente: <code>nome,documento,email,capital,plr,bonus</code> — ex:{" "}
+          <code>João da Silva,52998224725,joao@email.com,55300.00,120.50,0</code>. Cabeçalho é
+          opcional (nesse caso a ordem das colunas não importa). Documento, e-mail, PLR e bônus
+          podem vir vazios/zerados — só o capital entra em carência de 90 dias, PLR e bônus ficam
+          disponíveis na hora. Nenhum valor é creditado sozinho: todo lançamento cai numa lista de
+          aprovação pra você conferir nome e valores antes de clicar em Aprovar. Sem CPF, o e-mail
+          é usado pra achar a conta automaticamente; sem achar ninguém, fica marcado para
+          lançamento manual com o e-mail já preenchido.
         </span>
       </label>
 

@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { calcularLiberacao } from "@/lib/carteira";
 import { onlyDigits } from "@/lib/cpf-cnpj";
 
 /** Normaliza pra comparar nomes com diferenças de acento/caixa/espaço, sem exigir igualdade
@@ -61,6 +62,58 @@ export async function vincularMigracaoPorEmail(userId: string, email: string): P
   });
 }
 
+/** Credita capital (com carência, via Aplicacao), PLR e bônus (disponíveis na hora, via
+ *  CreditoCarteira) de uma migração aprovada. Chamada tanto pela aprovação normal quanto pelo
+ *  lançamento manual — os dois fazem exatamente a mesma coisa a partir daqui. Retorna o id da
+ *  Aplicacao criada (ou null se não havia capital a migrar). */
+export async function creditarValoresMigracao(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  migracao: { valor: number; valorPlr: number; valorBonus: number }
+): Promise<string | null> {
+  let aplicacaoId: string | null = null;
+
+  if (migracao.valor > 0) {
+    const aplicacao = await tx.aplicacao.create({
+      data: {
+        userId,
+        valor: migracao.valor,
+        moeda: "BRL",
+        origem: "MIGRACAO",
+        status: "CONFIRMADA",
+        liberaEm: calcularLiberacao(),
+      },
+    });
+    aplicacaoId = aplicacao.id;
+  }
+
+  if (migracao.valorPlr > 0) {
+    await tx.creditoCarteira.create({
+      data: {
+        userId,
+        tipo: "RENDIMENTO",
+        valor: migracao.valorPlr,
+        moeda: "BRL",
+        origem: "Migração de saldo (PLR)",
+      },
+    });
+  }
+
+  if (migracao.valorBonus > 0) {
+    await tx.creditoCarteira.create({
+      data: {
+        userId,
+        tipo: "BONUS",
+        valor: migracao.valorBonus,
+        moeda: "BRL",
+        origem: "Migração de saldo (Bônus)",
+      },
+    });
+  }
+
+  return aplicacaoId;
+}
+
 export function parseValorPlanilha(raw: string): number {
   const limpo = raw.trim().replace(/[R$\s]/g, "").replace(/\./g, "").replace(",", ".");
   return Number(limpo);
@@ -76,13 +129,15 @@ export type LinhaMigracaoCsv = {
   documento: string;
   email: string;
   valor: number;
+  valorPlr: number;
+  valorBonus: number;
   linha: number;
 };
 
-/** Faz o parse de um CSV (nome, documento, e-mail, valor — nessa ordem por padrão, ou em
- *  qualquer ordem se o arquivo tiver cabeçalho) e retorna as linhas prontas para importar.
- *  documento e email podem vir vazios (planilha antiga sem CPF cadastrado) — quem chama decide
- *  o que fazer com cada caso. Não toca no banco. */
+/** Faz o parse de um CSV (nome, documento, e-mail, capital, plr, bônus — nessa ordem por padrão,
+ *  ou em qualquer ordem se o arquivo tiver cabeçalho) e retorna as linhas prontas para importar.
+ *  documento, email, plr e bônus podem vir vazios — quem chama decide o que fazer com cada caso.
+ *  Não toca no banco. */
 export function parseCsvMigracao(
   conteudo: string
 ): LinhaMigracaoCsv[] | { erro: string } {
@@ -94,21 +149,38 @@ export function parseCsvMigracao(
   if (linhas.length === 0) return { erro: "Arquivo vazio." };
 
   const primeiraColunas = dividirLinhaCsv(linhas[0]).map((c) => c.toLowerCase());
-  const nomesConhecidos = ["nome", "documento", "cpf", "cnpj", "email", "e-mail", "valor"];
+  const nomesConhecidos = [
+    "nome",
+    "documento",
+    "cpf",
+    "cnpj",
+    "email",
+    "e-mail",
+    "valor",
+    "capital",
+    "plr",
+    "rendimento",
+    "bonus",
+    "bônus",
+  ];
   const temCabecalho = primeiraColunas.some((c) => nomesConhecidos.includes(c));
 
   // Com cabeçalho, descobre a posição de cada coluna pelo nome. Sem cabeçalho, assume a ordem
-  // padrão: nome, documento, email, valor (ou nome, documento, valor se vierem só 3 colunas).
+  // padrão: nome, documento, email, capital, plr, bônus.
   let idxNome = 0;
   let idxDocumento = 1;
   let idxEmail = 2;
   let idxValor = 3;
+  let idxPlr = 4;
+  let idxBonus = 5;
 
   if (temCabecalho) {
     idxNome = primeiraColunas.indexOf("nome");
     idxDocumento = primeiraColunas.findIndex((c) => ["documento", "cpf", "cnpj"].includes(c));
     idxEmail = primeiraColunas.findIndex((c) => ["email", "e-mail"].includes(c));
-    idxValor = primeiraColunas.indexOf("valor");
+    idxValor = primeiraColunas.findIndex((c) => ["valor", "capital"].includes(c));
+    idxPlr = primeiraColunas.findIndex((c) => ["plr", "rendimento"].includes(c));
+    idxBonus = primeiraColunas.findIndex((c) => ["bonus", "bônus"].includes(c));
   }
 
   const linhasDados = temCabecalho ? linhas.slice(1) : linhas;
@@ -127,12 +199,16 @@ export function parseCsvMigracao(
     const documentoBruto = idxDocumento >= 0 ? colunas[idxDocumento] ?? "" : "";
     const emailBruto = posEmail >= 0 ? colunas[posEmail] ?? "" : "";
     const valorBruto = colunas[posValor] ?? "";
+    const plrBruto = idxPlr >= 0 ? colunas[idxPlr] ?? "" : "";
+    const bonusBruto = idxBonus >= 0 ? colunas[idxBonus] ?? "" : "";
 
     resultado.push({
       nome: nome.trim(),
       documento: onlyDigits(documentoBruto),
       email: emailBruto.trim().toLowerCase(),
-      valor: parseValorPlanilha(valorBruto),
+      valor: Math.max(0, parseValorPlanilha(valorBruto) || 0),
+      valorPlr: plrBruto ? Math.max(0, parseValorPlanilha(plrBruto)) : 0,
+      valorBonus: bonusBruto ? Math.max(0, parseValorPlanilha(bonusBruto)) : 0,
       linha: i + (temCabecalho ? 2 : 1),
     });
   }
