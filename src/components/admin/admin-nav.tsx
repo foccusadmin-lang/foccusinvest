@@ -13,6 +13,7 @@ const LINKS = [
   { href: "/restrito/aportes", label: "Aportes" },
   { href: "/restrito/saques", label: "Saques" },
   { href: "/restrito/distribuicoes", label: "Distribuições" },
+  { href: "/restrito/plr-individual", label: "PLR Individual" },
   { href: "/restrito/migracao", label: "Migração" },
   { href: "/restrito/historico", label: "Histórico" },
 ];

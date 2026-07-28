@@ -43,6 +43,12 @@ const BOTOES: Botao[] = [
     icone: <IconGeneric path="M3 3v18h18M7 16l4-6 4 3 4-8" />,
   },
   {
+    label: "PLR Individual",
+    href: "/restrito/plr-individual",
+    cor: "bg-yellow-500 hover:bg-yellow-400",
+    icone: <IconGeneric path="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H7" />,
+  },
+  {
     label: "Histórico Completo",
     href: "/restrito/historico",
     cor: "bg-teal-600 hover:bg-teal-500",

@@ -5,7 +5,7 @@ type TxClient = Prisma.TransactionClient;
 
 const UM_DIA_MS = 24 * 60 * 60 * 1000;
 
-function diasEntre(inicio: Date, fim: Date): number {
+export function diasEntre(inicio: Date, fim: Date): number {
   return Math.floor((fim.getTime() - inicio.getTime()) / UM_DIA_MS) + 1;
 }
 
@@ -37,7 +37,7 @@ export async function criarDistribuicao(params: {
       .map((u) => ({
         userId: u.id,
         capital: u.aplicacoes
-          .filter((a) => a.status !== "RETIRADA")
+          .filter((a) => a.status === "CONFIRMADA" || a.status === "SAQUE_SOLICITADO")
           .reduce((acc, a) => acc + a.valor, 0),
       }))
       .filter((u) => u.capital > 0);

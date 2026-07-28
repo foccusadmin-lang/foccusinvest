@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { ultimasSextas } from "@/lib/datas";
-import { sincronizarDistribuicoesDoUsuario } from "@/lib/distribuicao";
+import { sincronizarDistribuicoesDoUsuario, diasEntre } from "@/lib/distribuicao";
 import type { PontoRendimento } from "@/components/painel/rendimentos-chart";
 import type { ResumoFinanceiro } from "@/components/painel/dashboard";
 import type { Prisma, TipoCredito } from "@prisma/client";
@@ -57,11 +57,15 @@ export async function getResumoCarteira(userId: string): Promise<ResumoFinanceir
 
   const agora = new Date();
 
-  const [aplicacoes, creditos, saquesAtivos] = await Promise.all([
+  const [aplicacoes, creditos, saquesAtivos, participacoesAtivas] = await Promise.all([
     prisma.aplicacao.findMany({ where: { userId } }),
     prisma.creditoCarteira.findMany({ where: { userId } }),
     prisma.solicitacaoSaque.findMany({
       where: { userId, status: { in: ["SOLICITADO", "APROVADO"] } },
+    }),
+    prisma.distribuicaoParticipante.findMany({
+      where: { userId, distribuicao: { status: "ATIVA" } },
+      include: { distribuicao: true },
     }),
   ]);
 
@@ -113,6 +117,14 @@ export async function getResumoCarteira(userId: string): Promise<ResumoFinanceir
     .filter((ap) => ap.status === "CONFIRMADA" && ap.liberaEm > agora)
     .sort((a, b) => a.liberaEm.getTime() - b.liberaEm.getTime())[0];
 
+  /** Rentabilidade já efetivamente creditada no período — cresce dia a dia conforme a
+   *  diluição avança (ex: PLR de 1% com metade dos dias pagos mostra 0,5%, não os 1% cheios). */
+  const rentabilidadePeriodo = participacoesAtivas.reduce((acc, p) => {
+    const diasTotais = diasEntre(p.distribuicao.periodoInicio, p.distribuicao.periodoFim);
+    if (diasTotais <= 0) return acc;
+    return acc + p.distribuicao.percentual * (p.diasCreditados / diasTotais);
+  }, 0);
+
   const sextas = ultimasSextas(8);
   const totaisPorSemana = new Map<string, number>();
   for (const c of creditos) {
@@ -137,7 +149,7 @@ export async function getResumoCarteira(userId: string): Promise<ResumoFinanceir
     saquesPendentes,
     aportesEmAnalise,
     totalDoacoes: 0,
-    rentabilidadePeriodo: 0,
+    rentabilidadePeriodo,
     proximaLiberacao: proximaLote?.liberaEm ?? null,
     historicoRendimentos,
   };
