@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { Logo } from "@/components/logo";
+import { OnboardingVoltar } from "@/components/onboarding-voltar";
 import { CadastroForm } from "./cadastro-form";
 
 export default async function OnboardingCadastroPage() {
@@ -20,6 +21,7 @@ export default async function OnboardingCadastroPage() {
   return (
     <div className="flex min-h-screen flex-1 flex-col items-center justify-center bg-background px-4 py-12">
       <div className="w-full max-w-lg rounded-2xl border border-border bg-surface p-8">
+        <OnboardingVoltar />
         <div className="flex justify-center">
           <Logo size={40} />
         </div>
