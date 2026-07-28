@@ -10,7 +10,6 @@ export default async function RestritoPlrIndividualPage() {
 
   const [usuarios, capitaisPorUsuario] = await Promise.all([
     prisma.user.findMany({
-      where: { perfil: { not: "ADMIN" } },
       include: { pessoaFisica: true, pessoaJuridica: true },
       orderBy: { createdAt: "desc" },
     }),
