@@ -39,7 +39,7 @@ export function AjusteSaldoButton({ usuario }: { usuario: Usuario }) {
 
 function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () => void }) {
   const [state, action, pending] = useActionState(ajustarSaldoUsuario, undefined);
-  const [operacao, setOperacao] = useState<"ADICIONAR" | "DEFINIR">("ADICIONAR");
+  const [operacao, setOperacao] = useState<"ADICIONAR" | "DEFINIR" | "APAGAR">("ADICIONAR");
   const [tipos, setTipos] = useState<string[]>([]);
   const router = useRouter();
   const processado = useRef(false);
@@ -95,7 +95,20 @@ function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () 
             {state.sucesso}
           </p>
         ) : (
-          <form action={action} className="mt-4 space-y-4">
+          <form
+            action={action}
+            onSubmit={(e) => {
+              if (operacao === "APAGAR") {
+                const labels = tipos
+                  .map((t) => TIPOS.find((item) => item.valor === t)?.label ?? t)
+                  .join(", ");
+                if (!confirm(`Zerar ${labels} de ${usuario.nome}? Essa ação não pode ser desfeita.`)) {
+                  e.preventDefault();
+                }
+              }
+            }}
+            className="mt-4 space-y-4"
+          >
             <input type="hidden" name="userId" value={usuario.id} />
             <input type="hidden" name="operacao" value={operacao} />
 
@@ -103,11 +116,11 @@ function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () 
               <span className="mb-1 block text-sm font-medium text-foreground/90">
                 Tipo de operação
               </span>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <button
                   type="button"
                   onClick={() => setOperacao("ADICIONAR")}
-                  className={`rounded-lg py-2 text-sm font-semibold transition ${
+                  className={`rounded-lg py-2 text-xs font-semibold transition sm:text-sm ${
                     operacao === "ADICIONAR"
                       ? "bg-emerald-500/20 text-emerald-300"
                       : "bg-white/5 text-muted"
@@ -118,7 +131,7 @@ function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () 
                 <button
                   type="button"
                   onClick={() => setOperacao("DEFINIR")}
-                  className={`rounded-lg py-2 text-sm font-semibold transition ${
+                  className={`rounded-lg py-2 text-xs font-semibold transition sm:text-sm ${
                     operacao === "DEFINIR"
                       ? "bg-sky-500/20 text-sky-300"
                       : "bg-white/5 text-muted"
@@ -126,12 +139,23 @@ function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () 
                 >
                   $ Definir
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setOperacao("APAGAR")}
+                  className={`rounded-lg py-2 text-xs font-semibold transition sm:text-sm ${
+                    operacao === "APAGAR" ? "bg-red-500/20 text-red-300" : "bg-white/5 text-muted"
+                  }`}
+                >
+                  ✕ Apagar
+                </button>
               </div>
             </div>
 
             <div>
               <span className="mb-1 block text-sm font-medium text-foreground/90">
-                Selecione os tipos de saldo e o valor de cada um
+                {operacao === "APAGAR"
+                  ? "Selecione os tipos de saldo pra zerar"
+                  : "Selecione os tipos de saldo e o valor de cada um"}
               </span>
               <div className="space-y-2">
                 {TIPOS.map((t) => {
@@ -154,7 +178,7 @@ function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () 
                         />
                         {t.label}
                       </label>
-                      {selecionado && (
+                      {selecionado && operacao !== "APAGAR" && (
                         <input
                           name={`valor_${t.valor}`}
                           type="text"
@@ -170,7 +194,15 @@ function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () 
               </div>
               {operacao === "DEFINIR" && tipos.length > 0 && (
                 <span className="mt-2 block text-xs text-muted">
-                  "Definir" só aumenta o saldo até esse valor — não é possível reduzir por aqui.
+                  "Definir" ajusta o saldo pra esse valor exato — pode aumentar ou diminuir.
+                  A redução só usa saldo livre (não reservado num saque em andamento).
+                </span>
+              )}
+              {operacao === "APAGAR" && tipos.length > 0 && (
+                <span className="mt-2 block text-xs text-red-300/90">
+                  Isso zera o saldo livre desses tipos pra esse usuário — use se um lançamento
+                  foi feito pra pessoa errada. Não afeta valores já reservados num saque em
+                  andamento.
                 </span>
               )}
             </div>
@@ -188,9 +220,19 @@ function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () 
               <button
                 type="submit"
                 disabled={pending || tipos.length === 0}
-                className="flex-1 rounded-xl bg-gradient-to-br from-[#f2d675] via-[#d4af37] to-[#93731f] py-3 text-sm font-semibold text-black disabled:opacity-50"
+                className={`flex-1 rounded-xl py-3 text-sm font-semibold disabled:opacity-50 ${
+                  operacao === "APAGAR"
+                    ? "bg-red-500/80 text-white hover:bg-red-500"
+                    : "bg-gradient-to-br from-[#f2d675] via-[#d4af37] to-[#93731f] text-black"
+                }`}
               >
-                {pending ? "Salvando..." : operacao === "ADICIONAR" ? "Adicionar valores" : "Definir valores"}
+                {pending
+                  ? "Salvando..."
+                  : operacao === "ADICIONAR"
+                    ? "Adicionar valores"
+                    : operacao === "DEFINIR"
+                      ? "Definir valores"
+                      : "Apagar valores"}
               </button>
             </div>
           </form>

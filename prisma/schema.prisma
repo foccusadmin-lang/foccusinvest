@@ -101,7 +101,6 @@ model User {
 
   accounts             Account[]
   sessions             Session[]
-  tokensRecuperacao    PasswordResetToken[]
   aplicacoes           Aplicacao[]
   aplicacoesAprovadas  Aplicacao[]           @relation("AplicacaoAprovadaPor")
   creditos             CreditoCarteira[]
@@ -110,6 +109,7 @@ model User {
   participacoes        DistribuicaoParticipante[]
   migracoesCriadas     MigracaoSaldo[]             @relation("MigracaoCriador")
   migracaoRecebida     MigracaoSaldo[]             @relation("MigracaoUsuario")
+  contratos            Contrato[]
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -202,6 +202,35 @@ model Aplicacao {
 
   solicitacaoSaqueId String?
   solicitacaoSaque   SolicitacaoSaque? @relation(fields: [solicitacaoSaqueId], references: [id])
+
+  contrato Contrato?
+}
+
+/** Snapshot imutável do Contrato de Prestação de Serviços gerado no momento de cada aporte
+ *  (Nova Aplicação). Os dados são congelados na criação — não refletem edições posteriores
+ *  no perfil do investidor, preservando o documento tal como foi lido e confirmado. */
+model Contrato {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  aplicacaoId String    @unique
+  aplicacao   Aplicacao @relation(fields: [aplicacaoId], references: [id], onDelete: Cascade)
+
+  nome          String
+  email         String
+  cpf           String
+  rg            String?
+  nacionalidade String?
+  estadoCivil   String?
+  profissao     String?
+  telefone      String?
+  endereco      String?
+
+  valor        Float
+  valorExtenso String
+
+  confirmouLeituraEm DateTime
+  criadoEm           DateTime @default(now())
 }
 
 model CreditoCarteira {
@@ -240,16 +269,6 @@ model SolicitacaoSaque {
   creditos   CreditoCarteira[]
 }
 
-model PasswordResetToken {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  token     String   @unique
-  expires   DateTime
-  usado     Boolean  @default(false)
-  createdAt DateTime @default(now())
-}
-
 model PessoaFisica {
   id             String   @id @default(cuid())
   userId         String   @unique
@@ -259,6 +278,10 @@ model PessoaFisica {
   dataNascimento DateTime
   telefone       String?
   endereco       String?
+  rg             String?
+  nacionalidade  String?
+  estadoCivil    String?
+  profissao      String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 }
@@ -274,6 +297,10 @@ model PessoaJuridica {
   cpfRepresentante   String
   telefone           String?
   endereco           String?
+  rgRepresentante            String?
+  nacionalidadeRepresentante String?
+  estadoCivilRepresentante   String?
+  profissaoRepresentante     String?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 }

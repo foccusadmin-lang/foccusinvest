@@ -24,6 +24,17 @@ export type ResumoFinanceiro = {
   historicoRendimentos: PontoRendimento[];
 };
 
+export type DadosContrato = {
+  nome: string;
+  cpf: string;
+  rg: string | null;
+  nacionalidade: string | null;
+  estadoCivil: string | null;
+  profissao: string | null;
+  telefone: string | null;
+  endereco: string | null;
+};
+
 export type PainelUsuario = {
   primeiroNome: string;
   foto?: string | null;
@@ -32,6 +43,8 @@ export type PainelUsuario = {
   moeda?: "BRL" | "USD" | "USDT";
   ehAdmin?: boolean;
   saqueEmergencialLiberado?: boolean;
+  email: string;
+  dadosContrato: DadosContrato | null;
 };
 
 const statusLabel: Record<string, { label: string; className: string }> = {
@@ -176,6 +189,8 @@ export function PainelDashboard({
           proximaLiberacao={resumo.proximaLiberacao}
           moeda={usuario.moeda ?? "BRL"}
           saqueEmergencialLiberado={usuario.saqueEmergencialLiberado ?? false}
+          email={usuario.email}
+          dadosContrato={usuario.dadosContrato}
         />
 
         <p className="mb-3 mt-10 text-xs font-semibold uppercase tracking-[0.15em] text-muted">
