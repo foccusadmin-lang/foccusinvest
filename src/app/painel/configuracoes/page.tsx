@@ -106,6 +106,19 @@ export default async function ConfiguracoesPage() {
             </p>
           )}
         </div>
+
+        <Link
+          href="/painel/contratos"
+          className="mt-4 flex items-center justify-between rounded-2xl border border-border bg-surface p-4 transition hover:border-gold/40"
+        >
+          <div>
+            <p className="text-sm font-semibold text-foreground">Meus contratos</p>
+            <p className="text-xs text-muted">
+              Veja e imprima os contratos de prestação de serviços das suas aplicações.
+            </p>
+          </div>
+          <span className="text-gold-light">→</span>
+        </Link>
       </main>
     </div>
   );

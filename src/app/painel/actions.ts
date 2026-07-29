@@ -15,6 +15,7 @@ import {
 } from "@/lib/carteira";
 import { getConfiguracao } from "@/lib/configuracao";
 import { janelaSaqueRendimentoAberta, MENSAGEM_JANELA_FECHADA } from "@/lib/janela-saque";
+import { valorPorExtenso } from "@/lib/valor-extenso";
 
 export type AcaoState = { error?: string; sucesso?: string } | undefined;
 
@@ -68,6 +69,10 @@ export async function criarAplicacao(
     return { error: `O valor mínimo de aplicação é ${formatMoeda(VALOR_MINIMO_APLICACAO)}.` };
   }
 
+  if (formData.get("confirmouContrato") !== "true") {
+    return { error: "Confirme que leu o contrato de prestação de serviços antes de continuar." };
+  }
+
   const comprovante = formData.get("comprovante");
   if (!(comprovante instanceof File) || comprovante.size === 0) {
     return { error: "Envie o comprovante de pagamento do Pix." };
@@ -76,19 +81,78 @@ export async function criarAplicacao(
     return { error: "Arquivo muito grande. Envie um comprovante de até 5MB." };
   }
 
+  const usuario = await prisma.user.findUnique({
+    where: { id: userId },
+    include: { pessoaFisica: true, pessoaJuridica: true },
+  });
+  if (!usuario) return { error: "Usuário não encontrado." };
+  if (!usuario.pessoaFisica && !usuario.pessoaJuridica) {
+    return { error: "Complete seu cadastro antes de aplicar." };
+  }
+
+  const rg = String(formData.get("rg") ?? "").trim() || null;
+  const nacionalidade = String(formData.get("nacionalidade") ?? "").trim() || null;
+  const estadoCivil = String(formData.get("estadoCivil") ?? "").trim() || null;
+  const profissao = String(formData.get("profissao") ?? "").trim() || null;
+  const telefone = String(formData.get("telefone") ?? "").trim() || null;
+  const endereco = String(formData.get("endereco") ?? "").trim() || null;
+
+  const nomeContrato = usuario.pessoaFisica?.nomeCompleto ?? usuario.pessoaJuridica!.representanteLegal;
+  const cpfContrato = usuario.pessoaFisica?.cpf ?? usuario.pessoaJuridica!.cpfRepresentante;
+
   const bytes = Buffer.from(await comprovante.arrayBuffer());
 
-  await prisma.aplicacao.create({
-    data: {
-      userId,
-      valor,
-      moeda: "BRL",
-      status: "AGUARDANDO_APROVACAO",
-      liberaEm: calcularLiberacao(),
-      comprovante: bytes,
-      comprovanteNome: comprovante.name,
-      comprovanteTipo: comprovante.type || "application/octet-stream",
-    },
+  await prisma.$transaction(async (tx) => {
+    if (usuario.pessoaFisica) {
+      await tx.pessoaFisica.update({
+        where: { userId },
+        data: { rg, nacionalidade, estadoCivil, profissao, telefone, endereco },
+      });
+    } else if (usuario.pessoaJuridica) {
+      await tx.pessoaJuridica.update({
+        where: { userId },
+        data: {
+          rgRepresentante: rg,
+          nacionalidadeRepresentante: nacionalidade,
+          estadoCivilRepresentante: estadoCivil,
+          profissaoRepresentante: profissao,
+          telefone,
+          endereco,
+        },
+      });
+    }
+
+    const aplicacao = await tx.aplicacao.create({
+      data: {
+        userId,
+        valor,
+        moeda: "BRL",
+        status: "AGUARDANDO_APROVACAO",
+        liberaEm: calcularLiberacao(),
+        comprovante: bytes,
+        comprovanteNome: comprovante.name,
+        comprovanteTipo: comprovante.type || "application/octet-stream",
+      },
+    });
+
+    await tx.contrato.create({
+      data: {
+        userId,
+        aplicacaoId: aplicacao.id,
+        nome: nomeContrato,
+        email: usuario.email,
+        cpf: cpfContrato,
+        rg,
+        nacionalidade,
+        estadoCivil,
+        profissao,
+        telefone,
+        endereco,
+        valor,
+        valorExtenso: valorPorExtenso(valor),
+        confirmouLeituraEm: new Date(),
+      },
+    });
   });
 
   revalidatePath("/painel");
