@@ -131,44 +131,49 @@ function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () 
 
             <div>
               <span className="mb-1 block text-sm font-medium text-foreground/90">
-                Selecione os tipos de saldo
+                Selecione os tipos de saldo e o valor de cada um
               </span>
               <div className="space-y-2">
-                {TIPOS.map((t) => (
-                  <label
-                    key={t.valor}
-                    className="flex items-center gap-2 rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm"
-                  >
-                    <input
-                      type="checkbox"
-                      name="tipos"
-                      value={t.valor}
-                      checked={tipos.includes(t.valor)}
-                      onChange={() => toggleTipo(t.valor)}
-                      className="accent-gold"
-                    />
-                    {t.label}
-                  </label>
-                ))}
+                {TIPOS.map((t) => {
+                  const selecionado = tipos.includes(t.valor);
+                  return (
+                    <div
+                      key={t.valor}
+                      className={`rounded-lg border px-3 py-2 transition ${
+                        selecionado ? "border-gold/50 bg-surface-2" : "border-border bg-surface-2"
+                      }`}
+                    >
+                      <label className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          name="tipos"
+                          value={t.valor}
+                          checked={selecionado}
+                          onChange={() => toggleTipo(t.valor)}
+                          className="accent-gold"
+                        />
+                        {t.label}
+                      </label>
+                      {selecionado && (
+                        <input
+                          name={`valor_${t.valor}`}
+                          type="text"
+                          inputMode="decimal"
+                          placeholder="0,00"
+                          required
+                          className="mt-2 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground outline-none focus:border-gold/60"
+                        />
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-            </div>
-
-            <label className="block text-sm">
-              <span className="mb-1 block font-medium text-foreground/90">Valor (R$)</span>
-              <input
-                name="valor"
-                type="text"
-                inputMode="decimal"
-                placeholder="0,00"
-                required
-                className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-foreground outline-none focus:border-gold/60"
-              />
-              {operacao === "DEFINIR" && (
-                <span className="mt-1 block text-xs text-muted">
+              {operacao === "DEFINIR" && tipos.length > 0 && (
+                <span className="mt-2 block text-xs text-muted">
                   "Definir" só aumenta o saldo até esse valor — não é possível reduzir por aqui.
                 </span>
               )}
-            </label>
+            </div>
 
             {state?.error && <p className="text-sm text-red-400">{state.error}</p>}
 

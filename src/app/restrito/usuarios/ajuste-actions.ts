@@ -9,6 +9,11 @@ export type AjusteSaldoState = { error?: string; sucesso?: string } | undefined;
 
 const EPSILON = 0.005;
 const ORIGEM_AJUSTE = "Ajuste manual (admin)";
+const LABEL_TIPO: Record<string, string> = {
+  CAPITAL: "Capital Principal",
+  RENDIMENTO: "PLR / Rendimento disponível",
+  BONUS: "Bônus de indicação",
+};
 
 function parseValor(raw: FormDataEntryValue | null): number {
   const texto = String(raw ?? "").trim().replace(/\./g, "").replace(",", ".");
@@ -95,24 +100,30 @@ export async function ajustarSaldoUsuario(
 
   const userId = String(formData.get("userId") ?? "");
   const operacao = String(formData.get("operacao") ?? "");
-  const valor = parseValor(formData.get("valor"));
   const tipos = formData.getAll("tipos").map(String);
 
   if (!userId) return { error: "Usuário inválido." };
   if (operacao !== "ADICIONAR" && operacao !== "DEFINIR") {
     return { error: "Operação inválida." };
   }
-  if (!valor || valor <= 0 || Number.isNaN(valor)) {
-    return { error: "Informe um valor válido." };
-  }
   if (tipos.length === 0) {
     return { error: "Selecione ao menos um tipo de saldo para ajustar." };
+  }
+
+  const valoresPorTipo = new Map<string, number>();
+  for (const tipo of tipos) {
+    const valor = parseValor(formData.get(`valor_${tipo}`));
+    if (!valor || valor <= 0 || Number.isNaN(valor)) {
+      return { error: `Informe um valor válido para ${LABEL_TIPO[tipo] ?? tipo}.` };
+    }
+    valoresPorTipo.set(tipo, valor);
   }
 
   const usuario = await prisma.user.findUnique({ where: { id: userId } });
   if (!usuario) return { error: "Usuário não encontrado." };
 
   for (const tipo of tipos) {
+    const valor = valoresPorTipo.get(tipo)!;
     let erro: string | null = null;
     if (tipo === "CAPITAL") erro = await ajustarCapital(userId, valor, operacao);
     else if (tipo === "RENDIMENTO") erro = await ajustarCredito(userId, "RENDIMENTO", valor, operacao);
@@ -121,11 +132,15 @@ export async function ajustarSaldoUsuario(
     if (erro) return { error: erro };
   }
 
+  const resumo = tipos
+    .map((tipo) => `${LABEL_TIPO[tipo] ?? tipo}: ${formatMoeda(valoresPorTipo.get(tipo)!)}`)
+    .join(", ");
+
   await prisma.logAuditoria.create({
     data: {
       userId: session.user.id,
       acao: "ajustar_saldo_usuario",
-      detalhes: `${usuario.email} | ${operacao} ${formatMoeda(valor)} em ${tipos.join(", ")}`,
+      detalhes: `${usuario.email} | ${operacao} | ${resumo}`,
     },
   });
 
