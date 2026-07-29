@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { formatMoeda, formatData } from "@/lib/format";
 import { DistribuicaoForm } from "./distribuicao-form";
+import { ExcluirDistribuicaoButton } from "./excluir-distribuicao-button";
 
 function diasEntre(inicio: Date, fim: Date): number {
   return Math.floor((fim.getTime() - inicio.getTime()) / (24 * 60 * 60 * 1000)) + 1;
@@ -69,6 +70,9 @@ export default async function RestritoDistribuicoesPage() {
                     <p className="text-xs text-muted">
                       {formatMoeda(d.valorTotal, d.moeda as "BRL")} no total
                     </p>
+                    <div className="mt-2">
+                      <ExcluirDistribuicaoButton distribuicaoId={d.id} />
+                    </div>
                   </div>
                 </div>
 

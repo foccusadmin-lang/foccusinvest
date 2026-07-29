@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
+import { prisma } from "@/lib/prisma";
 import { criarDistribuicao, SemCapitalElegivelError } from "@/lib/distribuicao";
 
 export type DistribuicaoState = { error?: string; sucesso?: string } | undefined;
@@ -62,4 +63,50 @@ export async function lancarDistribuicao(
   revalidatePath("/restrito/distribuicoes");
   revalidatePath("/restrito/painel");
   return { sucesso: "Distribuição lançada. O pagamento será diluído automaticamente ao longo do período." };
+}
+
+/**
+ * Apaga uma distribuição (e suas cotas de participante, em cascata) e qualquer crédito de
+ * rendimento já diluído a partir dela que ainda esteja livre (não usado nem reservado num
+ * saque). Se parte do valor já foi usada/reservada, bloqueia — apagar corromperia dinheiro
+ * já movimentado.
+ */
+export async function excluirDistribuicao(distribuicaoId: string): Promise<{ error?: string }> {
+  const session = await auth();
+  if (session?.user?.perfil !== "ADMIN") return { error: "Acesso negado." };
+
+  const distribuicao = await prisma.distribuicaoMensal.findUnique({
+    where: { id: distribuicaoId },
+  });
+  if (!distribuicao) return { error: "Distribuição não encontrada." };
+
+  const origem = `Distribuição ${distribuicao.periodoInicio.toISOString().slice(0, 10)} a ${distribuicao.periodoFim.toISOString().slice(0, 10)}`;
+
+  const creditosGerados = await prisma.creditoCarteira.findMany({
+    where: { tipo: "RENDIMENTO", origem },
+  });
+  const jaMovimentado = creditosGerados.some((c) => c.utilizadoEm || c.solicitacaoSaqueId);
+  if (jaMovimentado) {
+    return {
+      error:
+        "Parte do rendimento gerado por essa distribuição já foi usada ou reservada num saque — não é possível apagar.",
+    };
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.creditoCarteira.deleteMany({ where: { tipo: "RENDIMENTO", origem } });
+    await tx.distribuicaoMensal.delete({ where: { id: distribuicaoId } });
+  });
+
+  await prisma.logAuditoria.create({
+    data: {
+      userId: session.user.id,
+      acao: "excluir_distribuicao",
+      detalhes: `${origem} | ${distribuicao.percentual}% | ${creditosGerados.length} crédito(s) removido(s)`,
+    },
+  });
+
+  revalidatePath("/restrito/distribuicoes");
+  revalidatePath("/restrito/painel");
+  return {};
 }
