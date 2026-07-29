@@ -188,6 +188,7 @@ export function AcoesRapidas({
           capitalCarencia={capitalCarencia}
           proximaLiberacao={proximaLiberacao}
           moeda={moeda}
+          saldoParaReaplicar={saldoParaReaplicar}
         />
       )}
     </>
@@ -527,6 +528,7 @@ function AcaoModal({
   capitalCarencia,
   proximaLiberacao,
   moeda,
+  saldoParaReaplicar,
 }: {
   tipo: TipoAcaoSimples;
   onClose: () => void;
@@ -534,6 +536,7 @@ function AcaoModal({
   capitalCarencia: number;
   proximaLiberacao: Date | null;
   moeda: "BRL" | "USD" | "USDT";
+  saldoParaReaplicar: number;
 }) {
   const cfg = CONFIG[tipo];
   const [state, action, pending] = useActionState(cfg.action, undefined);
@@ -562,7 +565,7 @@ function AcaoModal({
         <h3 className="text-lg font-semibold text-foreground">{cfg.titulo}</h3>
         <p className="mt-1 text-sm text-muted">{cfg.descricao}</p>
 
-        {(tipo === "saque-capital" || tipo === "reaplicar") && (
+        {tipo === "saque-capital" && (
           <div className="mt-4 rounded-xl border border-border bg-surface-2 p-3">
             <div className="grid grid-cols-2 gap-2 text-center">
               <div>
@@ -585,6 +588,17 @@ function AcaoModal({
                 Próxima liberação de carência em {formatData(proximaLiberacao)}
               </p>
             )}
+          </div>
+        )}
+
+        {tipo === "reaplicar" && (
+          <div className="mt-4 rounded-xl border border-border bg-surface-2 p-3 text-center">
+            <p className="text-[10px] uppercase tracking-wider text-muted">
+              Disponível para reaplicar
+            </p>
+            <p className="text-sm font-semibold text-emerald-300">
+              {formatMoeda(saldoParaReaplicar, moeda)}
+            </p>
           </div>
         )}
 
