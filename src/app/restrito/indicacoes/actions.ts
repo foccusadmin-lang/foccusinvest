@@ -72,6 +72,57 @@ export async function removerCodigoIndicacao(userId: string) {
   revalidatePath("/restrito/indicacoes");
 }
 
+export async function definirIndicadoPor(
+  _prevState: CodigoState,
+  formData: FormData
+): Promise<CodigoState> {
+  const admin = await requireAdmin();
+
+  const userId = String(formData.get("userId") ?? "");
+  const codigoIndicador = normalizarCodigo(String(formData.get("codigoIndicador") ?? ""));
+
+  if (!userId) return { error: "Usuário inválido." };
+  if (!codigoIndicador) return { error: "Informe o código do indicador." };
+
+  const indicador = await prisma.user.findUnique({ where: { codigoIndicacao: codigoIndicador } });
+  if (!indicador) return { error: "Nenhum investidor encontrado com esse código." };
+  if (indicador.id === userId) return { error: "Um investidor não pode se autoindicar." };
+
+  const usuario = await prisma.user.update({
+    where: { id: userId },
+    data: { indicadoPorId: indicador.id },
+  });
+
+  await prisma.logAuditoria.create({
+    data: {
+      userId: admin.id,
+      acao: "definir_indicado_por",
+      detalhes: `${usuario.email} indicado por ${indicador.email} (${codigoIndicador})`,
+    },
+  });
+
+  revalidatePath("/restrito/indicacoes");
+
+  return {
+    sucesso: `${usuario.name ?? usuario.email} agora está vinculado a ${indicador.name ?? indicador.email}.`,
+  };
+}
+
+export async function removerIndicadoPor(userId: string) {
+  const admin = await requireAdmin();
+
+  const usuario = await prisma.user.update({
+    where: { id: userId },
+    data: { indicadoPorId: null },
+  });
+
+  await prisma.logAuditoria.create({
+    data: { userId: admin.id, acao: "remover_indicado_por", detalhes: usuario.email },
+  });
+
+  revalidatePath("/restrito/indicacoes");
+}
+
 export async function gerarNovoCodigoIndicacao(userId: string) {
   const admin = await requireAdmin();
 

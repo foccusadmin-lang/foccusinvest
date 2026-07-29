@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { formatMoeda } from "@/lib/format";
 import { CodigoIndicacaoActions } from "./codigo-actions";
+import { IndicadoPorActions } from "./indicado-por-actions";
 
 export default async function RestritoIndicacoesPage() {
   const session = await auth();
@@ -13,7 +14,7 @@ export default async function RestritoIndicacoesPage() {
     prisma.user.findMany({
       where: { perfil: { not: "ADMIN" } },
       include: {
-        indicadoPor: { select: { name: true, email: true } },
+        indicadoPor: { select: { name: true, email: true, codigoIndicacao: true } },
         indicados: { select: { id: true } },
       },
       orderBy: { indicados: { _count: "desc" } },
@@ -76,8 +77,18 @@ export default async function RestritoIndicacoesPage() {
                 <td className="px-4 py-3 font-mono text-xs text-gold-light">
                   {u.codigoIndicacao ?? "—"}
                 </td>
-                <td className="px-4 py-3 text-xs text-muted">
-                  {u.indicadoPor ? u.indicadoPor.name ?? u.indicadoPor.email : "—"}
+                <td className="px-4 py-3">
+                  <IndicadoPorActions
+                    userId={u.id}
+                    indicadoPorAtual={
+                      u.indicadoPor
+                        ? {
+                            nome: u.indicadoPor.name ?? u.indicadoPor.email,
+                            codigo: u.indicadoPor.codigoIndicacao,
+                          }
+                        : null
+                    }
+                  />
                 </td>
                 <td className="px-4 py-3 text-foreground">{u.indicados.length}</td>
                 <td className="px-4 py-3 font-semibold text-fuchsia-300">
