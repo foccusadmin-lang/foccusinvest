@@ -16,9 +16,13 @@ export async function atualizarDadosPessoais(
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const telefone = String(formData.get("telefone") ?? "").trim();
   const endereco = String(formData.get("endereco") ?? "").trim();
+  const nome = String(formData.get("nome") ?? "").trim();
 
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return { error: "Informe um e-mail válido." };
+  }
+  if (!nome) {
+    return { error: "Informe o nome." };
   }
 
   const emailEmUso = await prisma.user.findUnique({ where: { email } });
@@ -27,14 +31,14 @@ export async function atualizarDadosPessoais(
   }
 
   await prisma.$transaction(async (tx) => {
-    await tx.user.update({ where: { id: session.user.id }, data: { email } });
+    await tx.user.update({ where: { id: session.user.id }, data: { email, name: nome } });
     await tx.pessoaFisica.updateMany({
       where: { userId: session.user.id },
-      data: { telefone, endereco },
+      data: { telefone, endereco, nomeCompleto: nome },
     });
     await tx.pessoaJuridica.updateMany({
       where: { userId: session.user.id },
-      data: { telefone, endereco },
+      data: { telefone, endereco, razaoSocial: nome },
     });
   });
 

@@ -7,10 +7,14 @@ export function DadosPessoaisForm({
   email,
   telefone,
   endereco,
+  nome,
+  labelNome,
 }: {
   email: string;
   telefone: string;
   endereco: string;
+  nome: string;
+  labelNome: string;
 }) {
   const [state, action, pending] = useActionState(atualizarDadosPessoais, undefined);
   const [editando, setEditando] = useState(false);
@@ -22,7 +26,7 @@ export function DadosPessoaisForm({
         onClick={() => setEditando(true)}
         className="mt-4 rounded-lg bg-gold/15 px-4 py-2 text-sm font-semibold text-gold-light hover:bg-gold/25"
       >
-        Alterar telefone, endereço ou e-mail
+        Alterar {labelNome.toLowerCase()}, telefone, endereço ou e-mail
       </button>
     );
   }
@@ -30,9 +34,20 @@ export function DadosPessoaisForm({
   return (
     <form action={action} className="mt-4 space-y-4 rounded-2xl border border-border bg-surface-2 p-4">
       <p className="text-xs text-muted">
-        Nome, CPF/CNPJ e data de nascimento não podem ser alterados por aqui — fale com o
+        CPF/CNPJ e data de nascimento não podem ser alterados por aqui — fale com o
         administrador se precisar corrigir algum desses.
       </p>
+
+      <label className="block text-sm">
+        <span className="mb-1 block font-medium text-foreground/90">{labelNome}</span>
+        <input
+          name="nome"
+          type="text"
+          defaultValue={nome}
+          required
+          className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-foreground outline-none focus:border-gold/60"
+        />
+      </label>
 
       <label className="block text-sm">
         <span className="mb-1 block font-medium text-foreground/90">E-mail</span>

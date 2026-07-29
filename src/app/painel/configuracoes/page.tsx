@@ -94,6 +94,8 @@ export default async function ConfiguracoesPage() {
               email={user.email}
               telefone={user.pessoaFisica?.telefone ?? user.pessoaJuridica?.telefone ?? ""}
               endereco={user.pessoaFisica?.endereco ?? user.pessoaJuridica?.endereco ?? ""}
+              nome={user.pessoaFisica?.nomeCompleto ?? user.pessoaJuridica?.razaoSocial ?? ""}
+              labelNome={user.pessoaFisica ? "Nome completo" : "Razão social"}
             />
           )}
 
