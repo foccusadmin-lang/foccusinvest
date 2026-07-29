@@ -81,3 +81,28 @@ export async function aplicarPlrIndividual(
     sucesso: `PLR de ${percentual}% aplicado para ${usuariosCreditados} investidor(es). Total creditado: ${formatMoeda(totalCreditado)}.`,
   };
 }
+
+export async function excluirCreditoPlrIndividual(creditoId: string) {
+  const session = await auth();
+  if (session?.user?.perfil !== "ADMIN") throw new Error("Acesso negado.");
+
+  const credito = await prisma.creditoCarteira.findUnique({ where: { id: creditoId } });
+  if (!credito) throw new Error("Lançamento não encontrado.");
+  if (credito.utilizadoEm || credito.solicitacaoSaqueId) {
+    throw new Error("Esse valor já foi usado ou está reservado num saque — não é possível apagar.");
+  }
+
+  await prisma.creditoCarteira.delete({ where: { id: creditoId } });
+
+  await prisma.logAuditoria.create({
+    data: {
+      userId: session.user.id,
+      acao: "excluir_credito_plr_individual",
+      detalhes: `${creditoId} | ${credito.userId} | ${formatMoeda(credito.valor)}`,
+    },
+  });
+
+  revalidatePath("/restrito/plr-individual");
+  revalidatePath("/restrito/usuarios");
+  revalidatePath("/restrito/painel");
+}

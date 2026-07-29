@@ -6,6 +6,7 @@ import { Logo } from "@/components/logo";
 import { maskCPF, maskCNPJ } from "@/lib/cpf-cnpj";
 import { formatData } from "@/lib/format";
 import { IconVerified } from "@/components/icons";
+import { DadosPessoaisForm } from "./dados-form";
 
 export default async function ConfiguracoesPage() {
   const session = await auth();
@@ -82,8 +83,21 @@ export default async function ConfiguracoesPage() {
                 valor={user.pessoaJuridica.representanteLegal}
               />
               <Campo label="E-mail" valor={user.email} />
+              {user.pessoaJuridica.telefone && (
+                <Campo label="Telefone" valor={user.pessoaJuridica.telefone} />
+              )}
             </dl>
-          ) : (
+          ) : null}
+
+          {(user.pessoaFisica || user.pessoaJuridica) && (
+            <DadosPessoaisForm
+              email={user.email}
+              telefone={user.pessoaFisica?.telefone ?? user.pessoaJuridica?.telefone ?? ""}
+              endereco={user.pessoaFisica?.endereco ?? user.pessoaJuridica?.endereco ?? ""}
+            />
+          )}
+
+          {!user.pessoaFisica && !user.pessoaJuridica && (
             <p className="text-sm text-muted">
               Você ainda não completou seu cadastro.{" "}
               <Link href="/onboarding/cadastro" className="text-gold-light underline">

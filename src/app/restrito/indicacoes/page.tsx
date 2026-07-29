@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { formatMoeda } from "@/lib/format";
+import { CodigoIndicacaoActions } from "./codigo-actions";
 
 export default async function RestritoIndicacoesPage() {
   const session = await auth();
@@ -57,7 +58,7 @@ export default async function RestritoIndicacoesPage() {
       </p>
 
       <div className="overflow-x-auto rounded-2xl border border-border">
-        <table className="w-full min-w-[820px] text-left text-sm">
+        <table className="w-full min-w-[960px] text-left text-sm">
           <thead className="bg-surface-2 text-xs uppercase tracking-wider text-muted">
             <tr>
               <th className="px-4 py-3">Nome</th>
@@ -65,6 +66,7 @@ export default async function RestritoIndicacoesPage() {
               <th className="px-4 py-3">Indicado por</th>
               <th className="px-4 py-3">Indicados diretos</th>
               <th className="px-4 py-3">Bônus recebido</th>
+              <th className="px-4 py-3">Ações</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -80,6 +82,9 @@ export default async function RestritoIndicacoesPage() {
                 <td className="px-4 py-3 text-foreground">{u.indicados.length}</td>
                 <td className="px-4 py-3 font-semibold text-fuchsia-300">
                   {formatMoeda(bonusPorId.get(u.id) ?? 0)}
+                </td>
+                <td className="px-4 py-3">
+                  <CodigoIndicacaoActions userId={u.id} codigoAtual={u.codigoIndicacao} />
                 </td>
               </tr>
             ))}
