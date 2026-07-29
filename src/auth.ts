@@ -1,12 +1,13 @@
+import { cookies } from "next/headers";
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
-import Credentials from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
 import { buildCodigoIndicacao } from "@/lib/codigo-indicacao";
-import { verifyPassword } from "@/lib/password";
 import { vincularMigracaoPorEmail } from "@/lib/migracao";
 import { ADMIN_EMAIL } from "@/lib/config";
+
+export const REF_COOKIE = "foccus_ref_codigo";
 
 export const googleConfigurado = Boolean(
   process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET
@@ -16,39 +17,31 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
   session: { strategy: "jwt" },
   providers: [
-    ...(googleConfigurado ? [Google] : []),
-    Credentials({
-      name: "credentials",
-      credentials: {
-        email: { label: "E-mail", type: "email" },
-        password: { label: "Senha", type: "password" },
-      },
-      async authorize(credentials) {
-        const email = credentials?.email as string | undefined;
-        const password = credentials?.password as string | undefined;
-        if (!email || !password) return null;
-
-        const user = await prisma.user.findUnique({ where: { email } });
-        if (!user?.senha) return null;
-
-        const valido = await verifyPassword(password, user.senha);
-        if (!valido) return null;
-
-        return { id: user.id, email: user.email, name: user.name, image: user.image };
-      },
-    }),
+    ...(googleConfigurado
+      ? [Google({ allowDangerousEmailAccountLinking: true })]
+      : []),
   ],
   pages: {
     signIn: "/login",
   },
   events: {
     async createUser({ user }) {
-      if (!user.id || !user.name) return;
+      if (!user.id) return;
       await prisma.user.update({
         where: { id: user.id },
-        data: { codigoIndicacao: buildCodigoIndicacao(user.name) },
+        data: { codigoIndicacao: buildCodigoIndicacao(user.name ?? user.email ?? "investidor") },
       });
       if (user.email) await vincularMigracaoPorEmail(user.id, user.email);
+
+      const cookieStore = await cookies();
+      const refCodigo = cookieStore.get(REF_COOKIE)?.value?.trim().toUpperCase();
+      if (refCodigo) {
+        const indicador = await prisma.user.findUnique({ where: { codigoIndicacao: refCodigo } });
+        if (indicador && indicador.id !== user.id) {
+          await prisma.user.update({ where: { id: user.id }, data: { indicadoPorId: indicador.id } });
+        }
+        cookieStore.delete(REF_COOKIE);
+      }
     },
   },
   callbacks: {

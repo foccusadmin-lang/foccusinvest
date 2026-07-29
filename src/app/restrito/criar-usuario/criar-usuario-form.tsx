@@ -35,12 +35,10 @@ export function CriarUsuarioForm() {
       {state?.sucesso && (
         <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-300">
           <p>{state.sucesso}</p>
-          <p className="mt-2 text-foreground">
-            Senha temporária: <code className="rounded bg-black/30 px-2 py-0.5">{state.senhaGerada}</code>
-          </p>
           <p className="mt-1 text-xs text-emerald-300/80">
-            Repasse o e-mail e a senha para a pessoa. Ela pode trocar a senha depois em
-            &quot;Esqueci minha senha&quot;.
+            Peça pra pessoa entrar em foccusinvest.com.br e clicar em &quot;Entrar com
+            Google&quot; usando esse mesmo e-mail — o acesso é vinculado automaticamente,
+            sem precisar de senha.
           </p>
         </div>
       )}
