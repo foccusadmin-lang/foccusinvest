@@ -20,6 +20,32 @@ function parseValor(raw: FormDataEntryValue | null): number {
   return Number(texto);
 }
 
+/** Reduz o capital "livre" (lotes CONFIRMADA, não reservados num saque em andamento),
+ *  consumindo os lotes mais antigos primeiro e apagando os que zerarem. */
+async function reduzirCapital(userId: string, valorReduzir: number): Promise<string | null> {
+  const lotes = await prisma.aplicacao.findMany({
+    where: { userId, status: "CONFIRMADA" },
+    orderBy: { criadoEm: "asc" },
+  });
+
+  let restante = valorReduzir;
+  for (const lote of lotes) {
+    if (restante <= EPSILON) break;
+    if (lote.valor <= restante + EPSILON) {
+      await prisma.aplicacao.delete({ where: { id: lote.id } });
+      restante -= lote.valor;
+    } else {
+      await prisma.aplicacao.update({ where: { id: lote.id }, data: { valor: lote.valor - restante } });
+      restante = 0;
+    }
+  }
+
+  if (restante > EPSILON) {
+    return `Só é possível reduzir até o capital ainda livre (não reservado num saque em andamento). Faltou reduzir ${formatMoeda(restante)}.`;
+  }
+  return null;
+}
+
 async function ajustarCapital(userId: string, valor: number, operacao: string): Promise<string | null> {
   if (operacao === "ADICIONAR") {
     await prisma.aplicacao.create({
@@ -42,9 +68,6 @@ async function ajustarCapital(userId: string, valor: number, operacao: string): 
   const valorAtual = atual._sum.valor ?? 0;
   const delta = valor - valorAtual;
 
-  if (delta < -EPSILON) {
-    return `Capital atual (${formatMoeda(valorAtual)}) já é maior que ${formatMoeda(valor)}. Para reduzir, use um saque ou cancelamento manual.`;
-  }
   if (delta > EPSILON) {
     await prisma.aplicacao.create({
       data: {
@@ -56,6 +79,38 @@ async function ajustarCapital(userId: string, valor: number, operacao: string): 
         liberaEm: new Date(),
       },
     });
+  } else if (delta < -EPSILON) {
+    return await reduzirCapital(userId, -delta);
+  }
+  return null;
+}
+
+/** Reduz o saldo "livre" (créditos ainda não usados nem reservados num saque), consumindo
+ *  os mais antigos primeiro e apagando os que zerarem. */
+async function reduzirCredito(
+  userId: string,
+  tipo: "RENDIMENTO" | "BONUS",
+  valorReduzir: number
+): Promise<string | null> {
+  const linhas = await prisma.creditoCarteira.findMany({
+    where: { userId, tipo, utilizadoEm: null, solicitacaoSaqueId: null },
+    orderBy: { criadoEm: "asc" },
+  });
+
+  let restante = valorReduzir;
+  for (const linha of linhas) {
+    if (restante <= EPSILON) break;
+    if (linha.valor <= restante + EPSILON) {
+      await prisma.creditoCarteira.delete({ where: { id: linha.id } });
+      restante -= linha.valor;
+    } else {
+      await prisma.creditoCarteira.update({ where: { id: linha.id }, data: { valor: linha.valor - restante } });
+      restante = 0;
+    }
+  }
+
+  if (restante > EPSILON) {
+    return `Só é possível reduzir até o saldo ainda livre (não usado nem reservado num saque). Faltou reduzir ${formatMoeda(restante)}.`;
   }
   return null;
 }
@@ -80,13 +135,12 @@ async function ajustarCredito(
   const valorAtual = atual._sum.valor ?? 0;
   const delta = valor - valorAtual;
 
-  if (delta < -EPSILON) {
-    return `Saldo atual (${formatMoeda(valorAtual)}) já é maior que ${formatMoeda(valor)}. Para reduzir, ajuste manualmente pelo banco ou processe um saque.`;
-  }
   if (delta > EPSILON) {
     await prisma.creditoCarteira.create({
       data: { userId, tipo, valor: delta, moeda: "BRL", origem: ORIGEM_AJUSTE },
     });
+  } else if (delta < -EPSILON) {
+    return await reduzirCredito(userId, tipo, -delta);
   }
   return null;
 }
@@ -103,11 +157,38 @@ export async function ajustarSaldoUsuario(
   const tipos = formData.getAll("tipos").map(String);
 
   if (!userId) return { error: "Usuário inválido." };
-  if (operacao !== "ADICIONAR" && operacao !== "DEFINIR") {
+  if (operacao !== "ADICIONAR" && operacao !== "DEFINIR" && operacao !== "APAGAR") {
     return { error: "Operação inválida." };
   }
   if (tipos.length === 0) {
     return { error: "Selecione ao menos um tipo de saldo para ajustar." };
+  }
+
+  const usuario = await prisma.user.findUnique({ where: { id: userId } });
+  if (!usuario) return { error: "Usuário não encontrado." };
+
+  if (operacao === "APAGAR") {
+    for (const tipo of tipos) {
+      let erro: string | null = null;
+      if (tipo === "CAPITAL") erro = await ajustarCapital(userId, 0, "DEFINIR");
+      else if (tipo === "RENDIMENTO") erro = await ajustarCredito(userId, "RENDIMENTO", 0, "DEFINIR");
+      else if (tipo === "BONUS") erro = await ajustarCredito(userId, "BONUS", 0, "DEFINIR");
+
+      if (erro) return { error: erro };
+    }
+
+    await prisma.logAuditoria.create({
+      data: {
+        userId: session.user.id,
+        acao: "ajustar_saldo_usuario",
+        detalhes: `${usuario.email} | APAGAR | ${tipos.map((t) => LABEL_TIPO[t] ?? t).join(", ")}`,
+      },
+    });
+
+    revalidatePath("/restrito/usuarios");
+    revalidatePath("/restrito/painel");
+
+    return { sucesso: `Saldo zerado pra ${usuario.name ?? usuario.email}.` };
   }
 
   const valoresPorTipo = new Map<string, number>();
@@ -118,9 +199,6 @@ export async function ajustarSaldoUsuario(
     }
     valoresPorTipo.set(tipo, valor);
   }
-
-  const usuario = await prisma.user.findUnique({ where: { id: userId } });
-  if (!usuario) return { error: "Usuário não encontrado." };
 
   for (const tipo of tipos) {
     const valor = valoresPorTipo.get(tipo)!;
