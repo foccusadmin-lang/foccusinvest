@@ -99,6 +99,8 @@ export async function aplicarPlrIndividual(
   revalidatePath("/restrito/plr-individual");
   revalidatePath("/restrito/usuarios");
   revalidatePath("/restrito/painel");
+  revalidatePath("/painel");
+  revalidatePath("/painel/historico");
 
   if (usuariosCreditados === 0) {
     return { error: "Nenhum dos usuários selecionados tem capital elegível (maior que zero)." };
@@ -132,4 +134,6 @@ export async function excluirCreditoPlrIndividual(creditoId: string) {
   revalidatePath("/restrito/plr-individual");
   revalidatePath("/restrito/usuarios");
   revalidatePath("/restrito/painel");
+  revalidatePath("/painel");
+  revalidatePath("/painel/historico");
 }

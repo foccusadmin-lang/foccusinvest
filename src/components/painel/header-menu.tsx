@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
-import { IconBell, IconLogout, IconSettings } from "@/components/icons";
+import { IconBell, IconLogout, IconSettings, IconClock } from "@/components/icons";
 
 export function HeaderMenu({
   primeiroNome,
@@ -20,6 +20,13 @@ export function HeaderMenu({
       >
         <IconBell width={16} height={16} />
       </button>
+      <Link
+        href="/painel/historico"
+        aria-label="Histórico"
+        className="flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted transition hover:text-gold-light"
+      >
+        <IconClock width={16} height={16} />
+      </Link>
       <Link
         href="/painel/configuracoes"
         aria-label="Configurações"
