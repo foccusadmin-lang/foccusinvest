@@ -184,7 +184,9 @@ export async function solicitarSaqueCapital(
   try {
     await prisma.$transaction(async (tx) => {
       const saque = await tx.solicitacaoSaque.create({
-        data: { userId, tipo: "CAPITAL", valor, moeda: "BRL", chavePix },
+        // Reaproveita motivoEmergencia (só usado em saques emergenciais) pra guardar a
+        // chave Pix nos saques normais, sem precisar de coluna nova no banco.
+        data: { userId, tipo: "CAPITAL", valor, moeda: "BRL", motivoEmergencia: chavePix },
       });
       await reservarCapitalParaSaque(tx, userId, valor, saque.id);
 
@@ -245,7 +247,9 @@ export async function solicitarSaqueRendimento(
   try {
     await prisma.$transaction(async (tx) => {
       const saque = await tx.solicitacaoSaque.create({
-        data: { userId, tipo: "RENDIMENTO", valor, moeda: "BRL", chavePix },
+        // Reaproveita motivoEmergencia (só usado em saques emergenciais) pra guardar a
+        // chave Pix nos saques normais, sem precisar de coluna nova no banco.
+        data: { userId, tipo: "RENDIMENTO", valor, moeda: "BRL", motivoEmergencia: chavePix },
       });
       await reservarCreditosParaSaque(tx, userId, valor, "RENDIMENTO", saque.id);
 

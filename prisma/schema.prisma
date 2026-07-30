@@ -256,7 +256,6 @@ model SolicitacaoSaque {
   valor               Float
   moeda               String      @default("BRL")
   status              StatusSaque @default(SOLICITADO)
-  chavePix            String?
   justificativaRecusa String?
   criadoEm            DateTime    @default(now())
   processadoEm        DateTime?

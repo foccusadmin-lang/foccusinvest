@@ -106,7 +106,7 @@ function Tabela({
                     )}
                   </td>
                   <td className="px-4 py-3 font-mono text-xs text-muted">
-                    {s.chavePix ?? "—"}
+                    {s.emergencial ? "—" : s.motivoEmergencia ?? "—"}
                   </td>
                   <td className="px-4 py-3">
                     <span
