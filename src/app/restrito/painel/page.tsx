@@ -6,7 +6,7 @@ import { formatMoeda } from "@/lib/format";
 import { getConfiguracao } from "@/lib/configuracao";
 import { ControleSaques } from "./controle-saques";
 import { AdminActionsGrid } from "@/components/admin/admin-actions-grid";
-import { diasEntre } from "@/lib/distribuicao";
+import { inicioDoMesBrasilia } from "@/lib/datas";
 import {
   IconWallet,
   IconUsers,
@@ -21,6 +21,7 @@ export default async function RestritoPainelPage() {
   if (session.user.perfil !== "ADMIN") redirect("/painel");
 
   const agora = new Date();
+  const inicioMes = inicioDoMesBrasilia();
 
   const [
     totalUsuarios,
@@ -29,6 +30,7 @@ export default async function RestritoPainelPage() {
     saquesAtivos,
     aportesAguardando,
     creditosRendimento,
+    creditadoNoMes,
     distribuicoesAtivas,
     configuracao,
   ] = await Promise.all([
@@ -38,10 +40,11 @@ export default async function RestritoPainelPage() {
     prisma.solicitacaoSaque.findMany({ where: { status: { in: ["SOLICITADO", "APROVADO"] } } }),
     prisma.aplicacao.count({ where: { status: "AGUARDANDO_APROVACAO" } }),
     prisma.creditoCarteira.aggregate({ where: { tipo: "RENDIMENTO" }, _sum: { valor: true } }),
-    prisma.distribuicaoMensal.findMany({
-      where: { status: "ATIVA" },
-      select: { percentual: true, periodoInicio: true, periodoFim: true },
+    prisma.creditoCarteira.aggregate({
+      where: { tipo: "RENDIMENTO", criadoEm: { gte: inicioMes } },
+      _sum: { valor: true },
     }),
+    prisma.distribuicaoMensal.count({ where: { status: "ATIVA" } }),
     getConfiguracao(),
   ]);
 
@@ -51,12 +54,11 @@ export default async function RestritoPainelPage() {
     .reduce((acc, a) => acc + a.valor, 0);
   const valorSaquesPendentes = saquesAtivos.reduce((acc, s) => acc + s.valor, 0);
 
-  const rentabilidadePeriodo = distribuicoesAtivas.reduce((acc, d) => {
-    const diasTotais = diasEntre(d.periodoInicio, d.periodoFim);
-    if (diasTotais <= 0) return acc;
-    const diasDecorridos = Math.min(Math.max(diasEntre(d.periodoInicio, agora), 0), diasTotais);
-    return acc + d.percentual * (diasDecorridos / diasTotais);
-  }, 0);
+  /** Soma tudo que foi creditado como rendimento no mês corrente, seja por Distribuição
+   *  (diluída dia a dia) ou por PLR Individual (creditado na hora) — automático, não depende
+   *  de qual dos dois lançou o crédito. */
+  const rentabilidadePeriodo =
+    capitalTotal > 0 ? ((creditadoNoMes._sum.valor ?? 0) / capitalTotal) * 100 : 0;
 
   return (
     <div>
@@ -104,7 +106,7 @@ export default async function RestritoPainelPage() {
           tone="neutral"
           icon={<IconClock width={18} height={18} />}
           label="Distribuições ativas"
-          value={String(distribuicoesAtivas.length)}
+          value={String(distribuicoesAtivas)}
           hint="Períodos em diluição diária"
         />
         <SummaryCard
@@ -112,7 +114,7 @@ export default async function RestritoPainelPage() {
           icon={<IconTrendingUp width={18} height={18} />}
           label="Rentabilidade do período"
           value={`${rentabilidadePeriodo > 0 ? "+" : ""}${rentabilidadePeriodo.toFixed(2)}%`}
-          hint="Já diluído nas distribuições ativas"
+          hint="Creditado este mês (Distribuições + PLR Individual)"
         />
       </section>
 
