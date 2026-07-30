@@ -173,18 +173,13 @@ export async function solicitarSaqueCapital(
     return { error: "Informe um valor válido." };
   }
 
-  const chavePix = String(formData.get("chavePix") ?? "").trim();
-  if (!chavePix) {
-    return { error: "Informe a chave Pix para receber o saque." };
-  }
-
   const config = await getConfiguracao();
   const automatico = config.modoSaqueCapital === "AUTOMATICO";
 
   try {
     await prisma.$transaction(async (tx) => {
       const saque = await tx.solicitacaoSaque.create({
-        data: { userId, tipo: "CAPITAL", valor, moeda: "BRL", chavePix },
+        data: { userId, tipo: "CAPITAL", valor, moeda: "BRL" },
       });
       await reservarCapitalParaSaque(tx, userId, valor, saque.id);
 
@@ -234,18 +229,13 @@ export async function solicitarSaqueRendimento(
     return { error: "Informe um valor válido." };
   }
 
-  const chavePix = String(formData.get("chavePix") ?? "").trim();
-  if (!chavePix) {
-    return { error: "Informe a chave Pix para receber o saque." };
-  }
-
   const config = await getConfiguracao();
   const automatico = config.modoSaqueRendimento === "AUTOMATICO";
 
   try {
     await prisma.$transaction(async (tx) => {
       const saque = await tx.solicitacaoSaque.create({
-        data: { userId, tipo: "RENDIMENTO", valor, moeda: "BRL", chavePix },
+        data: { userId, tipo: "RENDIMENTO", valor, moeda: "BRL" },
       });
       await reservarCreditosParaSaque(tx, userId, valor, "RENDIMENTO", saque.id);
 
