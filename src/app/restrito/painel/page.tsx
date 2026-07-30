@@ -30,7 +30,7 @@ export default async function RestritoPainelPage() {
     saquesAtivos,
     aportesAguardando,
     creditosRendimento,
-    creditadoNoMes,
+    creditosDoMesPorUsuario,
     distribuicoesAtivas,
     configuracao,
   ] = await Promise.all([
@@ -40,7 +40,8 @@ export default async function RestritoPainelPage() {
     prisma.solicitacaoSaque.findMany({ where: { status: { in: ["SOLICITADO", "APROVADO"] } } }),
     prisma.aplicacao.count({ where: { status: "AGUARDANDO_APROVACAO" } }),
     prisma.creditoCarteira.aggregate({ where: { tipo: "RENDIMENTO" }, _sum: { valor: true } }),
-    prisma.creditoCarteira.aggregate({
+    prisma.creditoCarteira.groupBy({
+      by: ["userId"],
       where: { tipo: "RENDIMENTO", criadoEm: { gte: inicioMes } },
       _sum: { valor: true },
     }),
@@ -54,11 +55,26 @@ export default async function RestritoPainelPage() {
     .reduce((acc, a) => acc + a.valor, 0);
   const valorSaquesPendentes = saquesAtivos.reduce((acc, s) => acc + s.valor, 0);
 
-  /** Soma tudo que foi creditado como rendimento no mês corrente, seja por Distribuição
-   *  (diluída dia a dia) ou por PLR Individual (creditado na hora) — automático, não depende
-   *  de qual dos dois lançou o crédito. */
+  /** Rentabilidade do período: mesma conta que cada investidor vê no painel dele (creditado
+   *  no mês / capital do próprio investidor), com a média simples entre quem recebeu algo —
+   *  não a soma de todo mundo dividida pelo capital de todo mundo, que dá um número puxado
+   *  pra qualquer conta com capital desproporcional ao crédito. Assim o número lançado (ex:
+   *  0,19%) aparece igual pro investidor e pro admin. */
+  const capitalPorUsuario = new Map<string, number>();
+  for (const a of aplicacoesAtivas) {
+    capitalPorUsuario.set(a.userId, (capitalPorUsuario.get(a.userId) ?? 0) + a.valor);
+  }
+  const percentuaisDoMes = creditosDoMesPorUsuario
+    .map((c) => {
+      const capital = capitalPorUsuario.get(c.userId) ?? 0;
+      if (capital <= 0) return null;
+      return ((c._sum.valor ?? 0) / capital) * 100;
+    })
+    .filter((p): p is number => p !== null);
   const rentabilidadePeriodo =
-    capitalTotal > 0 ? ((creditadoNoMes._sum.valor ?? 0) / capitalTotal) * 100 : 0;
+    percentuaisDoMes.length > 0
+      ? percentuaisDoMes.reduce((acc, p) => acc + p, 0) / percentuaisDoMes.length
+      : 0;
 
   return (
     <div>
