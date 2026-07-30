@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatMoeda } from "@/lib/format";
+import { MoneyInput } from "@/components/ui/money-input";
 import { ajustarSaldoUsuario } from "./ajuste-actions";
 
 type Usuario = {
@@ -41,6 +42,7 @@ function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () 
   const [state, action, pending] = useActionState(ajustarSaldoUsuario, undefined);
   const [operacao, setOperacao] = useState<"ADICIONAR" | "DEFINIR" | "APAGAR">("ADICIONAR");
   const [tipos, setTipos] = useState<string[]>([]);
+  const [valores, setValores] = useState<Record<string, string>>({});
   const router = useRouter();
   const processado = useRef(false);
 
@@ -179,10 +181,10 @@ function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () 
                         {t.label}
                       </label>
                       {selecionado && operacao !== "APAGAR" && (
-                        <input
+                        <MoneyInput
                           name={`valor_${t.valor}`}
-                          type="text"
-                          inputMode="decimal"
+                          value={valores[t.valor] ?? ""}
+                          onValueChange={(v) => setValores((atual) => ({ ...atual, [t.valor]: v }))}
                           placeholder="0,00"
                           required
                           className="mt-2 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground outline-none focus:border-gold/60"

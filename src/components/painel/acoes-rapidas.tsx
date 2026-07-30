@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { MoneyInput } from "@/components/ui/money-input";
 import { IconPlus, IconArrowDown, IconRefresh, IconHeart, IconAlert } from "@/components/icons";
 import { formatMoeda, formatData } from "@/lib/format";
 import { PIX_CHAVE, PIX_TIPO_CHAVE, PIX_BENEFICIARIO } from "@/lib/config";
@@ -291,11 +292,9 @@ function NovaAplicacaoModal({
             <div className="mt-4 space-y-4">
               <label className="block text-sm">
                 <span className="mb-1 block font-medium text-foreground/90">Valor (R$)</span>
-                <input
+                <MoneyInput
                   value={valorTexto}
-                  onChange={(e) => setValorTexto(e.target.value)}
-                  type="text"
-                  inputMode="decimal"
+                  onValueChange={setValorTexto}
                   placeholder="0,00"
                   autoFocus
                   className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-foreground outline-none focus:border-gold/60"
@@ -494,12 +493,10 @@ function SaqueEmergenciaModal({
 
             <label className="block text-sm">
               <span className="mb-1 block font-medium text-foreground/90">Valor (R$)</span>
-              <input
+              <MoneyInput
                 name="valor"
                 value={valorTexto}
-                onChange={(e) => setValorTexto(e.target.value)}
-                type="text"
-                inputMode="decimal"
+                onValueChange={setValorTexto}
                 placeholder="0,00"
                 required
                 className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-foreground outline-none focus:border-red-400/60"
@@ -683,12 +680,10 @@ function AcaoModal({
             <label className="block text-sm">
               <span className="mb-1 block font-medium text-foreground/90">Valor (R$)</span>
               <div className="flex gap-2">
-                <input
+                <MoneyInput
                   name="valor"
                   value={valorTexto}
-                  onChange={(e) => setValorTexto(e.target.value)}
-                  type="text"
-                  inputMode="decimal"
+                  onValueChange={setValorTexto}
                   placeholder="0,00"
                   required
                   autoFocus
