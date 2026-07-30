@@ -13,17 +13,6 @@ export default function PreviewPainelPage() {
         statusCadastro: "APROVADO",
         codigoIndicacao: "7K2QX-WALDIR",
         moeda: "BRL",
-        email: "waldir@exemplo.com",
-        dadosContrato: {
-          nome: "Waldir Exemplo da Silva",
-          cpf: "00000000000",
-          rg: null,
-          nacionalidade: "Brasileira",
-          estadoCivil: null,
-          profissao: null,
-          telefone: null,
-          endereco: null,
-        },
       }}
       resumo={{
         capitalPrincipal: 4506.17,

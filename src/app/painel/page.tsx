@@ -27,30 +27,6 @@ export default async function PainelPage() {
 
   const resumo = await getResumoCarteira(user.id);
 
-  const dadosContrato = user.pessoaFisica
-    ? {
-        nome: user.pessoaFisica.nomeCompleto,
-        cpf: user.pessoaFisica.cpf,
-        rg: user.pessoaFisica.rg,
-        nacionalidade: user.pessoaFisica.nacionalidade,
-        estadoCivil: user.pessoaFisica.estadoCivil,
-        profissao: user.pessoaFisica.profissao,
-        telefone: user.pessoaFisica.telefone,
-        endereco: user.pessoaFisica.endereco,
-      }
-    : user.pessoaJuridica
-      ? {
-          nome: user.pessoaJuridica.representanteLegal,
-          cpf: user.pessoaJuridica.cpfRepresentante,
-          rg: user.pessoaJuridica.rgRepresentante,
-          nacionalidade: user.pessoaJuridica.nacionalidadeRepresentante,
-          estadoCivil: user.pessoaJuridica.estadoCivilRepresentante,
-          profissao: user.pessoaJuridica.profissaoRepresentante,
-          telefone: user.pessoaJuridica.telefone,
-          endereco: user.pessoaJuridica.endereco,
-        }
-      : null;
-
   return (
     <PainelDashboard
       usuario={{
@@ -61,8 +37,6 @@ export default async function PainelPage() {
         moeda: "BRL",
         ehAdmin: session.user.perfil === "ADMIN",
         saqueEmergencialLiberado: user.saqueEmergencialLiberado,
-        email: user.email,
-        dadosContrato,
       }}
       resumo={resumo}
       janelaSaqueRendimentoAberta={janelaSaqueRendimentoAberta()}

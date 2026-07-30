@@ -5,10 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { IconPlus, IconArrowDown, IconRefresh, IconHeart, IconAlert } from "@/components/icons";
 import { formatMoeda, formatData } from "@/lib/format";
-import { valorPorExtenso } from "@/lib/valor-extenso";
-import { ContratoDocumento } from "@/components/contrato/contrato-documento";
 import { PIX_CHAVE, PIX_TIPO_CHAVE, PIX_BENEFICIARIO } from "@/lib/config";
-import type { DadosContrato } from "./dashboard";
 import {
   criarAplicacao,
   solicitarSaqueCapital,
@@ -57,24 +54,24 @@ export function AcoesRapidas({
   saldoParaReaplicar,
   janelaSaqueRendimentoAberta,
   verificado,
+  capitalPrincipal,
   capitalDisponivel,
   capitalCarencia,
+  distribuicoesAcumuladas,
   proximaLiberacao,
   moeda = "BRL",
   saqueEmergencialLiberado,
-  email,
-  dadosContrato,
 }: {
   saldoParaReaplicar: number;
   janelaSaqueRendimentoAberta: boolean;
   verificado: boolean;
+  capitalPrincipal: number;
   capitalDisponivel: number;
   capitalCarencia: number;
+  distribuicoesAcumuladas: number;
   proximaLiberacao: Date | null;
   moeda?: "BRL" | "USD" | "USDT";
   saqueEmergencialLiberado: boolean;
-  email: string;
-  dadosContrato: DadosContrato | null;
 }) {
   const [aberto, setAberto] = useState<TipoAcao | null>(null);
   const reaplicarDesativado = saldoParaReaplicar < MINIMO_REAPLICACAO;
@@ -181,8 +178,9 @@ export function AcoesRapidas({
       {aberto === "aplicacao" && (
         <NovaAplicacaoModal
           onClose={() => setAberto(null)}
-          email={email}
-          dadosContrato={dadosContrato}
+          capitalPrincipal={capitalPrincipal}
+          distribuicoesAcumuladas={distribuicoesAcumuladas}
+          moeda={moeda}
         />
       )}
       {aberto === "saque-emergencia" && (
@@ -208,44 +206,21 @@ export function AcoesRapidas({
   );
 }
 
-function imprimirContrato() {
-  const conteudo = document.getElementById("contrato-imprimir");
-  if (!conteudo) return;
-  const janela = window.open("", "_blank");
-  if (!janela) return;
-  const estilos = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
-    .map((el) => el.outerHTML)
-    .join("\n");
-  janela.document.write(
-    `<!DOCTYPE html><html><head><title>Contrato Foccus Invest</title>${estilos}</head><body>${conteudo.outerHTML}</body></html>`
-  );
-  janela.document.close();
-  janela.onload = () => {
-    janela.focus();
-    janela.print();
-  };
-}
-
 function NovaAplicacaoModal({
   onClose,
-  email,
-  dadosContrato,
+  capitalPrincipal,
+  distribuicoesAcumuladas,
+  moeda,
 }: {
   onClose: () => void;
-  email: string;
-  dadosContrato: DadosContrato | null;
+  capitalPrincipal: number;
+  distribuicoesAcumuladas: number;
+  moeda: "BRL" | "USD" | "USDT";
 }) {
   const [state, action, pending] = useActionState(criarAplicacao, undefined);
-  const [etapa, setEtapa] = useState<"valor" | "contrato" | "pagamento">("valor");
+  const [etapa, setEtapa] = useState<"valor" | "pagamento">("valor");
   const [valorTexto, setValorTexto] = useState("");
   const [copiado, setCopiado] = useState(false);
-  const [rg, setRg] = useState(dadosContrato?.rg ?? "");
-  const [nacionalidade, setNacionalidade] = useState(dadosContrato?.nacionalidade ?? "");
-  const [estadoCivil, setEstadoCivil] = useState(dadosContrato?.estadoCivil ?? "");
-  const [profissao, setProfissao] = useState(dadosContrato?.profissao ?? "");
-  const [telefone, setTelefone] = useState(dadosContrato?.telefone ?? "");
-  const [endereco, setEndereco] = useState(dadosContrato?.endereco ?? "");
-  const [confirmouLeitura, setConfirmouLeitura] = useState(false);
   const router = useRouter();
   const processado = useRef(false);
 
@@ -271,12 +246,10 @@ function NovaAplicacaoModal({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
-      onClick={etapa === "contrato" ? undefined : onClose}
+      onClick={onClose}
     >
       <div
-        className={`w-full rounded-2xl border border-border bg-surface p-6 shadow-2xl ${
-          etapa === "contrato" ? "max-w-2xl" : "max-w-sm"
-        }`}
+        className="w-full max-w-sm rounded-2xl border border-border bg-surface p-6 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="text-lg font-semibold text-foreground">Nova aplicação</h3>
@@ -290,7 +263,29 @@ function NovaAplicacaoModal({
             <p className="mt-1 text-sm text-muted">
               Informe o valor que você quer aplicar. Mínimo de R$ 50,00.
             </p>
-            <div className="mt-6 space-y-4">
+
+            <div className="mt-4 rounded-xl border border-border bg-surface-2 p-3">
+              <div className="grid grid-cols-2 gap-2 text-center">
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-muted">
+                    Capital atual
+                  </p>
+                  <p className="text-sm font-semibold text-emerald-300">
+                    {formatMoeda(capitalPrincipal, moeda)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-muted">
+                    Rendimento creditado
+                  </p>
+                  <p className="text-sm font-semibold text-gold-light">
+                    {formatMoeda(distribuicoesAcumuladas, moeda)}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 space-y-4">
               <label className="block text-sm">
                 <span className="mb-1 block font-medium text-foreground/90">Valor (R$)</span>
                 <input
@@ -317,135 +312,19 @@ function NovaAplicacaoModal({
                   variant="gold"
                   className="flex-1"
                   disabled={!valorTexto.trim() || valorNumerico < 50}
-                  onClick={() => setEtapa("contrato")}
+                  onClick={() => setEtapa("pagamento")}
                 >
                   Continuar
                 </Button>
               </div>
             </div>
           </>
-        ) : etapa === "contrato" ? (
-          <>
-            <p className="mt-1 text-sm text-muted">
-              Leia o contrato de prestação de serviços antes de prosseguir com o pagamento.
-              Confira e complete seus dados se necessário — eles ficam salvos pra próxima vez.
-            </p>
-
-            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <label className="block text-xs">
-                <span className="mb-1 block font-medium text-foreground/90">RG</span>
-                <input
-                  value={rg}
-                  onChange={(e) => setRg(e.target.value)}
-                  className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground outline-none focus:border-gold/60"
-                />
-              </label>
-              <label className="block text-xs">
-                <span className="mb-1 block font-medium text-foreground/90">Nacionalidade</span>
-                <input
-                  value={nacionalidade}
-                  onChange={(e) => setNacionalidade(e.target.value)}
-                  placeholder="Brasileira"
-                  className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground outline-none focus:border-gold/60"
-                />
-              </label>
-              <label className="block text-xs">
-                <span className="mb-1 block font-medium text-foreground/90">Estado civil</span>
-                <input
-                  value={estadoCivil}
-                  onChange={(e) => setEstadoCivil(e.target.value)}
-                  placeholder="Solteiro(a), Casado(a)..."
-                  className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground outline-none focus:border-gold/60"
-                />
-              </label>
-              <label className="block text-xs">
-                <span className="mb-1 block font-medium text-foreground/90">Profissão</span>
-                <input
-                  value={profissao}
-                  onChange={(e) => setProfissao(e.target.value)}
-                  className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground outline-none focus:border-gold/60"
-                />
-              </label>
-              <label className="block text-xs">
-                <span className="mb-1 block font-medium text-foreground/90">Telefone</span>
-                <input
-                  value={telefone}
-                  onChange={(e) => setTelefone(e.target.value)}
-                  className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground outline-none focus:border-gold/60"
-                />
-              </label>
-              <label className="block text-xs">
-                <span className="mb-1 block font-medium text-foreground/90">Endereço</span>
-                <input
-                  value={endereco}
-                  onChange={(e) => setEndereco(e.target.value)}
-                  className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground outline-none focus:border-gold/60"
-                />
-              </label>
-            </div>
-
-            <div className="mt-4 max-h-[45vh] overflow-y-auto rounded-xl border border-border">
-              <div id="contrato-imprimir">
-                <ContratoDocumento
-                  nome={dadosContrato?.nome ?? "—"}
-                  email={email}
-                  cpf={dadosContrato?.cpf ?? ""}
-                  rg={rg}
-                  nacionalidade={nacionalidade}
-                  estadoCivil={estadoCivil}
-                  profissao={profissao}
-                  telefone={telefone}
-                  endereco={endereco}
-                  valor={valorNumerico}
-                  valorExtenso={valorPorExtenso(valorNumerico)}
-                  data={new Date()}
-                />
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={imprimirContrato}
-              className="mt-3 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-white/15"
-            >
-              Abrir / imprimir contrato
-            </button>
-
-            <label className="mt-4 flex items-start gap-2 text-sm text-foreground/90">
-              <input
-                type="checkbox"
-                checked={confirmouLeitura}
-                onChange={(e) => setConfirmouLeitura(e.target.checked)}
-                className="mt-0.5 accent-gold"
-              />
-              Li e concordo com os termos do Contrato de Prestação de Serviços acima.
-            </label>
-
-            <div className="mt-4 flex gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                className="flex-1 border border-border/60"
-                onClick={() => setEtapa("valor")}
-              >
-                Voltar
-              </Button>
-              <Button
-                type="button"
-                variant="gold"
-                className="flex-1"
-                disabled={!confirmouLeitura}
-                onClick={() => setEtapa("pagamento")}
-              >
-                Continuar para pagamento
-              </Button>
-            </div>
-          </>
         ) : (
           <>
             <p className="mt-1 text-sm text-muted">
               Pague via Pix e envie o comprovante. Assim que o admin confirmar, o valor entra na
-              sua carteira com carência de 90 dias.
+              sua carteira com carência de 90 dias. O contrato de prestação de serviços é enviado
+              automaticamente para o seu e-mail.
             </p>
 
             <div className="mt-4 rounded-xl border border-gold/30 bg-surface-2 p-4">
@@ -471,13 +350,6 @@ function NovaAplicacaoModal({
 
             <form action={action} className="mt-4 space-y-4">
               <input type="hidden" name="valor" value={valorTexto} />
-              <input type="hidden" name="confirmouContrato" value="true" />
-              <input type="hidden" name="rg" value={rg} />
-              <input type="hidden" name="nacionalidade" value={nacionalidade} />
-              <input type="hidden" name="estadoCivil" value={estadoCivil} />
-              <input type="hidden" name="profissao" value={profissao} />
-              <input type="hidden" name="telefone" value={telefone} />
-              <input type="hidden" name="endereco" value={endereco} />
               <label className="block text-sm">
                 <span className="mb-1 block font-medium text-foreground/90">
                   Comprovante do pagamento
@@ -498,7 +370,7 @@ function NovaAplicacaoModal({
                   type="button"
                   variant="ghost"
                   className="flex-1 border border-border/60"
-                  onClick={() => setEtapa("contrato")}
+                  onClick={() => setEtapa("valor")}
                 >
                   Voltar
                 </Button>
