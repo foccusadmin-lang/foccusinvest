@@ -174,6 +174,7 @@ export function PainelDashboard({
           capitalPrincipal={resumo.capitalPrincipal}
           capitalDisponivel={resumo.capitalDisponivel}
           capitalCarencia={resumo.capitalCarencia}
+          rendimentoDisponivel={resumo.distribuicoesDisponiveis}
           distribuicoesAcumuladas={resumo.distribuicoesAcumuladas}
           proximaLiberacao={resumo.proximaLiberacao}
           moeda={usuario.moeda ?? "BRL"}

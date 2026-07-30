@@ -57,6 +57,7 @@ export function AcoesRapidas({
   capitalPrincipal,
   capitalDisponivel,
   capitalCarencia,
+  rendimentoDisponivel,
   distribuicoesAcumuladas,
   proximaLiberacao,
   moeda = "BRL",
@@ -68,6 +69,7 @@ export function AcoesRapidas({
   capitalPrincipal: number;
   capitalDisponivel: number;
   capitalCarencia: number;
+  rendimentoDisponivel: number;
   distribuicoesAcumuladas: number;
   proximaLiberacao: Date | null;
   moeda?: "BRL" | "USD" | "USDT";
@@ -197,6 +199,7 @@ export function AcoesRapidas({
           onClose={() => setAberto(null)}
           capitalDisponivel={capitalDisponivel}
           capitalCarencia={capitalCarencia}
+          rendimentoDisponivel={rendimentoDisponivel}
           proximaLiberacao={proximaLiberacao}
           moeda={moeda}
           saldoParaReaplicar={saldoParaReaplicar}
@@ -570,6 +573,7 @@ function AcaoModal({
   onClose,
   capitalDisponivel,
   capitalCarencia,
+  rendimentoDisponivel,
   proximaLiberacao,
   moeda,
   saldoParaReaplicar,
@@ -578,12 +582,14 @@ function AcaoModal({
   onClose: () => void;
   capitalDisponivel: number;
   capitalCarencia: number;
+  rendimentoDisponivel: number;
   proximaLiberacao: Date | null;
   moeda: "BRL" | "USD" | "USDT";
   saldoParaReaplicar: number;
 }) {
   const cfg = CONFIG[tipo];
   const [state, action, pending] = useActionState(cfg.action, undefined);
+  const [valorTexto, setValorTexto] = useState("");
   const router = useRouter();
   const processado = useRef(false);
 
@@ -596,6 +602,19 @@ function AcaoModal({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
+
+  const maximo =
+    tipo === "saque-capital"
+      ? capitalDisponivel
+      : tipo === "saque-rendimento"
+        ? rendimentoDisponivel
+        : saldoParaReaplicar;
+
+  function preencherMaximo() {
+    setValorTexto(
+      maximo.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    );
+  }
 
   return (
     <div
@@ -635,6 +654,15 @@ function AcaoModal({
           </div>
         )}
 
+        {tipo === "saque-rendimento" && (
+          <div className="mt-4 rounded-xl border border-border bg-surface-2 p-3 text-center">
+            <p className="text-[10px] uppercase tracking-wider text-muted">Saldo disponível</p>
+            <p className="text-sm font-semibold text-emerald-300">
+              {formatMoeda(rendimentoDisponivel, moeda)}
+            </p>
+          </div>
+        )}
+
         {tipo === "reaplicar" && (
           <div className="mt-4 rounded-xl border border-border bg-surface-2 p-3 text-center">
             <p className="text-[10px] uppercase tracking-wider text-muted">
@@ -654,16 +682,40 @@ function AcaoModal({
           <form action={action} className="mt-6 space-y-4">
             <label className="block text-sm">
               <span className="mb-1 block font-medium text-foreground/90">Valor (R$)</span>
-              <input
-                name="valor"
-                type="text"
-                inputMode="decimal"
-                placeholder="0,00"
-                required
-                autoFocus
-                className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-foreground outline-none focus:border-gold/60"
-              />
+              <div className="flex gap-2">
+                <input
+                  name="valor"
+                  value={valorTexto}
+                  onChange={(e) => setValorTexto(e.target.value)}
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="0,00"
+                  required
+                  autoFocus
+                  className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-foreground outline-none focus:border-gold/60"
+                />
+                <button
+                  type="button"
+                  onClick={preencherMaximo}
+                  className="shrink-0 rounded-lg bg-sky-500/15 px-3 py-2 text-xs font-semibold text-sky-300 hover:bg-sky-500/25"
+                >
+                  Máximo
+                </button>
+              </div>
             </label>
+
+            {(tipo === "saque-capital" || tipo === "saque-rendimento") && (
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium text-foreground/90">Chave Pix</span>
+                <input
+                  name="chavePix"
+                  type="text"
+                  placeholder="CPF, e-mail, telefone ou chave aleatória"
+                  required
+                  className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-foreground outline-none focus:border-gold/60"
+                />
+              </label>
+            )}
 
             {state?.error && <p className="text-sm text-red-400">{state.error}</p>}
 

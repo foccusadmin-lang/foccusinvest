@@ -76,6 +76,7 @@ function Tabela({
                 <th className="px-4 py-3">Investidor</th>
                 <th className="px-4 py-3">Tipo</th>
                 <th className="px-4 py-3">Valor</th>
+                <th className="px-4 py-3">Chave Pix</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Solicitado em</th>
                 <th className="px-4 py-3">Ações</th>
@@ -103,6 +104,9 @@ function Tabela({
                         Bruto {formatMoeda(s.valorBruto)} · Taxa Antecipação -{formatMoeda(s.taxaAntecipacao)}
                       </p>
                     )}
+                  </td>
+                  <td className="px-4 py-3 font-mono text-xs text-muted">
+                    {s.chavePix ?? "—"}
                   </td>
                   <td className="px-4 py-3">
                     <span
