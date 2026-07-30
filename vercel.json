@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/sincronizar-distribuicoes",
+      "schedule": "30 22 * * *"
+    }
+  ]
+}
