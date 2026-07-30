@@ -44,7 +44,9 @@ export function AplicacoesHistorico({ itens }: { itens: Aplicacao[] }) {
     <div className="space-y-3">
       {grupos.map(([data, grupoItens]) => {
         const aberto = expandidos.has(data);
-        const total = grupoItens.reduce((acc, a) => acc + a.valor, 0);
+        const total = grupoItens
+          .filter((a) => a.status === "CONFIRMADA" || a.status === "SAQUE_SOLICITADO")
+          .reduce((acc, a) => acc + a.valor, 0);
         return (
           <div key={data} className="overflow-hidden rounded-2xl border border-border">
             <button

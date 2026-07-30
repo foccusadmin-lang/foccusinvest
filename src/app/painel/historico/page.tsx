@@ -6,12 +6,13 @@ import { Logo } from "@/components/logo";
 import { AplicacoesHistorico } from "./aplicacoes-historico";
 import { SaquesHistorico } from "./saques-historico";
 import { RendimentosHistorico } from "./rendimentos-historico";
+import { BonusHistorico } from "./bonus-historico";
 
 export default async function HistoricoPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
 
-  const [aplicacoes, saques, creditosPlr] = await Promise.all([
+  const [aplicacoes, saques, creditosPlr, creditosBonus] = await Promise.all([
     prisma.aplicacao.findMany({
       where: { userId: session.user.id },
       orderBy: { criadoEm: "desc" },
@@ -42,6 +43,18 @@ export default async function HistoricoPage() {
     }),
     prisma.creditoCarteira.findMany({
       where: { userId: session.user.id, tipo: "RENDIMENTO" },
+      orderBy: { criadoEm: "desc" },
+      select: {
+        id: true,
+        valor: true,
+        origem: true,
+        criadoEm: true,
+        utilizadoEm: true,
+        solicitacaoSaqueId: true,
+      },
+    }),
+    prisma.creditoCarteira.findMany({
+      where: { userId: session.user.id, tipo: "BONUS" },
       orderBy: { criadoEm: "desc" },
       select: {
         id: true,
@@ -85,6 +98,11 @@ export default async function HistoricoPage() {
           Rendimentos / PLR
         </p>
         <RendimentosHistorico itens={creditosPlr} />
+
+        <p className="mb-3 mt-10 text-xs font-semibold uppercase tracking-[0.15em] text-muted">
+          Bônus
+        </p>
+        <BonusHistorico itens={creditosBonus} />
       </main>
     </div>
   );
