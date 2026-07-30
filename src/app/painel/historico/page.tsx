@@ -43,6 +43,16 @@ export default async function HistoricoPage() {
     prisma.aplicacao.findMany({
       where: { userId: session.user.id },
       orderBy: { criadoEm: "desc" },
+      select: {
+        id: true,
+        valor: true,
+        moeda: true,
+        origem: true,
+        status: true,
+        criadoEm: true,
+        liberaEm: true,
+        motivoRejeicao: true,
+      },
     }),
     prisma.solicitacaoSaque.findMany({
       where: { userId: session.user.id },
