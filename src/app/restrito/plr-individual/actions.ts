@@ -62,25 +62,31 @@ export async function aplicarPlrIndividual(
     ? `PLR manual ${percentual}% (admin) — ${observacao}`
     : `PLR manual ${percentual}% (admin)`;
 
-  let totalCreditado = 0;
-  let usuariosCreditados = 0;
-
-  await prisma.$transaction(async (tx) => {
-    for (const userId of userIds) {
+  const creditos = userIds
+    .map((userId) => {
       const capital = capitalPorId.get(userId) ?? 0;
-      if (capital <= 0) continue;
-
       const valor = capital * (percentual / 100);
-      if (valor <= 0) continue;
+      return { userId, valor };
+    })
+    .filter((c) => c.valor > 0);
 
-      await tx.creditoCarteira.create({
-        data: { userId, tipo: "RENDIMENTO", valor, moeda: "BRL", origem, criadoEm },
-      });
+  const totalCreditado = creditos.reduce((acc, c) => acc + c.valor, 0);
+  const usuariosCreditados = creditos.length;
 
-      totalCreditado += valor;
-      usuariosCreditados++;
-    }
-  });
+  if (usuariosCreditados > 0) {
+    // createMany faz um único insert em lote — evita N idas ao banco (uma por usuário),
+    // que já estourou o limite de 5s de transação com muitos investidores selecionados.
+    await prisma.creditoCarteira.createMany({
+      data: creditos.map((c) => ({
+        userId: c.userId,
+        tipo: "RENDIMENTO",
+        valor: c.valor,
+        moeda: "BRL",
+        origem,
+        criadoEm,
+      })),
+    });
+  }
 
   await prisma.logAuditoria.create({
     data: {
