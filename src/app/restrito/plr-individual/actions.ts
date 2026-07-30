@@ -12,6 +12,19 @@ function parsePercentual(raw: FormDataEntryValue | null): number {
   return Number(texto);
 }
 
+function hojeBrasiliaStr(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+}
+
+/** Meio-dia de Brasília pro dia escolhido, pra nunca virar o dia errado ao exibir
+ *  (formatData já usa o fuso de Brasília, mas isso evita qualquer risco de rollover). */
+function parseDataLancamento(raw: FormDataEntryValue | null): Date | null {
+  const texto = String(raw ?? "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(texto)) return null;
+  const data = new Date(`${texto}T12:00:00-03:00`);
+  return Number.isNaN(data.getTime()) ? null : data;
+}
+
 export async function aplicarPlrIndividual(
   _prevState: PlrIndividualState,
   formData: FormData
@@ -22,12 +35,20 @@ export async function aplicarPlrIndividual(
   const percentual = parsePercentual(formData.get("percentual"));
   const userIds = formData.getAll("userIds").map(String);
   const observacao = String(formData.get("observacao") ?? "").trim();
+  const dataTexto = String(formData.get("data") ?? "").trim();
+  const criadoEm = parseDataLancamento(formData.get("data"));
 
   if (!percentual || percentual <= 0 || Number.isNaN(percentual) || percentual > 100) {
     return { error: "Informe um percentual válido (ex: 0,5 para 0,5%)." };
   }
   if (userIds.length === 0) {
     return { error: "Selecione ao menos um usuário." };
+  }
+  if (!criadoEm) {
+    return { error: "Informe uma data válida para o lançamento." };
+  }
+  if (dataTexto > hojeBrasiliaStr()) {
+    return { error: "A data do lançamento não pode ser no futuro." };
   }
 
   const capitaisPorUsuario = await prisma.aplicacao.groupBy({
@@ -53,7 +74,7 @@ export async function aplicarPlrIndividual(
       if (valor <= 0) continue;
 
       await tx.creditoCarteira.create({
-        data: { userId, tipo: "RENDIMENTO", valor, moeda: "BRL", origem },
+        data: { userId, tipo: "RENDIMENTO", valor, moeda: "BRL", origem, criadoEm },
       });
 
       totalCreditado += valor;
@@ -65,7 +86,7 @@ export async function aplicarPlrIndividual(
     data: {
       userId: session.user.id,
       acao: "aplicar_plr_individual",
-      detalhes: `${percentual}% para ${usuariosCreditados} usuário(s), total ${formatMoeda(totalCreditado)}${observacao ? ` | ${observacao}` : ""}`,
+      detalhes: `${percentual}% para ${usuariosCreditados} usuário(s) em ${dataTexto}, total ${formatMoeda(totalCreditado)}${observacao ? ` | ${observacao}` : ""}`,
     },
   });
 

@@ -16,6 +16,7 @@ type Usuario = {
 export function PlrIndividualForm({ usuarios }: { usuarios: Usuario[] }) {
   const [state, action, pending] = useActionState(aplicarPlrIndividual, undefined);
   const [percentualTexto, setPercentualTexto] = useState("0,5");
+  const [dataTexto, setDataTexto] = useState(() => new Date().toISOString().slice(0, 10));
   const [busca, setBusca] = useState("");
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
   const router = useRouter();
@@ -69,24 +70,41 @@ export function PlrIndividualForm({ usuarios }: { usuarios: Usuario[] }) {
   return (
     <form action={action} className="space-y-4">
       <div className="rounded-2xl border border-gold/30 bg-surface-2 p-4">
-        <label className="block text-sm">
-          <span className="mb-1 block font-medium text-foreground/90">Percentual a aplicar (%)</span>
-          <input
-            name="percentual"
-            value={percentualTexto}
-            onChange={(e) => setPercentualTexto(e.target.value)}
-            type="text"
-            inputMode="decimal"
-            placeholder="0,5"
-            required
-            className="w-full max-w-[160px] rounded-lg border border-border bg-surface px-3 py-2 text-foreground outline-none focus:border-gold/60"
-          />
-        </label>
+        <div className="flex flex-wrap gap-4">
+          <label className="block text-sm">
+            <span className="mb-1 block font-medium text-foreground/90">Percentual a aplicar (%)</span>
+            <input
+              name="percentual"
+              value={percentualTexto}
+              onChange={(e) => setPercentualTexto(e.target.value)}
+              type="text"
+              inputMode="decimal"
+              placeholder="0,5"
+              required
+              className="w-full max-w-[160px] rounded-lg border border-border bg-surface px-3 py-2 text-foreground outline-none focus:border-gold/60"
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1 block font-medium text-foreground/90">Data do lançamento</span>
+            <input
+              name="data"
+              value={dataTexto}
+              onChange={(e) => setDataTexto(e.target.value)}
+              type="date"
+              max={new Date().toISOString().slice(0, 10)}
+              required
+              className="w-full max-w-[160px] rounded-lg border border-border bg-surface px-3 py-2 text-foreground outline-none focus:border-gold/60"
+            />
+          </label>
+        </div>
         <p className="mt-2 text-xs text-muted">
           Exemplo: capital de {formatMoeda(10000)} × {percentualTexto || "0"}% ={" "}
           <span className="font-semibold text-gold-light">
             {formatMoeda(10000 * (percentual / 100))}
           </span>
+        </p>
+        <p className="mt-1 text-xs text-muted">
+          Use uma data passada pra lançar um dia que ficou pra trás (ex: esqueceu ontem).
         </p>
       </div>
 
