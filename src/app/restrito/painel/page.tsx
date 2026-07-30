@@ -42,7 +42,11 @@ export default async function RestritoPainelPage() {
     prisma.creditoCarteira.aggregate({ where: { tipo: "RENDIMENTO" }, _sum: { valor: true } }),
     prisma.creditoCarteira.groupBy({
       by: ["userId"],
-      where: { tipo: "RENDIMENTO", criadoEm: { gte: inicioMes } },
+      where: {
+        tipo: "RENDIMENTO",
+        criadoEm: { gte: inicioMes },
+        OR: [{ origem: { startsWith: "PLR manual" } }, { origem: { startsWith: "Distribuição " } }],
+      },
       _sum: { valor: true },
     }),
     prisma.distribuicaoMensal.count({ where: { status: "ATIVA" } }),
@@ -59,7 +63,9 @@ export default async function RestritoPainelPage() {
    *  no mês / capital do próprio investidor), com a média simples entre quem recebeu algo —
    *  não a soma de todo mundo dividida pelo capital de todo mundo, que dá um número puxado
    *  pra qualquer conta com capital desproporcional ao crédito. Assim o número lançado (ex:
-   *  0,19%) aparece igual pro investidor e pro admin. */
+   *  0,19%) aparece igual pro investidor e pro admin. Só conta PLR Individual e Distribuição
+   *  (a query já filtra por origem) — migração de saldo e ajuste manual ficam de fora por não
+   *  serem baseados em percentual. */
   const capitalPorUsuario = new Map<string, number>();
   for (const a of aplicacoesAtivas) {
     capitalPorUsuario.set(a.userId, (capitalPorUsuario.get(a.userId) ?? 0) + a.valor);

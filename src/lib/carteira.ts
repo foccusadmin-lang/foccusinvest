@@ -113,13 +113,18 @@ export async function getResumoCarteira(userId: string): Promise<ResumoFinanceir
     .filter((ap) => ap.status === "CONFIRMADA" && ap.liberaEm > agora)
     .sort((a, b) => a.liberaEm.getTime() - b.liberaEm.getTime())[0];
 
-  /** Rentabilidade do período (mês corrente, horário de Brasília) — soma tudo que já foi
-   *  efetivamente creditado como rendimento no mês, seja por Distribuição (diluída dia a dia)
-   *  ou por PLR Individual (creditado na hora). Automático: não depende de qual dos dois
-   *  lançou o crédito, só olha o que já caiu na carteira. */
+  /** Rentabilidade do período (mês corrente, horário de Brasília) — soma o que foi creditado
+   *  por Distribuição (diluída dia a dia) ou PLR Individual (creditado na hora). Automático:
+   *  não depende de qual dos dois lançou o crédito. Fica de fora migração de saldo e ajuste
+   *  manual do admin, que não são baseados em percentual e distorceriam o número. */
   const inicioMes = inicioDoMesBrasilia();
   const creditadoNoMes = creditos
-    .filter((c) => c.tipo === "RENDIMENTO" && c.criadoEm >= inicioMes)
+    .filter(
+      (c) =>
+        c.tipo === "RENDIMENTO" &&
+        c.criadoEm >= inicioMes &&
+        (c.origem.startsWith("PLR manual") || c.origem.startsWith("Distribuição "))
+    )
     .reduce((acc, c) => acc + c.valor, 0);
   const rentabilidadePeriodo = capitalPrincipal > 0 ? (creditadoNoMes / capitalPrincipal) * 100 : 0;
 
