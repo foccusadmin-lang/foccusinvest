@@ -2,6 +2,7 @@
 
 import { formatMoeda, formatData } from "@/lib/format";
 import { useGrupoPorData } from "./use-grupo-data";
+import { LancarIndicacaoButton } from "./lancar-indicacao-button";
 
 type Aplicacao = {
   id: string;
@@ -87,6 +88,11 @@ export function AplicacoesHistorico({ itens }: { itens: Aplicacao[] }) {
                         )}
                         {a.status === "REJEITADA" && a.motivoRejeicao && (
                           <p className="mt-0.5 text-xs text-red-300/90">{a.motivoRejeicao}</p>
+                        )}
+                        {a.status === "CONFIRMADA" && a.origem === "NOVA_APLICACAO" && (
+                          <div className="mt-2">
+                            <LancarIndicacaoButton aplicacaoId={a.id} />
+                          </div>
                         )}
                       </div>
                       <span

@@ -17,7 +17,7 @@ import { getConfiguracao } from "@/lib/configuracao";
 import { janelaSaqueRendimentoAberta, MENSAGEM_JANELA_FECHADA } from "@/lib/janela-saque";
 import { valorPorExtenso } from "@/lib/valor-extenso";
 import { enviarEmailContrato } from "@/lib/email";
-import { guardarCodigoIndicadorPendente } from "@/lib/indicacao";
+import { guardarCodigoIndicadorPendente, creditarBonusIndicacaoPorCodigo } from "@/lib/indicacao";
 
 export type AcaoState = { error?: string; sucesso?: string } | undefined;
 
@@ -432,4 +432,41 @@ export async function reaplicar(
 
   revalidatePath("/painel");
   return { sucesso: `${formatMoeda(valor)} reaplicados. Novo lote com carência de 90 dias criado.` };
+}
+
+/** Pra quando a pessoa esquece de colocar o código de indicação na hora da aplicação — ela
+ *  mesma pode lançar depois, sobre um aporte próprio já confirmado. Só funciona uma vez por
+ *  aporte (creditarBonusIndicacaoPorCodigo é idempotente por aplicacaoId). */
+export async function adicionarIndicacaoPropria(
+  aplicacaoId: string,
+  codigoIndicador: string
+): Promise<{ error?: string; sucesso?: string }> {
+  let userId: string;
+  try {
+    userId = await requireUserId();
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+
+  const aplicacao = await prisma.aplicacao.findUnique({ where: { id: aplicacaoId } });
+  if (!aplicacao || aplicacao.userId !== userId) {
+    return { error: "Aplicação não encontrada." };
+  }
+  if (aplicacao.origem !== "NOVA_APLICACAO" || aplicacao.status !== "CONFIRMADA") {
+    return { error: "Só é possível lançar indicação em uma nova aplicação já confirmada." };
+  }
+
+  const resultado = await prisma.$transaction((tx) =>
+    creditarBonusIndicacaoPorCodigo(tx, {
+      codigoIndicador,
+      aplicacaoId: aplicacao.id,
+      aportanteUserId: userId,
+      valorAporte: aplicacao.valor,
+    })
+  );
+  if (resultado.error) return { error: resultado.error };
+
+  revalidatePath("/painel");
+  revalidatePath("/painel/historico");
+  return { sucesso: "Código lançado! O bônus já foi creditado pra essa pessoa." };
 }
