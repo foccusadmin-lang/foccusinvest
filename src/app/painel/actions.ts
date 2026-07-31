@@ -17,6 +17,7 @@ import { getConfiguracao } from "@/lib/configuracao";
 import { janelaSaqueRendimentoAberta, MENSAGEM_JANELA_FECHADA } from "@/lib/janela-saque";
 import { valorPorExtenso } from "@/lib/valor-extenso";
 import { enviarEmailContrato } from "@/lib/email";
+import { guardarCodigoIndicadorPendente } from "@/lib/indicacao";
 
 export type AcaoState = { error?: string; sucesso?: string } | undefined;
 
@@ -78,6 +79,15 @@ export async function criarAplicacao(
     return { error: "Arquivo muito grande. Envie um comprovante de até 5MB." };
   }
 
+  const codigoIndicador = String(formData.get("codigoIndicador") ?? "").trim().toUpperCase();
+  if (codigoIndicador) {
+    const indicador = await prisma.user.findUnique({ where: { codigoIndicacao: codigoIndicador } });
+    if (!indicador) return { error: "Código de indicação não encontrado." };
+    if (indicador.id === userId) {
+      return { error: "Você não pode usar o seu próprio código de indicação." };
+    }
+  }
+
   const usuario = await prisma.user.findUnique({
     where: { id: userId },
     include: { pessoaFisica: true, pessoaJuridica: true },
@@ -113,6 +123,9 @@ export async function criarAplicacao(
         comprovante: bytes,
         comprovanteNome: comprovante.name,
         comprovanteTipo: comprovante.type || "application/octet-stream",
+        // Guarda o código de indicação até a aprovação — só é lido e limpo em aprovarAporte,
+        // que credita o bônus. Nunca aparece pro investidor (só é exibido p/ REJEITADA).
+        motivoRejeicao: codigoIndicador ? guardarCodigoIndicadorPendente(codigoIndicador) : null,
       },
     });
 

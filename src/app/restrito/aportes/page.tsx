@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { formatMoeda, formatData } from "@/lib/format";
 import { AprovarRejeitarAporte } from "./comprovante-actions";
+import { IndicacaoRetroativaButton } from "./indicacao-retroativa-button";
 
 export default async function RestritoAportesPage() {
   const session = await auth();
@@ -99,6 +100,7 @@ export default async function RestritoAportesPage() {
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Processado por</th>
                 <th className="px-4 py-3">Data</th>
+                <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -124,6 +126,9 @@ export default async function RestritoAportesPage() {
                   </td>
                   <td className="px-4 py-3 text-xs text-muted">
                     {a.aprovadoEm ? formatData(a.aprovadoEm) : "—"}
+                  </td>
+                  <td className="px-4 py-3">
+                    {a.status === "CONFIRMADA" && <IndicacaoRetroativaButton aplicacaoId={a.id} />}
                   </td>
                 </tr>
               ))}

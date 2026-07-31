@@ -179,6 +179,7 @@ export function PainelDashboard({
           proximaLiberacao={resumo.proximaLiberacao}
           moeda={usuario.moeda ?? "BRL"}
           saqueEmergencialLiberado={usuario.saqueEmergencialLiberado ?? false}
+          codigoIndicacao={usuario.codigoIndicacao ?? null}
         />
 
         <p className="mb-3 mt-10 text-xs font-semibold uppercase tracking-[0.15em] text-muted">
