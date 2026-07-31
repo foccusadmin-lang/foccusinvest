@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { formatMoeda, formatData } from "@/lib/format";
+import { BuscaInvestidor } from "./busca-investidor";
 
 type Lancamento = {
   id: string;
@@ -13,32 +14,49 @@ type Lancamento = {
   cor: string;
 };
 
-export default async function RestritoHistoricoPage() {
+export default async function RestritoHistoricoPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
   const session = await auth();
   if (!session?.user) redirect("/login");
   if (session.user.perfil !== "ADMIN") redirect("/painel");
 
+  const { q } = await searchParams;
+  const busca = (q ?? "").trim();
+
+  const filtroUsuario = busca
+    ? { user: { OR: [{ name: { contains: busca, mode: "insensitive" as const } }, { email: { contains: busca, mode: "insensitive" as const } }] } }
+    : {};
+  const limite = busca ? 500 : 50;
+
   const [aplicacoes, saques, creditos, distribuicoes] = await Promise.all([
     prisma.aplicacao.findMany({
+      where: filtroUsuario,
       include: { user: { select: { name: true, email: true } } },
       orderBy: { criadoEm: "desc" },
-      take: 50,
+      take: limite,
     }),
     prisma.solicitacaoSaque.findMany({
+      where: filtroUsuario,
       include: { user: { select: { name: true, email: true } } },
       orderBy: { criadoEm: "desc" },
-      take: 50,
+      take: limite,
     }),
     prisma.creditoCarteira.findMany({
+      where: filtroUsuario,
       include: { user: { select: { name: true, email: true } } },
       orderBy: { criadoEm: "desc" },
-      take: 50,
+      take: limite,
     }),
-    prisma.distribuicaoMensal.findMany({
-      include: { criadoPor: { select: { name: true, email: true } } },
-      orderBy: { criadoEm: "desc" },
-      take: 50,
-    }),
+    busca
+      ? Promise.resolve([])
+      : prisma.distribuicaoMensal.findMany({
+          include: { criadoPor: { select: { name: true, email: true } } },
+          orderBy: { criadoEm: "desc" },
+          take: limite,
+        }),
   ]);
 
   const lancamentos: Lancamento[] = [
@@ -89,8 +107,14 @@ export default async function RestritoHistoricoPage() {
     <div>
       <h1 className="text-2xl font-bold text-foreground">Histórico completo</h1>
       <p className="mt-1 text-sm text-muted">
-        Últimos {lancamentos.length} lançamentos de toda a plataforma.
+        {busca
+          ? `${lancamentos.length} lançamento(s) encontrado(s) para "${busca}".`
+          : `Últimos ${lancamentos.length} lançamentos de toda a plataforma.`}
       </p>
+
+      <div className="mt-4">
+        <BuscaInvestidor valorInicial={busca} />
+      </div>
 
       <div className="mt-6 overflow-x-auto rounded-2xl border border-border">
         <table className="w-full min-w-[820px] text-left text-sm">
@@ -119,7 +143,7 @@ export default async function RestritoHistoricoPage() {
             {lancamentos.length === 0 && (
               <tr>
                 <td colSpan={5} className="px-4 py-8 text-center text-muted">
-                  Nenhum lançamento ainda.
+                  Nenhum lançamento encontrado.
                 </td>
               </tr>
             )}
