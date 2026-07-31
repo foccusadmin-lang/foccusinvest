@@ -14,6 +14,7 @@ const LINKS = [
   { href: "/restrito/saques", label: "Saques" },
   { href: "/restrito/distribuicoes", label: "Distribuições" },
   { href: "/restrito/plr-individual", label: "PLR Individual" },
+  { href: "/restrito/reaplicacoes", label: "Reaplicações" },
   { href: "/restrito/migracao", label: "Migração" },
   { href: "/restrito/historico", label: "Histórico" },
 ];

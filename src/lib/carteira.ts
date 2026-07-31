@@ -140,11 +140,15 @@ export async function getResumoCarteira(userId: string): Promise<ResumoFinanceir
     valor: totaisPorSemana.get(data.toISOString().slice(0, 10)) ?? 0,
   }));
 
+  // Uma vez reaplicado, o valor vira Capital — não faz sentido continuar contando como
+  // "Rendimentos" também, senão o mesmo dinheiro aparece em duas caixinhas ao mesmo tempo.
+  const distribuicoesAcumuladasLiquido = Math.max(0, distribuicoesAcumuladas - valoresReaplicados);
+
   return {
     capitalPrincipal,
     capitalCarencia,
     capitalDisponivel,
-    distribuicoesAcumuladas,
+    distribuicoesAcumuladas: distribuicoesAcumuladasLiquido,
     distribuicoesDisponiveis,
     bonusIndicacao,
     valoresReaplicados,
