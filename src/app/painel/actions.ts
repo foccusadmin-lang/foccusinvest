@@ -470,3 +470,32 @@ export async function adicionarIndicacaoPropria(
   revalidatePath("/painel/historico");
   return { sucesso: "Código lançado! O bônus já foi creditado pra essa pessoa." };
 }
+
+export type AporteElegivelIndicacao = { id: string; valor: number; criadoEm: Date };
+
+/** Lista os aportes do investidor logado que ainda podem receber um código de indicação
+ *  (nova aplicação, já confirmada, sem bônus já creditado por ela). */
+export async function listarAportesElegiveisIndicacao(): Promise<AporteElegivelIndicacao[]> {
+  const session = await auth();
+  if (!session?.user?.id) return [];
+
+  const aplicacoes = await prisma.aplicacao.findMany({
+    where: { userId: session.user.id, origem: "NOVA_APLICACAO", status: "CONFIRMADA" },
+    orderBy: { criadoEm: "desc" },
+  });
+  if (aplicacoes.length === 0) return [];
+
+  const bonusJaCreditados = await prisma.creditoCarteira.findMany({
+    where: { tipo: "BONUS", origem: { startsWith: "Indicação:" } },
+    select: { origem: true },
+  });
+  const idsComBonus = new Set(
+    bonusJaCreditados
+      .map((c) => /\(([^)]+)\)$/.exec(c.origem)?.[1])
+      .filter((id): id is string => Boolean(id))
+  );
+
+  return aplicacoes
+    .filter((a) => !idsComBonus.has(a.id))
+    .map((a) => ({ id: a.id, valor: a.valor, criadoEm: a.criadoEm }));
+}

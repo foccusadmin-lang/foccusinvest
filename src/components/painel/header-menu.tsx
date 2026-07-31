@@ -4,13 +4,16 @@ import Image from "next/image";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { IconBell, IconLogout, IconSettings, IconClock } from "@/components/icons";
+import { IndicacaoHeaderButton } from "./indicacao-header-button";
 
 export function HeaderMenu({
   primeiroNome,
   foto,
+  codigoIndicacao,
 }: {
   primeiroNome: string;
   foto?: string | null;
+  codigoIndicacao?: string | null;
 }) {
   return (
     <div className="flex items-center gap-3">
@@ -20,6 +23,7 @@ export function HeaderMenu({
       >
         <IconBell width={16} height={16} />
       </button>
+      <IndicacaoHeaderButton codigoIndicacao={codigoIndicacao ?? null} />
       <Link
         href="/painel/historico"
         aria-label="Histórico"

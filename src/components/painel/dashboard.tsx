@@ -62,7 +62,11 @@ export function PainelDashboard({
             <Logo size={30} />
             {usuario.ehAdmin && <ViewSwitcher />}
           </div>
-          <HeaderMenu primeiroNome={usuario.primeiroNome} foto={usuario.foto} />
+          <HeaderMenu
+            primeiroNome={usuario.primeiroNome}
+            foto={usuario.foto}
+            codigoIndicacao={usuario.codigoIndicacao}
+          />
         </div>
       </header>
 

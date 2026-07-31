@@ -138,3 +138,12 @@ export const IconLogout = (props: SVGProps<SVGSVGElement>) => (
     <path d="M21 12H9" />
   </Icon>
 );
+
+export const IconIdCard = (props: SVGProps<SVGSVGElement>) => (
+  <Icon {...props}>
+    <rect x="2" y="5" width="20" height="14" rx="2" />
+    <circle cx="8" cy="12" r="2" />
+    <path d="M14 10h4M14 14h3" />
+    <path d="M6 16.5c.5-1.5 1.8-2.5 2-2.5s1.5 1 2 2.5" />
+  </Icon>
+);
