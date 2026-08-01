@@ -78,6 +78,10 @@ export async function getResumoCarteira(userId: string): Promise<ResumoFinanceir
     }
     if (ap.status === "REJEITADA") continue;
 
+    // Capital conta enquanto não RETIRADA — o saque só debita de fato (RETIRADA) quando o
+    // admin aprova (ver aprovarSaque), não só quando é solicitado nem só quando é marcado
+    // como pago no final. Antes da aprovação, ainda soma aqui (o "Em processamento"/"Saques
+    // pendentes" já mostra o valor reservado separadamente).
     if (ap.status !== "RETIRADA") {
       capitalPrincipal += ap.valor;
       if (ap.status === "CONFIRMADA") {
@@ -89,12 +93,17 @@ export async function getResumoCarteira(userId: string): Promise<ResumoFinanceir
   }
 
   let distribuicoesAcumuladas = 0;
+  let distribuicoesJaSaiu = 0;
   let distribuicoesDisponiveis = 0;
   let bonusIndicacao = 0;
 
   for (const c of creditos) {
     if (c.tipo === "RENDIMENTO") {
       distribuicoesAcumuladas += c.valor;
+      // "Já saiu" (debitado de fato) só quando utilizadoEm é marcado — reaplicação marca na
+      // hora; saque de rendimento marca quando o admin aprova (ver aprovarSaque). Só
+      // reservado (solicitacaoSaqueId, ainda sem utilizadoEm) continua contando aqui.
+      if (c.utilizadoEm) distribuicoesJaSaiu += c.valor;
       if (!c.utilizadoEm && !c.solicitacaoSaqueId) distribuicoesDisponiveis += c.valor;
     } else if (c.tipo === "BONUS") {
       if (!c.utilizadoEm && !c.solicitacaoSaqueId) bonusIndicacao += c.valor;
@@ -140,9 +149,10 @@ export async function getResumoCarteira(userId: string): Promise<ResumoFinanceir
     valor: totaisPorSemana.get(data.toISOString().slice(0, 10)) ?? 0,
   }));
 
-  // Uma vez reaplicado, o valor vira Capital — não faz sentido continuar contando como
-  // "Rendimentos" também, senão o mesmo dinheiro aparece em duas caixinhas ao mesmo tempo.
-  const distribuicoesAcumuladasLiquido = Math.max(0, distribuicoesAcumuladas - valoresReaplicados);
+  // Uma vez reaplicado ou sacado (aprovado), o valor sai da carteira de rendimento — não faz
+  // sentido continuar contando como "Rendimentos" também, senão o mesmo dinheiro aparece
+  // creditado em duas caixinhas ao mesmo tempo.
+  const distribuicoesAcumuladasLiquido = Math.max(0, distribuicoesAcumuladas - distribuicoesJaSaiu);
 
   return {
     capitalPrincipal,
