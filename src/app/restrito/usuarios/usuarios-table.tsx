@@ -32,6 +32,12 @@ export type LinhaUsuario = {
   perfil: PerfilUsuario;
   createdAt: Date;
   saqueEmergencialLiberado: boolean;
+  tipoPessoa: "FISICA" | "JURIDICA" | null;
+  cpf: string;
+  dataNascimento: string;
+  cnpj: string;
+  representanteLegal: string;
+  cpfRepresentante: string;
 };
 
 export function UsuariosTable({ usuarios }: { usuarios: LinhaUsuario[] }) {
@@ -126,6 +132,12 @@ export function UsuariosTable({ usuarios }: { usuarios: LinhaUsuario[] }) {
                         email: u.email,
                         telefone: u.telefone,
                         endereco: u.endereco,
+                        tipoPessoa: u.tipoPessoa,
+                        cpf: u.cpf,
+                        dataNascimento: u.dataNascimento,
+                        cnpj: u.cnpj,
+                        representanteLegal: u.representanteLegal,
+                        cpfRepresentante: u.cpfRepresentante,
                       }}
                     />
                     <StatusActions

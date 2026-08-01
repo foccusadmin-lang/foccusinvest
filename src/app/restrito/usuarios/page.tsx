@@ -55,6 +55,14 @@ export default async function RestritoUsuariosPage() {
     perfil: u.perfil,
     createdAt: u.createdAt,
     saqueEmergencialLiberado: u.saqueEmergencialLiberado,
+    tipoPessoa: u.tipoPessoa,
+    cpf: u.pessoaFisica?.cpf ?? "",
+    dataNascimento: u.pessoaFisica
+      ? u.pessoaFisica.dataNascimento.toISOString().slice(0, 10)
+      : "",
+    cnpj: u.pessoaJuridica?.cnpj ?? "",
+    representanteLegal: u.pessoaJuridica?.representanteLegal ?? "",
+    cpfRepresentante: u.pessoaJuridica?.cpfRepresentante ?? "",
   }));
 
   return (

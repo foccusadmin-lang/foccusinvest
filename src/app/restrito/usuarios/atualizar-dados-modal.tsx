@@ -10,6 +10,12 @@ type Usuario = {
   email: string;
   telefone: string;
   endereco: string;
+  tipoPessoa: "FISICA" | "JURIDICA" | null;
+  cpf: string;
+  dataNascimento: string;
+  cnpj: string;
+  representanteLegal: string;
+  cpfRepresentante: string;
 };
 
 export function AtualizarDadosButton({ usuario }: { usuario: Usuario }) {
@@ -31,6 +37,10 @@ export function AtualizarDadosButton({ usuario }: { usuario: Usuario }) {
 
 function AtualizarDadosModal({ usuario, onClose }: { usuario: Usuario; onClose: () => void }) {
   const [state, action, pending] = useActionState(atualizarDadosUsuario, undefined);
+  const cadastroIncompleto = !usuario.tipoPessoa;
+  const [tipoPessoa, setTipoPessoa] = useState<"FISICA" | "JURIDICA">(
+    usuario.tipoPessoa ?? "FISICA"
+  );
   const router = useRouter();
   const processado = useRef(false);
 
@@ -50,13 +60,21 @@ function AtualizarDadosModal({ usuario, onClose }: { usuario: Usuario; onClose: 
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded-2xl border border-border bg-surface p-6 shadow-2xl"
+        className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-border bg-surface p-6 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="text-lg font-semibold text-foreground">Atualizar dados</h3>
-        <p className="mt-1 text-xs text-muted">
-          CPF/CNPJ e data de nascimento não podem ser alterados por aqui.
-        </p>
+        {cadastroIncompleto ? (
+          <p className="mt-1 text-xs text-amber-300">
+            Essa conta ainda não completou o cadastro — preencha os dados abaixo pra liberar o
+            acesso da pessoa ao painel.
+          </p>
+        ) : (
+          <p className="mt-1 text-xs text-muted">
+            CPF/CNPJ e data de nascimento também podem ser corrigidos aqui — use com cuidado,
+            geralmente só pra resolver cadastro duplicado ou preenchido errado.
+          </p>
+        )}
 
         {state?.sucesso ? (
           <p className="mt-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-300">
@@ -66,8 +84,43 @@ function AtualizarDadosModal({ usuario, onClose }: { usuario: Usuario; onClose: 
           <form action={action} className="mt-4 space-y-4">
             <input type="hidden" name="userId" value={usuario.id} />
 
+            {cadastroIncompleto && (
+              <div>
+                <span className="mb-1 block text-sm font-medium text-foreground/90">
+                  Tipo de pessoa
+                </span>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setTipoPessoa("FISICA")}
+                    className={`rounded-lg py-2 text-sm font-semibold transition ${
+                      tipoPessoa === "FISICA"
+                        ? "bg-sky-500/20 text-sky-300"
+                        : "bg-white/5 text-muted"
+                    }`}
+                  >
+                    Pessoa Física
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTipoPessoa("JURIDICA")}
+                    className={`rounded-lg py-2 text-sm font-semibold transition ${
+                      tipoPessoa === "JURIDICA"
+                        ? "bg-sky-500/20 text-sky-300"
+                        : "bg-white/5 text-muted"
+                    }`}
+                  >
+                    Pessoa Jurídica
+                  </button>
+                </div>
+                <input type="hidden" name="tipoPessoa" value={tipoPessoa} />
+              </div>
+            )}
+
             <label className="block text-sm">
-              <span className="mb-1 block font-medium text-foreground/90">Nome / Razão social</span>
+              <span className="mb-1 block font-medium text-foreground/90">
+                {tipoPessoa === "JURIDICA" ? "Razão social" : "Nome completo"}
+              </span>
               <input
                 name="nome"
                 type="text"
@@ -87,6 +140,73 @@ function AtualizarDadosModal({ usuario, onClose }: { usuario: Usuario; onClose: 
                 className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-foreground outline-none focus:border-gold/60"
               />
             </label>
+
+            {tipoPessoa === "FISICA" ? (
+              <>
+                <label className="block text-sm">
+                  <span className="mb-1 block font-medium text-foreground/90">CPF</span>
+                  <input
+                    name="cpf"
+                    type="text"
+                    defaultValue={usuario.cpf}
+                    placeholder="000.000.000-00"
+                    required
+                    className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-foreground outline-none focus:border-gold/60"
+                  />
+                </label>
+                <label className="block text-sm">
+                  <span className="mb-1 block font-medium text-foreground/90">
+                    Data de nascimento
+                  </span>
+                  <input
+                    name="dataNascimento"
+                    type="date"
+                    defaultValue={usuario.dataNascimento}
+                    required
+                    className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-foreground outline-none focus:border-gold/60"
+                  />
+                </label>
+              </>
+            ) : (
+              <>
+                <label className="block text-sm">
+                  <span className="mb-1 block font-medium text-foreground/90">CNPJ</span>
+                  <input
+                    name="cnpj"
+                    type="text"
+                    defaultValue={usuario.cnpj}
+                    placeholder="00.000.000/0000-00"
+                    required
+                    className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-foreground outline-none focus:border-gold/60"
+                  />
+                </label>
+                <label className="block text-sm">
+                  <span className="mb-1 block font-medium text-foreground/90">
+                    Representante legal
+                  </span>
+                  <input
+                    name="representanteLegal"
+                    type="text"
+                    defaultValue={usuario.representanteLegal}
+                    required
+                    className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-foreground outline-none focus:border-gold/60"
+                  />
+                </label>
+                <label className="block text-sm">
+                  <span className="mb-1 block font-medium text-foreground/90">
+                    CPF do representante
+                  </span>
+                  <input
+                    name="cpfRepresentante"
+                    type="text"
+                    defaultValue={usuario.cpfRepresentante}
+                    placeholder="000.000.000-00"
+                    required
+                    className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-foreground outline-none focus:border-gold/60"
+                  />
+                </label>
+              </>
+            )}
 
             <label className="block text-sm">
               <span className="mb-1 block font-medium text-foreground/90">Telefone</span>
