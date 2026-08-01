@@ -9,15 +9,18 @@ export default async function PainelPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
 
-  if (session.user.perfil !== "ADMIN" && session.user.statusCadastro === "INCOMPLETO") {
-    redirect("/onboarding/cadastro");
-  }
-
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
     include: { pessoaFisica: true, pessoaJuridica: true },
   });
   if (!user) redirect("/login");
+
+  // Checa os dados de verdade (CPF/CNPJ cadastrado), não só o status — uma conta pode ter
+  // sido criada por outro caminho (ex: admin cria por e-mail) sem nunca preencher isso, e o
+  // status sozinho não pega esse caso. Sem dado, cadastro obrigatório antes de mais nada.
+  if (session.user.perfil !== "ADMIN" && !user.pessoaFisica && !user.pessoaJuridica) {
+    redirect("/onboarding/cadastro");
+  }
 
   const primeiroNome =
     user.pessoaFisica?.nomeCompleto.split(" ")[0] ??

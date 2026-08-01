@@ -32,6 +32,15 @@ async function requireUserId(): Promise<string> {
   if (session.user.statusCadastro === "INCOMPLETO") {
     throw new Error("Complete seu cadastro antes de movimentar a carteira.");
   }
+  // Checa o dado de verdade também — uma conta criada por outro caminho (ex: admin cria por
+  // e-mail) pode ter status diferente de INCOMPLETO sem nunca ter preenchido CPF/CNPJ.
+  const usuario = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { pessoaFisica: { select: { id: true } }, pessoaJuridica: { select: { id: true } } },
+  });
+  if (!usuario?.pessoaFisica && !usuario?.pessoaJuridica) {
+    throw new Error("Complete seu cadastro antes de movimentar a carteira.");
+  }
   return session.user.id;
 }
 
