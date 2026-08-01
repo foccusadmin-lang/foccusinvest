@@ -96,6 +96,14 @@ export default async function ConfiguracoesPage() {
               endereco={user.pessoaFisica?.endereco ?? user.pessoaJuridica?.endereco ?? ""}
               nome={user.pessoaFisica?.nomeCompleto ?? user.pessoaJuridica?.razaoSocial ?? ""}
               labelNome={user.pessoaFisica ? "Nome completo" : "Razão social"}
+              tipoPessoa={user.pessoaFisica ? "FISICA" : "JURIDICA"}
+              cpf={user.pessoaFisica?.cpf ?? ""}
+              dataNascimento={
+                user.pessoaFisica ? user.pessoaFisica.dataNascimento.toISOString().slice(0, 10) : ""
+              }
+              cnpj={user.pessoaJuridica?.cnpj ?? ""}
+              representanteLegal={user.pessoaJuridica?.representanteLegal ?? ""}
+              cpfRepresentante={user.pessoaJuridica?.cpfRepresentante ?? ""}
             />
           )}
 

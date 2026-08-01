@@ -9,12 +9,24 @@ export function DadosPessoaisForm({
   endereco,
   nome,
   labelNome,
+  tipoPessoa,
+  cpf,
+  dataNascimento,
+  cnpj,
+  representanteLegal,
+  cpfRepresentante,
 }: {
   email: string;
   telefone: string;
   endereco: string;
   nome: string;
   labelNome: string;
+  tipoPessoa: "FISICA" | "JURIDICA";
+  cpf: string;
+  dataNascimento: string;
+  cnpj: string;
+  representanteLegal: string;
+  cpfRepresentante: string;
 }) {
   const [state, action, pending] = useActionState(atualizarDadosPessoais, undefined);
   const [editando, setEditando] = useState(false);
@@ -26,7 +38,7 @@ export function DadosPessoaisForm({
         onClick={() => setEditando(true)}
         className="mt-4 rounded-lg bg-gold/15 px-4 py-2 text-sm font-semibold text-gold-light hover:bg-gold/25"
       >
-        Alterar {labelNome.toLowerCase()}, telefone, endereço ou e-mail
+        Alterar meus dados
       </button>
     );
   }
@@ -34,8 +46,8 @@ export function DadosPessoaisForm({
   return (
     <form action={action} className="mt-4 space-y-4 rounded-2xl border border-border bg-surface-2 p-4">
       <p className="text-xs text-muted">
-        CPF/CNPJ e data de nascimento não podem ser alterados por aqui — fale com o
-        administrador se precisar corrigir algum desses.
+        Confira com atenção antes de salvar — {tipoPessoa === "FISICA" ? "CPF" : "CNPJ"} errado
+        pode atrasar seus saques.
       </p>
 
       <label className="block text-sm">
@@ -59,6 +71,67 @@ export function DadosPessoaisForm({
           className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-foreground outline-none focus:border-gold/60"
         />
       </label>
+
+      {tipoPessoa === "FISICA" ? (
+        <>
+          <label className="block text-sm">
+            <span className="mb-1 block font-medium text-foreground/90">CPF</span>
+            <input
+              name="cpf"
+              type="text"
+              defaultValue={cpf}
+              placeholder="000.000.000-00"
+              required
+              className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-foreground outline-none focus:border-gold/60"
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1 block font-medium text-foreground/90">Data de nascimento</span>
+            <input
+              name="dataNascimento"
+              type="date"
+              defaultValue={dataNascimento}
+              required
+              className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-foreground outline-none focus:border-gold/60"
+            />
+          </label>
+        </>
+      ) : (
+        <>
+          <label className="block text-sm">
+            <span className="mb-1 block font-medium text-foreground/90">CNPJ</span>
+            <input
+              name="cnpj"
+              type="text"
+              defaultValue={cnpj}
+              placeholder="00.000.000/0000-00"
+              required
+              className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-foreground outline-none focus:border-gold/60"
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1 block font-medium text-foreground/90">Representante legal</span>
+            <input
+              name="representanteLegal"
+              type="text"
+              defaultValue={representanteLegal}
+              required
+              className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-foreground outline-none focus:border-gold/60"
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1 block font-medium text-foreground/90">CPF do representante</span>
+            <input
+              name="cpfRepresentante"
+              type="text"
+              defaultValue={cpfRepresentante}
+              placeholder="000.000.000-00"
+              required
+              className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-foreground outline-none focus:border-gold/60"
+            />
+          </label>
+        </>
+      )}
 
       <label className="block text-sm">
         <span className="mb-1 block font-medium text-foreground/90">Telefone</span>
