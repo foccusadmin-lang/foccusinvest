@@ -4,6 +4,12 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { formatMoeda } from "@/lib/format";
+import { getConfiguracao } from "@/lib/configuracao";
+import {
+  reservarCapitalParaSaque,
+  reservarCreditosParaSaque,
+  SaldoInsuficienteError,
+} from "@/lib/carteira";
 
 export type AjusteSaldoState = { error?: string; sucesso?: string } | undefined;
 
@@ -145,6 +151,56 @@ async function ajustarCredito(
   return null;
 }
 
+/** Saque feito pelo admin em nome do investidor — pra ajudar quem tem dificuldade de mexer no
+ *  app sozinho. Usa o mesmo caminho de reserva/débito do saque normal (respeita a carência do
+ *  Capital e o modo automático/manual configurado), só que quem pede é o admin. */
+async function realizarSaqueAssistido(
+  userId: string,
+  tipo: "CAPITAL" | "RENDIMENTO" | "BONUS",
+  valor: number,
+  chavePix: string
+): Promise<string | null> {
+  const config = await getConfiguracao();
+  const automatico =
+    tipo === "CAPITAL" ? config.modoSaqueCapital === "AUTOMATICO" : config.modoSaqueRendimento === "AUTOMATICO";
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const saque = await tx.solicitacaoSaque.create({
+        data: { userId, tipo, valor, moeda: "BRL", motivoEmergencia: chavePix },
+      });
+
+      if (tipo === "CAPITAL") {
+        await reservarCapitalParaSaque(tx, userId, valor, saque.id);
+      } else {
+        await reservarCreditosParaSaque(tx, userId, valor, tipo, saque.id);
+      }
+
+      if (automatico) {
+        if (tipo === "CAPITAL") {
+          await tx.aplicacao.updateMany({
+            where: { solicitacaoSaqueId: saque.id },
+            data: { status: "RETIRADA" },
+          });
+        } else {
+          await tx.creditoCarteira.updateMany({
+            where: { solicitacaoSaqueId: saque.id },
+            data: { utilizadoEm: new Date() },
+          });
+        }
+        await tx.solicitacaoSaque.update({
+          where: { id: saque.id },
+          data: { status: "PAGO", processadoEm: new Date() },
+        });
+      }
+    });
+  } catch (e) {
+    if (e instanceof SaldoInsuficienteError) return e.message;
+    throw e;
+  }
+  return null;
+}
+
 export async function ajustarSaldoUsuario(
   _prevState: AjusteSaldoState,
   formData: FormData
@@ -157,7 +213,7 @@ export async function ajustarSaldoUsuario(
   const tipos = formData.getAll("tipos").map(String);
 
   if (!userId) return { error: "Usuário inválido." };
-  if (operacao !== "ADICIONAR" && operacao !== "DEFINIR" && operacao !== "APAGAR") {
+  if (operacao !== "ADICIONAR" && operacao !== "DEFINIR" && operacao !== "APAGAR" && operacao !== "SAQUE") {
     return { error: "Operação inválida." };
   }
   if (tipos.length === 0) {
@@ -166,6 +222,57 @@ export async function ajustarSaldoUsuario(
 
   const usuario = await prisma.user.findUnique({ where: { id: userId } });
   if (!usuario) return { error: "Usuário não encontrado." };
+
+  if (operacao === "SAQUE") {
+    const chavePix = String(formData.get("chavePix") ?? "").trim();
+    if (!chavePix) return { error: "Informe a chave Pix pra onde o valor vai ser enviado." };
+
+    const valoresSaque = new Map<string, number>();
+    for (const tipo of tipos) {
+      if (tipo !== "CAPITAL" && tipo !== "RENDIMENTO" && tipo !== "BONUS") {
+        return { error: "Tipo de saldo inválido pra saque." };
+      }
+      const valor = parseValor(formData.get(`valor_${tipo}`));
+      if (!valor || valor <= 0 || Number.isNaN(valor)) {
+        return { error: `Informe um valor válido para ${LABEL_TIPO[tipo] ?? tipo}.` };
+      }
+      valoresSaque.set(tipo, valor);
+    }
+
+    for (const tipo of tipos) {
+      const valor = valoresSaque.get(tipo)!;
+      const erro = await realizarSaqueAssistido(
+        userId,
+        tipo as "CAPITAL" | "RENDIMENTO" | "BONUS",
+        valor,
+        chavePix
+      );
+      if (erro) return { error: erro };
+    }
+
+    const resumoSaque = tipos
+      .map((tipo) => `${LABEL_TIPO[tipo] ?? tipo}: ${formatMoeda(valoresSaque.get(tipo)!)}`)
+      .join(", ");
+
+    await prisma.logAuditoria.create({
+      data: {
+        userId: session.user.id,
+        acao: "saque_assistido_admin",
+        detalhes: `${usuario.email} | Pix ${chavePix} | ${resumoSaque}`,
+      },
+    });
+
+    revalidatePath("/restrito/usuarios");
+    revalidatePath("/restrito/painel");
+    revalidatePath("/restrito/saques");
+    revalidatePath("/restrito/historico");
+    revalidatePath("/painel");
+    revalidatePath("/painel/historico");
+
+    return {
+      sucesso: `Saque assistido de ${resumoSaque} solicitado pra ${usuario.name ?? usuario.email}.`,
+    };
+  }
 
   if (operacao === "APAGAR") {
     for (const tipo of tipos) {

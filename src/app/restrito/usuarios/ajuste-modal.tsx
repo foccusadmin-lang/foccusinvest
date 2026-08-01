@@ -40,9 +40,10 @@ export function AjusteSaldoButton({ usuario }: { usuario: Usuario }) {
 
 function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () => void }) {
   const [state, action, pending] = useActionState(ajustarSaldoUsuario, undefined);
-  const [operacao, setOperacao] = useState<"ADICIONAR" | "DEFINIR" | "APAGAR">("ADICIONAR");
+  const [operacao, setOperacao] = useState<"ADICIONAR" | "DEFINIR" | "APAGAR" | "SAQUE">("ADICIONAR");
   const [tipos, setTipos] = useState<string[]>([]);
   const [valores, setValores] = useState<Record<string, string>>({});
+  const [chavePix, setChavePix] = useState("");
   const router = useRouter();
   const processado = useRef(false);
 
@@ -108,6 +109,18 @@ function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () 
                   e.preventDefault();
                 }
               }
+              if (operacao === "SAQUE") {
+                const labels = tipos
+                  .map((t) => TIPOS.find((item) => item.valor === t)?.label ?? t)
+                  .join(", ");
+                if (
+                  !confirm(
+                    `Confirma o saque de ${labels} de ${usuario.nome} pra chave Pix "${chavePix}"? Essa ação não pode ser desfeita.`
+                  )
+                ) {
+                  e.preventDefault();
+                }
+              }
             }}
             className="mt-4 space-y-4"
           >
@@ -118,7 +131,7 @@ function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () 
               <span className="mb-1 block text-sm font-medium text-foreground/90">
                 Tipo de operação
               </span>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 <button
                   type="button"
                   onClick={() => setOperacao("ADICIONAR")}
@@ -143,6 +156,17 @@ function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () 
                 </button>
                 <button
                   type="button"
+                  onClick={() => setOperacao("SAQUE")}
+                  className={`rounded-lg py-2 text-xs font-semibold transition sm:text-sm ${
+                    operacao === "SAQUE"
+                      ? "bg-amber-500/20 text-amber-300"
+                      : "bg-white/5 text-muted"
+                  }`}
+                >
+                  ↓ Saque
+                </button>
+                <button
+                  type="button"
                   onClick={() => setOperacao("APAGAR")}
                   className={`rounded-lg py-2 text-xs font-semibold transition sm:text-sm ${
                     operacao === "APAGAR" ? "bg-red-500/20 text-red-300" : "bg-white/5 text-muted"
@@ -151,6 +175,13 @@ function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () 
                   ✕ Apagar
                 </button>
               </div>
+              {operacao === "SAQUE" && (
+                <p className="mt-2 text-xs text-muted">
+                  Use pra ajudar quem tem dificuldade de sacar sozinho no app. Reserva o valor
+                  igual a um saque normal (respeita a carência do Capital) e segue o modo
+                  automático/manual configurado.
+                </p>
+              )}
             </div>
 
             <div>
@@ -209,6 +240,23 @@ function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () 
               )}
             </div>
 
+            {operacao === "SAQUE" && (
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium text-foreground/90">
+                  Chave Pix (pra onde o valor vai)
+                </span>
+                <input
+                  name="chavePix"
+                  type="text"
+                  value={chavePix}
+                  onChange={(e) => setChavePix(e.target.value)}
+                  placeholder="CPF, e-mail, telefone ou chave aleatória"
+                  required
+                  className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-foreground outline-none focus:border-amber-400/60"
+                />
+              </label>
+            )}
+
             {state?.error && <p className="text-sm text-red-400">{state.error}</p>}
 
             <div className="flex gap-2">
@@ -221,20 +269,24 @@ function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () 
               </button>
               <button
                 type="submit"
-                disabled={pending || tipos.length === 0}
+                disabled={pending || tipos.length === 0 || (operacao === "SAQUE" && !chavePix.trim())}
                 className={`flex-1 rounded-xl py-3 text-sm font-semibold disabled:opacity-50 ${
                   operacao === "APAGAR"
                     ? "bg-red-500/80 text-white hover:bg-red-500"
-                    : "bg-gradient-to-br from-[#f2d675] via-[#d4af37] to-[#93731f] text-black"
+                    : operacao === "SAQUE"
+                      ? "bg-amber-500/90 text-black hover:bg-amber-500"
+                      : "bg-gradient-to-br from-[#f2d675] via-[#d4af37] to-[#93731f] text-black"
                 }`}
               >
                 {pending
-                  ? "Salvando..."
+                  ? "Processando..."
                   : operacao === "ADICIONAR"
                     ? "Adicionar valores"
                     : operacao === "DEFINIR"
                       ? "Definir valores"
-                      : "Apagar valores"}
+                      : operacao === "SAQUE"
+                        ? "Realizar saque"
+                        : "Apagar valores"}
               </button>
             </div>
           </form>
