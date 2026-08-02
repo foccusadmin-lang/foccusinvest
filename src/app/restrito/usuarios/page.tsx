@@ -15,18 +15,31 @@ export default async function RestritoUsuariosPage() {
     orderBy: { createdAt: "desc" },
   });
 
-  const [capitaisPorUsuario, creditosPorUsuario] = await Promise.all([
-    prisma.aplicacao.groupBy({
-      by: ["userId"],
-      where: { status: { in: ["CONFIRMADA", "SAQUE_SOLICITADO"] } },
-      _sum: { valor: true },
-    }),
-    prisma.creditoCarteira.groupBy({
-      by: ["userId", "tipo"],
-      where: { utilizadoEm: null, solicitacaoSaqueId: null },
-      _sum: { valor: true },
-    }),
-  ]);
+  const agora = new Date();
+
+  const [capitaisPorUsuario, creditosPorUsuario, capitalDisponivelPorUsuario, capitalCarenciaPorUsuario] =
+    await Promise.all([
+      prisma.aplicacao.groupBy({
+        by: ["userId"],
+        where: { status: { in: ["CONFIRMADA", "SAQUE_SOLICITADO"] } },
+        _sum: { valor: true },
+      }),
+      prisma.creditoCarteira.groupBy({
+        by: ["userId", "tipo"],
+        where: { utilizadoEm: null, solicitacaoSaqueId: null },
+        _sum: { valor: true },
+      }),
+      prisma.aplicacao.groupBy({
+        by: ["userId"],
+        where: { status: "CONFIRMADA", liberaEm: { lte: agora } },
+        _sum: { valor: true },
+      }),
+      prisma.aplicacao.groupBy({
+        by: ["userId"],
+        where: { status: "CONFIRMADA", liberaEm: { gt: agora } },
+        _sum: { valor: true },
+      }),
+    ]);
 
   const capitalPorId = new Map(capitaisPorUsuario.map((c) => [c.userId, c._sum.valor ?? 0]));
   const rendimentoPorId = new Map(
@@ -34,6 +47,12 @@ export default async function RestritoUsuariosPage() {
   );
   const bonusPorId = new Map(
     creditosPorUsuario.filter((c) => c.tipo === "BONUS").map((c) => [c.userId, c._sum.valor ?? 0])
+  );
+  const capitalDisponivelPorId = new Map(
+    capitalDisponivelPorUsuario.map((c) => [c.userId, c._sum.valor ?? 0])
+  );
+  const capitalCarenciaPorId = new Map(
+    capitalCarenciaPorUsuario.map((c) => [c.userId, c._sum.valor ?? 0])
   );
 
   const linhas: LinhaUsuario[] = usuarios.map((u) => ({
@@ -49,6 +68,8 @@ export default async function RestritoUsuariosPage() {
     telefone: u.pessoaFisica?.telefone ?? u.pessoaJuridica?.telefone ?? "",
     endereco: u.pessoaFisica?.endereco ?? u.pessoaJuridica?.endereco ?? "",
     capital: capitalPorId.get(u.id) ?? 0,
+    capitalDisponivel: capitalDisponivelPorId.get(u.id) ?? 0,
+    capitalCarencia: capitalCarenciaPorId.get(u.id) ?? 0,
     rendimento: rendimentoPorId.get(u.id) ?? 0,
     bonus: bonusPorId.get(u.id) ?? 0,
     statusCadastro: u.statusCadastro,

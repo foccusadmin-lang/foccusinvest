@@ -5,6 +5,7 @@ import type { PerfilUsuario, StatusCadastro } from "@prisma/client";
 import { formatData, formatMoeda } from "@/lib/format";
 import { StatusActions } from "./status-actions";
 import { AjusteSaldoButton } from "./ajuste-modal";
+import { AjusteCarenciaButton } from "./carencia-modal";
 import { SaqueEmergencialToggle } from "./saque-emergencial-toggle";
 import { AtualizarDadosButton } from "./atualizar-dados-modal";
 import { ExcluirUsuarioButton } from "./excluir-usuario-button";
@@ -26,6 +27,8 @@ export type LinhaUsuario = {
   telefone: string;
   endereco: string;
   capital: number;
+  capitalDisponivel: number;
+  capitalCarencia: number;
   rendimento: number;
   bonus: number;
   statusCadastro: StatusCadastro;
@@ -123,6 +126,15 @@ export function UsuariosTable({ usuarios }: { usuarios: LinhaUsuario[] }) {
                         capital: u.capital,
                         rendimento: u.rendimento,
                         bonus: u.bonus,
+                      }}
+                    />
+                    <AjusteCarenciaButton
+                      usuario={{
+                        id: u.id,
+                        nome: u.nome,
+                        email: u.email,
+                        capitalDisponivel: u.capitalDisponivel,
+                        capitalCarencia: u.capitalCarencia,
                       }}
                     />
                     <AtualizarDadosButton
