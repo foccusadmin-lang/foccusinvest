@@ -64,6 +64,7 @@ export function AcoesRapidas({
   moeda = "BRL",
   saqueEmergencialLiberado,
   codigoIndicacao,
+  primeiroAporteElegivelIndicacao,
 }: {
   saldoParaReaplicar: number;
   janelaSaqueRendimentoAberta: boolean;
@@ -77,6 +78,7 @@ export function AcoesRapidas({
   moeda?: "BRL" | "USD" | "USDT";
   saqueEmergencialLiberado: boolean;
   codigoIndicacao: string | null;
+  primeiroAporteElegivelIndicacao: boolean;
 }) {
   const [aberto, setAberto] = useState<TipoAcao | null>(null);
   const reaplicarDesativado = saldoParaReaplicar < MINIMO_REAPLICACAO;
@@ -187,6 +189,7 @@ export function AcoesRapidas({
           distribuicoesAcumuladas={distribuicoesAcumuladas}
           moeda={moeda}
           codigoIndicacao={codigoIndicacao}
+          primeiroAporteElegivelIndicacao={primeiroAporteElegivelIndicacao}
         />
       )}
       {aberto === "saque-emergencia" && (
@@ -219,12 +222,14 @@ function NovaAplicacaoModal({
   distribuicoesAcumuladas,
   moeda,
   codigoIndicacao,
+  primeiroAporteElegivelIndicacao,
 }: {
   onClose: () => void;
   capitalPrincipal: number;
   distribuicoesAcumuladas: number;
   moeda: "BRL" | "USD" | "USDT";
   codigoIndicacao: string | null;
+  primeiroAporteElegivelIndicacao: boolean;
 }) {
   const [state, action, pending] = useActionState(criarAplicacao, undefined);
   const [etapa, setEtapa] = useState<"valor" | "pagamento">("valor");
@@ -312,22 +317,24 @@ function NovaAplicacaoModal({
                   Seu código de indicação: <span className="font-semibold text-gold-light">{codigoIndicacao}</span>
                 </p>
               )}
-              <label className="block text-sm">
-                <span className="mb-1 block font-medium text-foreground/90">
-                  Código de quem te indicou (opcional)
-                </span>
-                <input
-                  value={codigoIndicador}
-                  onChange={(e) => setCodigoIndicador(e.target.value.toUpperCase())}
-                  type="text"
-                  placeholder="Ex: 7K2QX-WALDIR"
-                  className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 uppercase text-foreground outline-none focus:border-gold/60"
-                />
-                <span className="mt-1 block text-xs text-muted">
-                  Se alguém te indicou, coloca o código dessa pessoa aqui pra ela ganhar 5% desse
-                  aporte.
-                </span>
-              </label>
+              {primeiroAporteElegivelIndicacao && (
+                <label className="block text-sm">
+                  <span className="mb-1 block font-medium text-foreground/90">
+                    Código de quem te indicou (opcional)
+                  </span>
+                  <input
+                    value={codigoIndicador}
+                    onChange={(e) => setCodigoIndicador(e.target.value.toUpperCase())}
+                    type="text"
+                    placeholder="Ex: 7K2QX-WALDIR"
+                    className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 uppercase text-foreground outline-none focus:border-gold/60"
+                  />
+                  <span className="mt-1 block text-xs text-muted">
+                    Se alguém te indicou, coloca o código dessa pessoa aqui pra ela ganhar 5% desse
+                    aporte. Só vale no seu primeiro aporte.
+                  </span>
+                </label>
+              )}
 
               <div className="flex gap-2">
                 <Button

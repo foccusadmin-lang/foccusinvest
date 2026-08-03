@@ -484,27 +484,26 @@ export type AporteElegivelIndicacao = { id: string; valor: number; criadoEm: Dat
 
 /** Lista os aportes do investidor logado que ainda podem receber um código de indicação
  *  (nova aplicação, já confirmada, sem bônus já creditado por ela). */
+/** O bônus de indicação só vale no primeiro aporte do indicado — então só o primeiro
+ *  "Nova Aplicação" confirmado (e ainda sem bônus creditado) fica elegível pra lançar código. */
 export async function listarAportesElegiveisIndicacao(): Promise<AporteElegivelIndicacao[]> {
   const session = await auth();
   if (!session?.user?.id) return [];
 
-  const aplicacoes = await prisma.aplicacao.findMany({
-    where: { userId: session.user.id, origem: "NOVA_APLICACAO", status: "CONFIRMADA" },
-    orderBy: { criadoEm: "desc" },
+  const primeiroAporte = await prisma.aplicacao.findFirst({
+    where: {
+      userId: session.user.id,
+      origem: "NOVA_APLICACAO",
+      status: { in: ["CONFIRMADA", "SAQUE_SOLICITADO", "RETIRADA"] },
+    },
+    orderBy: { criadoEm: "asc" },
   });
-  if (aplicacoes.length === 0) return [];
+  if (!primeiroAporte) return [];
 
-  const bonusJaCreditados = await prisma.creditoCarteira.findMany({
-    where: { tipo: "BONUS", origem: { startsWith: "Indicação:" } },
-    select: { origem: true },
+  const bonusJaCreditado = await prisma.creditoCarteira.findFirst({
+    where: { tipo: "BONUS", origem: { endsWith: `(${primeiroAporte.id})` } },
   });
-  const idsComBonus = new Set(
-    bonusJaCreditados
-      .map((c) => /\(([^)]+)\)$/.exec(c.origem)?.[1])
-      .filter((id): id is string => Boolean(id))
-  );
+  if (bonusJaCreditado) return [];
 
-  return aplicacoes
-    .filter((a) => !idsComBonus.has(a.id))
-    .map((a) => ({ id: a.id, valor: a.valor, criadoEm: a.criadoEm }));
+  return [{ id: primeiroAporte.id, valor: primeiroAporte.valor, criadoEm: primeiroAporte.criadoEm }];
 }

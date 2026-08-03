@@ -23,10 +23,11 @@ function origemBonus(aplicacaoId: string, nomeIndicado: string): string {
 
 export type ResultadoIndicacao = { error?: string };
 
-/** Credita 5% de bônus pro dono do código de indicação sobre o valor de UM aporte específico.
- *  Chamado tanto na aprovação normal (código digitado na hora) quanto no lançamento retroativo
- *  (admin adiciona depois que o investidor esqueceu). Idempotente por aplicacaoId — não credita
- *  duas vezes o mesmo aporte. */
+/** Credita 5% de bônus pro dono do código de indicação sobre o valor de UM aporte específico —
+ *  só vale se for o PRIMEIRO aporte (Nova Aplicação) confirmado do indicado; em qualquer aporte
+ *  seguinte, o bônus não é pago. Chamado tanto na aprovação normal (código digitado na hora)
+ *  quanto no lançamento retroativo/próprio (código adicionado depois de já confirmado).
+ *  Idempotente por aplicacaoId — não credita duas vezes o mesmo aporte. */
 export async function creditarBonusIndicacaoPorCodigo(
   tx: Prisma.TransactionClient,
   params: { codigoIndicador: string; aplicacaoId: string; aportanteUserId: string; valorAporte: number }
@@ -46,6 +47,18 @@ export async function creditarBonusIndicacaoPorCodigo(
     where: { tipo: "BONUS", origem: { endsWith: `(${aplicacaoId})` } },
   });
   if (jaCreditado) return { error: "Esse aporte já tem um bônus de indicação creditado." };
+
+  const primeiroAporte = await tx.aplicacao.findFirst({
+    where: {
+      userId: aportanteUserId,
+      origem: "NOVA_APLICACAO",
+      status: { in: ["CONFIRMADA", "SAQUE_SOLICITADO", "RETIRADA"] },
+    },
+    orderBy: { criadoEm: "asc" },
+  });
+  if (primeiroAporte && primeiroAporte.id !== aplicacaoId) {
+    return { error: "O bônus de indicação só vale no primeiro aporte do indicado — esse não é o primeiro." };
+  }
 
   const aportante = await tx.user.findUnique({ where: { id: aportanteUserId } });
   const valorBonus = valorAporte * (PERCENTUAL_BONUS_INDICACAO / 100);

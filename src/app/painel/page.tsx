@@ -30,6 +30,14 @@ export default async function PainelPage() {
 
   const resumo = await getResumoCarteira(user.id);
 
+  const aportesAnteriores = await prisma.aplicacao.count({
+    where: {
+      userId: user.id,
+      origem: "NOVA_APLICACAO",
+      status: { in: ["CONFIRMADA", "SAQUE_SOLICITADO", "RETIRADA"] },
+    },
+  });
+
   return (
     <PainelDashboard
       usuario={{
@@ -40,6 +48,7 @@ export default async function PainelPage() {
         moeda: "BRL",
         ehAdmin: session.user.perfil === "ADMIN",
         saqueEmergencialLiberado: user.saqueEmergencialLiberado,
+        primeiroAporteElegivelIndicacao: aportesAnteriores === 0,
       }}
       resumo={resumo}
       janelaSaqueRendimentoAberta={janelaSaqueRendimentoAberta()}
