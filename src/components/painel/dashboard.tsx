@@ -4,6 +4,7 @@ import { RendimentosChart, type PontoRendimento } from "./rendimentos-chart";
 import { AcoesRapidas } from "./acoes-rapidas";
 import { HeaderMenu } from "./header-menu";
 import { ViewSwitcher } from "@/components/admin/view-switcher";
+import { ConvidarAmigoButton } from "./convidar-amigo-button";
 import { formatMoeda, formatData } from "@/lib/format";
 import { IconWallet, IconTrendingUp, IconGift, IconVerified } from "@/components/icons";
 
@@ -164,6 +165,8 @@ export function PainelDashboard({
                   {usuario.codigoIndicacao}
                 </p>
               </div>
+              <div className="h-px w-full bg-border sm:h-10 sm:w-px" />
+              <ConvidarAmigoButton codigoIndicacao={usuario.codigoIndicacao} />
             </>
           )}
         </section>
