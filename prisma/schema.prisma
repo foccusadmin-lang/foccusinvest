@@ -15,6 +15,42 @@ enum PerfilUsuario {
   USUARIO
   LIDER
   ADMIN
+  ENTIDADE
+}
+
+enum TipoEntidade {
+  IGREJA
+  ONG
+  ASSOCIACAO
+  INSTITUTO
+  PROJETO_SOCIAL
+  OUTRO
+}
+
+enum StatusEntidade {
+  CADASTRO_INCOMPLETO
+  AGUARDANDO_DOCUMENTOS
+  EM_ANALISE
+  AGUARDANDO_SALDO_ATIVACAO
+  APROVADA
+  ATIVA
+  BLOQUEADA
+  SUSPENSA
+  INATIVA
+}
+
+enum TipoDoacao {
+  SALDO_DISPONIVEL
+  NOVA_APLICACAO
+}
+
+enum StatusDoacao {
+  AGUARDANDO_PAGAMENTO
+  EM_PROCESSAMENTO
+  CONFIRMADA
+  CANCELADA
+  ESTORNADA
+  EM_ANALISE
 }
 
 enum StatusCadastro {
@@ -30,6 +66,7 @@ enum OrigemAplicacao {
   REAPLICACAO
   MIGRACAO
   AJUSTE_ADMIN
+  DOACAO
 }
 
 enum StatusMigracao {
@@ -111,8 +148,79 @@ model User {
   migracaoRecebida     MigracaoSaldo[]             @relation("MigracaoUsuario")
   contratos            Contrato[]
 
+  entidade          Entidade? @relation("EntidadeUsuario")
+  entidadesAtivadas Entidade[] @relation("EntidadeAtivadaPor")
+  doacoesFeitas     Doacao[]  @relation("DoacaoDoador")
+  doacoesAprovadas  Doacao[]  @relation("DoacaoAprovadaPor")
+
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+}
+
+/** Perfil de igreja/ONG/associação/instituto/projeto social — sempre 1:1 com um User
+ *  (perfil: ENTIDADE), reaproveitando PessoaJuridica pra razão social/CNPJ/representante e a
+ *  carteira normal (Aplicacao/CreditoCarteira) pra saldo, extrato e saques, exatamente como um
+ *  investidor comum. Só guarda aqui o que é específico de entidade. */
+model Entidade {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation("EntidadeUsuario", fields: [userId], references: [id], onDelete: Cascade)
+
+  tipoEntidade TipoEntidade
+  descricao    String?
+  logoUrl      String?
+  cidade       String?
+  estado       String?
+  chavePix     String?
+
+  status              StatusEntidade @default(CADASTRO_INCOMPLETO)
+  documentosAprovados Boolean        @default(false)
+  termosAceitos       Boolean        @default(false)
+  taxaAtivacao        Float          @default(0)
+  dataAtivacao        DateTime?
+  ativadaPorId        String?
+  ativadaPor          User?          @relation("EntidadeAtivadaPor", fields: [ativadaPorId], references: [id])
+
+  podeReceberDoacao    Boolean @default(false)
+  podeReceberAplicacao Boolean @default(false)
+
+  doacoesRecebidas Doacao[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/** Doação de um investidor pra uma entidade — SALDO_DISPONIVEL debita na hora do saldo livre do
+ *  doador; NOVA_APLICACAO segue o mesmo fluxo de Pix + comprovante + aprovação do admin que uma
+ *  aplicação normal, só que o valor vai direto pra carteira da entidade, nunca pra do doador. */
+model Doacao {
+  id         String   @id @default(cuid())
+  doadorId   String
+  doador     User     @relation("DoacaoDoador", fields: [doadorId], references: [id], onDelete: Cascade)
+  entidadeId String
+  entidade   Entidade @relation(fields: [entidadeId], references: [id], onDelete: Cascade)
+
+  tipoDoacao    TipoDoacao
+  valorBruto    Float
+  taxa          Float   @default(0)
+  valorLiquido  Float
+  origemSaldo   String?
+  doacaoAnonima Boolean @default(false)
+  status        StatusDoacao @default(AGUARDANDO_PAGAMENTO)
+
+  comprovante     Bytes?
+  comprovanteNome String?
+  comprovanteTipo String?
+
+  aplicacaoId String? @unique
+
+  aprovadoPorId String?
+  aprovadoPor   User?     @relation("DoacaoAprovadaPor", fields: [aprovadoPorId], references: [id])
+  aprovadoEm    DateTime?
+  motivoRecusa  String?
+
+  criadoEm     DateTime  @default(now())
+  confirmadoEm DateTime?
 }
 
 /** Saldo trazido de outra plataforma (ex: Mocha) para um investidor que já tinha capital

@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
+import { Button, LinkButton } from "@/components/ui/button";
 import { MoneyInput } from "@/components/ui/money-input";
 import { IconPlus, IconArrowDown, IconRefresh, IconHeart, IconAlert } from "@/components/icons";
 import { formatMoeda, formatData } from "@/lib/format";
@@ -154,13 +154,13 @@ export function AcoesRapidas({
       </p>
 
       <section className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Button
+        <LinkButton
+          href="/painel/doar"
           variant="ghost"
-          className="w-full cursor-not-allowed justify-start border border-border/60 opacity-60"
-          disabled
+          className="w-full justify-start border border-border/60"
         >
-          <IconHeart width={16} height={16} /> Doar saldo disponível (em breve)
-        </Button>
+          <IconHeart width={16} height={16} /> Doar para uma entidade
+        </LinkButton>
 
         {saqueEmergencialLiberado ? (
           <Button

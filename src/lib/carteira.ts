@@ -15,11 +15,11 @@ export const TAXA_ANTECIPACAO = 0.05;
 
 export class SaldoInsuficienteError extends Error {}
 
-type TxClient = Prisma.TransactionClient;
+export type TxClient = Prisma.TransactionClient;
 type LinhaComValor = { id: string; valor: number };
 
 /** Consome linhas em ordem (FIFO) até atingir `valorAlvo`, dividindo a última linha se necessário. */
-async function consumirFIFO<T extends LinhaComValor>(
+export async function consumirFIFO<T extends LinhaComValor>(
   linhas: T[],
   valorAlvo: number,
   onTotal: (linha: T) => Promise<void>,

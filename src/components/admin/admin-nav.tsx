@@ -17,6 +17,8 @@ const LINKS = [
   { href: "/restrito/reaplicacoes", label: "Reaplicações" },
   { href: "/restrito/migracao", label: "Migração" },
   { href: "/restrito/historico", label: "Histórico" },
+  { href: "/restrito/entidades", label: "Entidades" },
+  { href: "/restrito/doacoes", label: "Doações" },
 ];
 
 export function AdminNav() {
