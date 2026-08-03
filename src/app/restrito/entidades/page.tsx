@@ -5,6 +5,7 @@ import { formatMoeda } from "@/lib/format";
 import { formatCNPJ } from "@/lib/cpf-cnpj";
 import { checarRequisitosAtivacao } from "@/lib/entidades";
 import { CriarEntidadeButton } from "./criar-entidade-form";
+import { ConverterUsuarioButton } from "./converter-usuario-form";
 import { EntidadeLinhaAcoes } from "./linha-acoes";
 
 const TIPO_LABEL: Record<string, string> = {
@@ -54,7 +55,10 @@ export default async function RestritoEntidadesPage() {
             doações e novas aplicações.
           </p>
         </div>
-        <CriarEntidadeButton />
+        <div className="flex flex-wrap gap-2">
+          <ConverterUsuarioButton />
+          <CriarEntidadeButton />
+        </div>
       </div>
 
       <div className="mt-6 overflow-x-auto rounded-2xl border border-border">

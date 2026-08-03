@@ -6,7 +6,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { isValidCNPJ, isValidCPF, onlyDigits } from "@/lib/cpf-cnpj";
 import { buildCodigoIndicacao } from "@/lib/codigo-indicacao";
-import { ativarEntidade, TAXA_ATIVACAO_PADRAO } from "@/lib/entidades";
+import { ativarEntidade, converterUsuarioEmEntidade, TAXA_ATIVACAO_PADRAO } from "@/lib/entidades";
 
 export type EntidadeState = { error?: string; sucesso?: string } | undefined;
 
@@ -99,6 +99,33 @@ export async function criarEntidade(
 
   revalidatePath("/restrito/entidades");
   return { sucesso: `Entidade "${razaoSocial}" cadastrada. Falta aprovar documentos, termos e ativar.` };
+}
+
+export async function converterUsuarioEmEntidadeAction(
+  _prevState: EntidadeState,
+  formData: FormData
+): Promise<EntidadeState> {
+  const admin = await requireAdmin();
+
+  const cnpj = String(formData.get("cnpj") ?? "");
+  const tipoEntidade = String(formData.get("tipoEntidade") ?? "OUTRO");
+  const chavePix = String(formData.get("chavePix") ?? "").trim();
+  const taxaAtivacao = Number(String(formData.get("taxaAtivacao") ?? TAXA_ATIVACAO_PADRAO).replace(",", "."));
+
+  if (!onlyDigits(cnpj)) return { error: "Informe o CNPJ." };
+  if (!chavePix) return { error: "Informe a chave Pix." };
+  if (Number.isNaN(taxaAtivacao) || taxaAtivacao < 0) return { error: "Taxa de ativação inválida." };
+
+  const resultado = await converterUsuarioEmEntidade(cnpj, {
+    tipoEntidade: tipoEntidade as never,
+    chavePix,
+    taxaAtivacao,
+    adminId: admin.id,
+  });
+  if (resultado.error) return { error: resultado.error };
+
+  revalidatePath("/restrito/entidades");
+  return { sucesso: "Conta transformada em entidade. Falta aprovar documentos, termos e ativar." };
 }
 
 export async function marcarDocumentosAprovados(entidadeId: string, aprovado: boolean) {

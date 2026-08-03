@@ -1,10 +1,53 @@
 import { prisma } from "@/lib/prisma";
 import { consumirFIFO, SaldoInsuficienteError, type TxClient } from "@/lib/carteira";
-import { isValidCNPJ } from "@/lib/cpf-cnpj";
+import { isValidCNPJ, onlyDigits } from "@/lib/cpf-cnpj";
 import { formatMoeda } from "@/lib/format";
+import type { TipoEntidade } from "@prisma/client";
 
 /** Valor padrão sugerido pra taxa de ativação — o admin pode mudar por entidade ao cadastrar. */
 export const TAXA_ATIVACAO_PADRAO = 100;
+
+/** Transforma um investidor Pessoa Jurídica já cadastrado em Entidade, sem perder e-mail,
+ *  capital ou histórico — só adiciona o perfil de Entidade por cima dos dados de PJ que já
+ *  existem. Usado quando a igreja/ONG/associação já tinha aportado como investidor comum antes
+ *  de existir a área de Entidades. */
+export async function converterUsuarioEmEntidade(
+  cnpj: string,
+  params: { tipoEntidade: TipoEntidade; chavePix: string; taxaAtivacao: number; adminId: string }
+): Promise<{ error?: string; entidadeId?: string }> {
+  const cnpjLimpo = onlyDigits(cnpj);
+  const pj = await prisma.pessoaJuridica.findUnique({
+    where: { cnpj: cnpjLimpo },
+    include: { user: { include: { entidade: true } } },
+  });
+
+  if (!pj) return { error: "Nenhum investidor Pessoa Jurídica encontrado com esse CNPJ." };
+  if (pj.user.entidade) return { error: "Esse usuário já é uma entidade." };
+  if (pj.user.perfil === "ADMIN") return { error: "Não é possível transformar uma conta administradora em entidade." };
+
+  const entidade = await prisma.$transaction(async (tx) => {
+    await tx.user.update({ where: { id: pj.userId }, data: { perfil: "ENTIDADE" } });
+    return tx.entidade.create({
+      data: {
+        userId: pj.userId,
+        tipoEntidade: params.tipoEntidade,
+        chavePix: params.chavePix,
+        taxaAtivacao: params.taxaAtivacao,
+        status: "EM_ANALISE",
+      },
+    });
+  });
+
+  await prisma.logAuditoria.create({
+    data: {
+      userId: params.adminId,
+      acao: "converter_usuario_em_entidade",
+      detalhes: `${pj.user.email} (${pj.razaoSocial}) -> entidade ${entidade.id}`,
+    },
+  });
+
+  return { entidadeId: entidade.id };
+}
 
 const EPSILON = 0.005;
 
