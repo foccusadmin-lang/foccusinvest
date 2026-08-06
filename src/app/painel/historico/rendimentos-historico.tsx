@@ -1,6 +1,6 @@
 "use client";
 
-import { formatMoeda } from "@/lib/format";
+import { formatMoeda, formatData } from "@/lib/format";
 import { useGrupoPorData } from "./use-grupo-data";
 
 type Credito = {
@@ -55,7 +55,9 @@ export function RendimentosHistorico({ itens }: { itens: Credito[] }) {
                     >
                       <div>
                         <p className="font-semibold text-gold-light">{formatMoeda(c.valor)}</p>
-                        <p className="text-xs text-muted">{c.origem}</p>
+                        <p className="text-xs text-muted">
+                          {formatData(c.criadoEm)} · {c.origem}
+                        </p>
                       </div>
                       <span
                         className={`rounded-full px-3 py-1 text-xs font-semibold ${
