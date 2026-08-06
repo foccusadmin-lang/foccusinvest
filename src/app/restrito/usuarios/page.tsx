@@ -17,29 +17,44 @@ export default async function RestritoUsuariosPage() {
 
   const agora = new Date();
 
-  const [capitaisPorUsuario, creditosPorUsuario, capitalDisponivelPorUsuario, capitalCarenciaPorUsuario] =
-    await Promise.all([
-      prisma.aplicacao.groupBy({
-        by: ["userId"],
-        where: { status: { in: ["CONFIRMADA", "SAQUE_SOLICITADO"] } },
-        _sum: { valor: true },
-      }),
-      prisma.creditoCarteira.groupBy({
-        by: ["userId", "tipo"],
-        where: { utilizadoEm: null, solicitacaoSaqueId: null },
-        _sum: { valor: true },
-      }),
-      prisma.aplicacao.groupBy({
-        by: ["userId"],
-        where: { status: "CONFIRMADA", liberaEm: { lte: agora } },
-        _sum: { valor: true },
-      }),
-      prisma.aplicacao.groupBy({
-        by: ["userId"],
-        where: { status: "CONFIRMADA", liberaEm: { gt: agora } },
-        _sum: { valor: true },
-      }),
-    ]);
+  const [
+    capitaisPorUsuario,
+    creditosPorUsuario,
+    capitalDisponivelPorUsuario,
+    capitalCarenciaPorUsuario,
+    aplicacoesElegiveis,
+    liberacoesAtivas,
+  ] = await Promise.all([
+    prisma.aplicacao.groupBy({
+      by: ["userId"],
+      where: { status: { in: ["CONFIRMADA", "SAQUE_SOLICITADO"] } },
+      _sum: { valor: true },
+    }),
+    prisma.creditoCarteira.groupBy({
+      by: ["userId", "tipo"],
+      where: { utilizadoEm: null, solicitacaoSaqueId: null },
+      _sum: { valor: true },
+    }),
+    prisma.aplicacao.groupBy({
+      by: ["userId"],
+      where: { status: "CONFIRMADA", liberaEm: { lte: agora } },
+      _sum: { valor: true },
+    }),
+    prisma.aplicacao.groupBy({
+      by: ["userId"],
+      where: { status: "CONFIRMADA", liberaEm: { gt: agora } },
+      _sum: { valor: true },
+    }),
+    prisma.aplicacao.findMany({
+      where: { status: "CONFIRMADA" },
+      select: { id: true, userId: true, valor: true, criadoEm: true, liberaEm: true },
+      orderBy: { criadoEm: "asc" },
+    }),
+    prisma.liberacaoEmergencial.findMany({
+      where: { status: "ATIVA" },
+      orderBy: { criadoEm: "desc" },
+    }),
+  ]);
 
   const capitalPorId = new Map(capitaisPorUsuario.map((c) => [c.userId, c._sum.valor ?? 0]));
   const rendimentoPorId = new Map(
@@ -54,6 +69,31 @@ export default async function RestritoUsuariosPage() {
   const capitalCarenciaPorId = new Map(
     capitalCarenciaPorUsuario.map((c) => [c.userId, c._sum.valor ?? 0])
   );
+
+  const aplicacoesPorUsuario = new Map<string, LinhaUsuario["aplicacoesElegiveisEmergencia"]>();
+  for (const a of aplicacoesElegiveis) {
+    const lista = aplicacoesPorUsuario.get(a.userId) ?? [];
+    lista.push({
+      id: a.id,
+      valor: a.valor,
+      criadoEm: a.criadoEm.toISOString(),
+      liberaEm: a.liberaEm.toISOString(),
+      emCarencia: a.liberaEm > agora,
+    });
+    aplicacoesPorUsuario.set(a.userId, lista);
+  }
+  const liberacaoAtivaPorUsuario = new Map<string, LinhaUsuario["liberacaoEmergenciaAtiva"]>();
+  for (const l of liberacoesAtivas) {
+    if (liberacaoAtivaPorUsuario.has(l.userId)) continue; // mais recente já veio primeiro (orderBy desc)
+    liberacaoAtivaPorUsuario.set(l.userId, {
+      id: l.id,
+      aplicacaoId: l.aplicacaoId,
+      valorMaximo: l.valorMaximo,
+      tipoSaque: l.tipoSaque,
+      motivo: l.motivo,
+      expiraEm: l.expiraEm.toISOString(),
+    });
+  }
 
   const linhas: LinhaUsuario[] = usuarios.map((u) => ({
     id: u.id,
@@ -75,7 +115,8 @@ export default async function RestritoUsuariosPage() {
     statusCadastro: u.statusCadastro,
     perfil: u.perfil,
     createdAt: u.createdAt,
-    saqueEmergencialLiberado: u.saqueEmergencialLiberado,
+    aplicacoesElegiveisEmergencia: aplicacoesPorUsuario.get(u.id) ?? [],
+    liberacaoEmergenciaAtiva: liberacaoAtivaPorUsuario.get(u.id) ?? null,
     tipoPessoa: u.tipoPessoa,
     cpf: u.pessoaFisica?.cpf ?? "",
     dataNascimento: u.pessoaFisica

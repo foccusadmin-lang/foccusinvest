@@ -114,53 +114,70 @@ enum StatusDistribuicao {
   CANCELADA
 }
 
+enum TipoLiberacaoEmergencial {
+  TOTAL
+  PARCIAL
+}
+
+enum StatusLiberacaoEmergencial {
+  ATIVA
+  UTILIZADA
+  EXPIRADA
+  CANCELADA
+}
+
 model User {
-  id              String         @id @default(cuid())
-  email           String         @unique
-  emailVerified   DateTime?
-  name            String?
-  image           String?
-  perfil          PerfilUsuario  @default(USUARIO)
-  tipoPessoa      TipoPessoa?
-  statusCadastro  StatusCadastro @default(INCOMPLETO)
-  senha           String?
-  saqueEmergencialLiberado Boolean @default(false)
+  id             String         @id @default(cuid())
+  email          String         @unique
+  emailVerified  DateTime?
+  name           String?
+  image          String?
+  perfil         PerfilUsuario  @default(USUARIO)
+  tipoPessoa     TipoPessoa?
+  statusCadastro StatusCadastro @default(INCOMPLETO)
+  senha          String?
 
-  codigoIndicacao String?  @unique
+  codigoIndicacao String? @unique
   indicadoPorId   String?
-  indicadoPor     User?    @relation("Indicacoes", fields: [indicadoPorId], references: [id])
-  indicados       User[]   @relation("Indicacoes")
+  indicadoPor     User?   @relation("Indicacoes", fields: [indicadoPorId], references: [id])
+  indicados       User[]  @relation("Indicacoes")
 
-  pessoaFisica    PessoaFisica?
-  pessoaJuridica  PessoaJuridica?
-  aceites         TermoAceite[]
-  logsAuditoria   LogAuditoria[]
+  pessoaFisica   PessoaFisica?
+  pessoaJuridica PessoaJuridica?
+  aceites        TermoAceite[]
+  logsAuditoria  LogAuditoria[]
 
   accounts             Account[]
   sessions             Session[]
   aplicacoes           Aplicacao[]
-  aplicacoesAprovadas  Aplicacao[]           @relation("AplicacaoAprovadaPor")
+  aplicacoesAprovadas  Aplicacao[]                @relation("AplicacaoAprovadaPor")
   creditos             CreditoCarteira[]
   solicitacoesSaque    SolicitacaoSaque[]
   distribuicoesCriadas DistribuicaoMensal[]
   participacoes        DistribuicaoParticipante[]
-  migracoesCriadas     MigracaoSaldo[]             @relation("MigracaoCriador")
-  migracaoRecebida     MigracaoSaldo[]             @relation("MigracaoUsuario")
+  migracoesCriadas     MigracaoSaldo[]            @relation("MigracaoCriador")
+  migracaoRecebida     MigracaoSaldo[]            @relation("MigracaoUsuario")
   contratos            Contrato[]
 
-  entidade          Entidade? @relation("EntidadeUsuario")
+  entidade          Entidade?  @relation("EntidadeUsuario")
   entidadesAtivadas Entidade[] @relation("EntidadeAtivadaPor")
-  doacoesFeitas     Doacao[]  @relation("DoacaoDoador")
-  doacoesAprovadas  Doacao[]  @relation("DoacaoAprovadaPor")
+  doacoesFeitas     Doacao[]   @relation("DoacaoDoador")
+  doacoesAprovadas  Doacao[]   @relation("DoacaoAprovadaPor")
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  liberacoesEmergenciais           LiberacaoEmergencial[] @relation("LiberacaoEmergencialUsuario")
+  liberacoesEmergenciaisCriadas    LiberacaoEmergencial[] @relation("LiberacaoEmergencialCriadaPor")
+  liberacoesEmergenciaisCanceladas LiberacaoEmergencial[] @relation("LiberacaoEmergencialCanceladaPor")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
-/** Perfil de igreja/ONG/associação/instituto/projeto social — sempre 1:1 com um User
- *  (perfil: ENTIDADE), reaproveitando PessoaJuridica pra razão social/CNPJ/representante e a
- *  carteira normal (Aplicacao/CreditoCarteira) pra saldo, extrato e saques, exatamente como um
- *  investidor comum. Só guarda aqui o que é específico de entidade. */
+/**
+ * Perfil de igreja/ONG/associação/instituto/projeto social — sempre 1:1 com um User
+ * (perfil: ENTIDADE), reaproveitando PessoaJuridica pra razão social/CNPJ/representante e a
+ * carteira normal (Aplicacao/CreditoCarteira) pra saldo, extrato e saques, exatamente como um
+ * investidor comum. Só guarda aqui o que é específico de entidade.
+ */
 model Entidade {
   id     String @id @default(cuid())
   userId String @unique
@@ -190,9 +207,11 @@ model Entidade {
   updatedAt DateTime @updatedAt
 }
 
-/** Doação de um investidor pra uma entidade — SALDO_DISPONIVEL debita na hora do saldo livre do
- *  doador; NOVA_APLICACAO segue o mesmo fluxo de Pix + comprovante + aprovação do admin que uma
- *  aplicação normal, só que o valor vai direto pra carteira da entidade, nunca pra do doador. */
+/**
+ * Doação de um investidor pra uma entidade — SALDO_DISPONIVEL debita na hora do saldo livre do
+ * doador; NOVA_APLICACAO segue o mesmo fluxo de Pix + comprovante + aprovação do admin que uma
+ * aplicação normal, só que o valor vai direto pra carteira da entidade, nunca pra do doador.
+ */
 model Doacao {
   id         String   @id @default(cuid())
   doadorId   String
@@ -202,10 +221,10 @@ model Doacao {
 
   tipoDoacao    TipoDoacao
   valorBruto    Float
-  taxa          Float   @default(0)
+  taxa          Float        @default(0)
   valorLiquido  Float
   origemSaldo   String?
-  doacaoAnonima Boolean @default(false)
+  doacaoAnonima Boolean      @default(false)
   status        StatusDoacao @default(AGUARDANDO_PAGAMENTO)
 
   comprovante     Bytes?
@@ -223,20 +242,22 @@ model Doacao {
   confirmadoEm DateTime?
 }
 
-/** Saldo trazido de outra plataforma (ex: Mocha) para um investidor que já tinha capital
- *  investido lá. Lançado manualmente/via planilha pelo admin. Se o CPF/CNPJ ainda não tem conta
- *  aqui, fica PENDENTE e é aplicado automaticamente assim que a pessoa completar o cadastro com
- *  o mesmo documento. */
+/**
+ * Saldo trazido de outra plataforma (ex: Mocha) para um investidor que já tinha capital
+ * investido lá. Lançado manualmente/via planilha pelo admin. Se o CPF/CNPJ ainda não tem conta
+ * aqui, fica PENDENTE e é aplicado automaticamente assim que a pessoa completar o cadastro com
+ * o mesmo documento.
+ */
 model MigracaoSaldo {
-  id             String         @id @default(cuid())
-  documento      String?        @unique
-  nomeReferencia String
+  id              String         @id @default(cuid())
+  documento       String?        @unique
+  nomeReferencia  String
   emailReferencia String?
-  valor          Float
-  valorPlr       Float          @default(0)
-  valorBonus     Float          @default(0)
-  observacao     String?
-  status         StatusMigracao @default(PENDENTE)
+  valor           Float
+  valorPlr        Float          @default(0)
+  valorBonus      Float          @default(0)
+  observacao      String?
+  status          StatusMigracao @default(PENDENTE)
 
   userId      String?
   user        User?   @relation("MigracaoUsuario", fields: [userId], references: [id])
@@ -249,20 +270,22 @@ model MigracaoSaldo {
   aplicadoEm DateTime?
 }
 
-/** Lançamento de resultado real do período, feito manualmente pelo admin como uma porcentagem
- *  (ex: "julho deu 3%"). Cada investidor recebe esse mesmo percentual sobre o próprio capital,
- *  e o sistema só dilui o pagamento em fatias diárias ao longo do período — o percentual em si
- *  não muda depois de lançado. */
+/**
+ * Lançamento de resultado real do período, feito manualmente pelo admin como uma porcentagem
+ * (ex: "julho deu 3%"). Cada investidor recebe esse mesmo percentual sobre o próprio capital,
+ * e o sistema só dilui o pagamento em fatias diárias ao longo do período — o percentual em si
+ * não muda depois de lançado.
+ */
 model DistribuicaoMensal {
-  id            String             @id @default(cuid())
-  periodoInicio DateTime
-  periodoFim    DateTime
-  percentual    Float
-  valorTotal    Float
-  moeda         String             @default("BRL")
+  id               String             @id @default(cuid())
+  periodoInicio    DateTime
+  periodoFim       DateTime
+  percentual       Float
+  valorTotal       Float
+  moeda            String             @default("BRL")
   resultadoApurado String
-  observacoes   String?
-  status        StatusDistribuicao @default(ATIVA)
+  observacoes      String?
+  status           StatusDistribuicao @default(ATIVA)
 
   criadoPorId String
   criadoPor   User     @relation(fields: [criadoPorId], references: [id])
@@ -271,9 +294,11 @@ model DistribuicaoMensal {
   participantes DistribuicaoParticipante[]
 }
 
-/** Cota de cada investidor numa distribuição, com o capital elegível já congelado no momento do
- *  lançamento (não muda se o investidor aplicar mais depois) e o controle de quantos dias já foram
- *  convertidos em crédito disponível. */
+/**
+ * Cota de cada investidor numa distribuição, com o capital elegível já congelado no momento do
+ * lançamento (não muda se o investidor aplicar mais depois) e o controle de quantos dias já foram
+ * convertidos em crédito disponível.
+ */
 model DistribuicaoParticipante {
   id             String             @id @default(cuid())
   distribuicaoId String
@@ -281,9 +306,9 @@ model DistribuicaoParticipante {
   userId         String
   user           User               @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  capitalElegivel    Float
-  valorTotalCota     Float
-  diasCreditados     Int      @default(0)
+  capitalElegivel Float
+  valorTotalCota  Float
+  diasCreditados  Int   @default(0)
 
   @@unique([distribuicaoId, userId])
 }
@@ -311,12 +336,15 @@ model Aplicacao {
   solicitacaoSaqueId String?
   solicitacaoSaque   SolicitacaoSaque? @relation(fields: [solicitacaoSaqueId], references: [id])
 
-  contrato Contrato?
+  contrato               Contrato?
+  liberacoesEmergenciais LiberacaoEmergencial[]
 }
 
-/** Snapshot imutável do Contrato de Prestação de Serviços gerado no momento de cada aporte
- *  (Nova Aplicação). Os dados são congelados na criação — não refletem edições posteriores
- *  no perfil do investidor, preservando o documento tal como foi lido e confirmado. */
+/**
+ * Snapshot imutável do Contrato de Prestação de Serviços gerado no momento de cada aporte
+ * (Nova Aplicação). Os dados são congelados na criação — não refletem edições posteriores
+ * no perfil do investidor, preservando o documento tal como foi lido e confirmado.
+ */
 model Contrato {
   id          String    @id @default(cuid())
   userId      String
@@ -368,13 +396,49 @@ model SolicitacaoSaque {
   criadoEm            DateTime    @default(now())
   processadoEm        DateTime?
 
-  emergencial      Boolean @default(false)
-  motivoEmergencia String?
-  valorBruto       Float?
-  taxaAntecipacao  Float?
+  emergencial                  Boolean @default(false)
+  motivoEmergencia             String?
+  valorBruto                   Float?
+  taxaAntecipacao              Float?
+  solicitacaoSaqueRendimentoId String?
 
-  aplicacoes Aplicacao[]
-  creditos   CreditoCarteira[]
+  aplicacoes           Aplicacao[]
+  creditos             CreditoCarteira[]
+  liberacaoEmergencial LiberacaoEmergencial?
+}
+
+/**
+ * Autorização individual, criada pelo admin, pra um investidor sacar um lote (Aplicacao)
+ * específico antes do fim da carência — ignora o bloqueio normal de saque, mas só dentro do
+ * valor máximo e prazo definidos. Usada uma única vez (ou até cancelada/expirar), e vinculada
+ * ao SolicitacaoSaque gerado quando o investidor de fato usa a liberação.
+ */
+model LiberacaoEmergencial {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation("LiberacaoEmergencialUsuario", fields: [userId], references: [id], onDelete: Cascade)
+
+  aplicacaoId String
+  aplicacao   Aplicacao @relation(fields: [aplicacaoId], references: [id], onDelete: Cascade)
+
+  valorMaximo Float
+  tipoSaque   TipoLiberacaoEmergencial
+  motivo      String
+  expiraEm    DateTime
+
+  status StatusLiberacaoEmergencial @default(ATIVA)
+
+  criadoPorId String
+  criadoPor   User     @relation("LiberacaoEmergencialCriadaPor", fields: [criadoPorId], references: [id])
+  criadoEm    DateTime @default(now())
+  ip          String?
+
+  canceladoPorId String?
+  canceladoPor   User?     @relation("LiberacaoEmergencialCanceladaPor", fields: [canceladoPorId], references: [id])
+  canceladoEm    DateTime?
+
+  solicitacaoSaqueId String?           @unique
+  solicitacaoSaque   SolicitacaoSaque? @relation(fields: [solicitacaoSaqueId], references: [id])
 }
 
 model PessoaFisica {
@@ -395,22 +459,22 @@ model PessoaFisica {
 }
 
 model PessoaJuridica {
-  id                 String   @id @default(cuid())
-  userId             String   @unique
-  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  razaoSocial        String
-  nomeFantasia       String?
-  cnpj               String   @unique
-  representanteLegal String
-  cpfRepresentante   String
-  telefone           String?
-  endereco           String?
+  id                         String   @id @default(cuid())
+  userId                     String   @unique
+  user                       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  razaoSocial                String
+  nomeFantasia               String?
+  cnpj                       String   @unique
+  representanteLegal         String
+  cpfRepresentante           String
+  telefone                   String?
+  endereco                   String?
   rgRepresentante            String?
   nacionalidadeRepresentante String?
   estadoCivilRepresentante   String?
   profissaoRepresentante     String?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
 }
 
 model TermoAceite {
@@ -424,11 +488,11 @@ model TermoAceite {
 }
 
 model ConfiguracaoSistema {
-  id                     String            @id @default("default")
-  modoSaqueCapital       ModoProcessamento @default(MANUAL)
-  modoSaqueRendimento    ModoProcessamento @default(MANUAL)
+  id                      String            @id @default("default")
+  modoSaqueCapital        ModoProcessamento @default(MANUAL)
+  modoSaqueRendimento     ModoProcessamento @default(MANUAL)
   modoVerificacaoCadastro ModoProcessamento @default(MANUAL)
-  updatedAt              DateTime          @updatedAt
+  updatedAt               DateTime          @updatedAt
 }
 
 model LogAuditoria {

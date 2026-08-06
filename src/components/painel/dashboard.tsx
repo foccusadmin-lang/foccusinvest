@@ -7,6 +7,7 @@ import { ViewSwitcher } from "@/components/admin/view-switcher";
 import { ConvidarAmigoButton } from "./convidar-amigo-button";
 import { formatMoeda, formatData } from "@/lib/format";
 import { IconWallet, IconTrendingUp, IconGift, IconVerified } from "@/components/icons";
+import type { LiberacaoAtiva } from "@/lib/emergencia";
 
 export type ResumoFinanceiro = {
   capitalPrincipal: number;
@@ -32,7 +33,7 @@ export type PainelUsuario = {
   codigoIndicacao?: string | null;
   moeda?: "BRL" | "USD" | "USDT";
   ehAdmin?: boolean;
-  saqueEmergencialLiberado?: boolean;
+  liberacaoEmergencial?: LiberacaoAtiva | null;
   primeiroAporteElegivelIndicacao?: boolean;
 };
 
@@ -186,7 +187,7 @@ export function PainelDashboard({
           distribuicoesAcumuladas={resumo.distribuicoesAcumuladas}
           proximaLiberacao={resumo.proximaLiberacao}
           moeda={usuario.moeda ?? "BRL"}
-          saqueEmergencialLiberado={usuario.saqueEmergencialLiberado ?? false}
+          liberacaoEmergencial={usuario.liberacaoEmergencial ?? null}
           codigoIndicacao={usuario.codigoIndicacao ?? null}
           primeiroAporteElegivelIndicacao={usuario.primeiroAporteElegivelIndicacao ?? true}
         />

@@ -6,7 +6,7 @@ import { formatData, formatMoeda } from "@/lib/format";
 import { StatusActions } from "./status-actions";
 import { AjusteSaldoButton } from "./ajuste-modal";
 import { AjusteCarenciaButton } from "./carencia-modal";
-import { SaqueEmergencialToggle } from "./saque-emergencial-toggle";
+import { LiberarEmergenciaButton, type AplicacaoElegivel, type LiberacaoAtivaResumo } from "./emergencia-modal";
 import { AtualizarDadosButton } from "./atualizar-dados-modal";
 import { ExcluirUsuarioButton } from "./excluir-usuario-button";
 
@@ -34,7 +34,8 @@ export type LinhaUsuario = {
   statusCadastro: StatusCadastro;
   perfil: PerfilUsuario;
   createdAt: Date;
-  saqueEmergencialLiberado: boolean;
+  aplicacoesElegiveisEmergencia: AplicacaoElegivel[];
+  liberacaoEmergenciaAtiva: LiberacaoAtivaResumo | null;
   tipoPessoa: "FISICA" | "JURIDICA" | null;
   cpf: string;
   dataNascimento: string;
@@ -159,9 +160,17 @@ export function UsuariosTable({ usuarios }: { usuarios: LinhaUsuario[] }) {
                       statusCadastro={u.statusCadastro}
                       perfil={u.perfil}
                     />
-                    <SaqueEmergencialToggle
-                      userId={u.id}
-                      liberado={u.saqueEmergencialLiberado}
+                    <LiberarEmergenciaButton
+                      usuario={{
+                        id: u.id,
+                        nome: u.nome,
+                        email: u.email,
+                        capitalDisponivel: u.capitalDisponivel,
+                        capitalCarencia: u.capitalCarencia,
+                        rendimento: u.rendimento,
+                        aplicacoes: u.aplicacoesElegiveisEmergencia,
+                        liberacaoAtiva: u.liberacaoEmergenciaAtiva,
+                      }}
                     />
                     <ExcluirUsuarioButton userId={u.id} nome={u.nome} />
                   </div>

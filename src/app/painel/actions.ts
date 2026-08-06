@@ -7,12 +7,12 @@ import { formatMoeda } from "@/lib/format";
 import {
   calcularLiberacao,
   reservarCapitalParaSaque,
-  reservarCapitalParaSaqueEmergencial,
   reservarCreditosParaSaque,
   reaplicarSaldoDisponivel,
+  getResumoCarteira,
   SaldoInsuficienteError,
-  TAXA_ANTECIPACAO,
 } from "@/lib/carteira";
+import { obterLiberacaoAtivaDoUsuario, executarSaqueEmergencial } from "@/lib/emergencia";
 import { getConfiguracao } from "@/lib/configuracao";
 import { janelaSaqueRendimentoAberta, MENSAGEM_JANELA_FECHADA } from "@/lib/janela-saque";
 import { valorPorExtenso } from "@/lib/valor-extenso";
@@ -301,8 +301,6 @@ export async function solicitarSaqueRendimento(
   };
 }
 
-export type OrigemSaqueEmergencia = "CAPITAL" | "DISPONIVEL" | "RENDIMENTO" | "BONUS";
-
 export async function solicitarSaqueEmergencia(
   _prevState: AcaoState,
   formData: FormData
@@ -315,100 +313,36 @@ export async function solicitarSaqueEmergencia(
     };
   }
 
-  const usuarioAtual = await prisma.user.findUnique({ where: { id: session.user.id } });
-  if (!usuarioAtual?.saqueEmergencialLiberado) {
+  const userId = session.user.id;
+  const liberacao = await obterLiberacaoAtivaDoUsuario(userId);
+  if (!liberacao) {
     return {
-      error: "O saque de emergência não está liberado para sua conta no momento. Entre em contato com o administrador.",
+      error:
+        "Esta aplicação ainda está no período de carência. Para solicitar um saque emergencial, entre em contato com a administração.",
     };
   }
 
-  const userId = session.user.id;
-  const origem = String(formData.get("origem") ?? "") as OrigemSaqueEmergencia;
-  const valorBruto = parseValor(formData.get("valor"));
-  const motivo = String(formData.get("motivo") ?? "").trim();
+  const capitalSolicitado = parseValor(formData.get("valor"));
+  const incluirRendimento = String(formData.get("incluirRendimento") ?? "0") === "1";
 
-  if (!["CAPITAL", "DISPONIVEL", "RENDIMENTO", "BONUS"].includes(origem)) {
-    return { error: "Selecione a origem do saque." };
-  }
-  if (!valorBruto || valorBruto <= 0 || Number.isNaN(valorBruto)) {
-    return { error: "Informe um valor válido." };
-  }
-  if (motivo.length < 10) {
-    return { error: "Descreva o motivo da emergência (mínimo 10 caracteres) — fica registrado para auditoria." };
-  }
+  const resumo = await getResumoCarteira(userId);
+  const rendimentoDisponivel = resumo.distribuicoesDisponiveis;
 
-  const temTaxa = origem === "CAPITAL";
-  const taxaAntecipacao = temTaxa ? valorBruto * TAXA_ANTECIPACAO : 0;
-  const valorLiquido = valorBruto - taxaAntecipacao;
+  const resultado = await executarSaqueEmergencial({
+    userId,
+    liberacao,
+    capitalSolicitado,
+    incluirRendimento,
+    rendimentoDisponivel,
+  });
 
-  const tipoSaque = origem === "BONUS" ? "BONUS" : origem === "RENDIMENTO" ? "RENDIMENTO" : "CAPITAL";
-  const config = await getConfiguracao();
-  const automatico =
-    tipoSaque === "CAPITAL"
-      ? config.modoSaqueCapital === "AUTOMATICO"
-      : config.modoSaqueRendimento === "AUTOMATICO";
-
-  try {
-    await prisma.$transaction(async (tx) => {
-      const saque = await tx.solicitacaoSaque.create({
-        data: {
-          userId,
-          tipo: tipoSaque,
-          valor: valorLiquido,
-          valorBruto,
-          taxaAntecipacao: temTaxa ? taxaAntecipacao : null,
-          emergencial: true,
-          motivoEmergencia: motivo,
-        },
-      });
-
-      if (origem === "CAPITAL") {
-        await reservarCapitalParaSaqueEmergencial(tx, userId, valorBruto, saque.id);
-      } else if (origem === "DISPONIVEL") {
-        await reservarCapitalParaSaque(tx, userId, valorBruto, saque.id);
-      } else {
-        await reservarCreditosParaSaque(tx, userId, valorBruto, origem, saque.id);
-      }
-
-      if (automatico) {
-        if (origem === "CAPITAL" || origem === "DISPONIVEL") {
-          await tx.aplicacao.updateMany({
-            where: { solicitacaoSaqueId: saque.id },
-            data: { status: "RETIRADA" },
-          });
-        } else {
-          await tx.creditoCarteira.updateMany({
-            where: { solicitacaoSaqueId: saque.id },
-            data: { utilizadoEm: new Date() },
-          });
-        }
-        await tx.solicitacaoSaque.update({
-          where: { id: saque.id },
-          data: { status: "PAGO", processadoEm: new Date() },
-        });
-      }
-
-      // Saque de emergência é liberado uma vez por pedido — o admin fecha de novo depois.
-      await tx.user.update({ where: { id: userId }, data: { saqueEmergencialLiberado: false } });
-    });
-  } catch (e) {
-    if (e instanceof SaldoInsuficienteError) {
-      return { error: e.message };
-    }
-    throw e;
-  }
+  if (resultado.error) return { error: resultado.error };
 
   revalidatePath("/painel");
+  revalidatePath("/restrito/usuarios");
+  revalidatePath("/restrito/saques");
 
-  const mensagemValor = temTaxa
-    ? `Valor bruto: ${formatMoeda(valorBruto)} · Taxa de Antecipação (5%): -${formatMoeda(taxaAntecipacao)} · Você recebe: ${formatMoeda(valorLiquido)}.`
-    : `Valor: ${formatMoeda(valorLiquido)}.`;
-
-  return {
-    sucesso: automatico
-      ? `Saque de emergência processado. ${mensagemValor}`
-      : `Saque de emergência solicitado. ${mensagemValor} Aguarde aprovação.`,
-  };
+  return { sucesso: resultado.mensagem };
 }
 
 export async function reaplicar(

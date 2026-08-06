@@ -15,8 +15,11 @@ import {
   reaplicar,
   type AcaoState,
 } from "@/app/painel/actions";
-
-const TAXA_ANTECIPACAO_EXIBICAO = 0.05;
+import {
+  DESCONTO_RENDIMENTO_EMERGENCIAL,
+  estimarSaqueEmergencial,
+} from "@/lib/emergencia-calculo";
+import type { LiberacaoAtiva } from "@/lib/emergencia";
 
 type TipoAcao = "aplicacao" | "saque-capital" | "saque-rendimento" | "reaplicar" | "saque-emergencia";
 type TipoAcaoSimples = "saque-capital" | "saque-rendimento" | "reaplicar";
@@ -62,7 +65,7 @@ export function AcoesRapidas({
   distribuicoesAcumuladas,
   proximaLiberacao,
   moeda = "BRL",
-  saqueEmergencialLiberado,
+  liberacaoEmergencial,
   codigoIndicacao,
   primeiroAporteElegivelIndicacao,
 }: {
@@ -76,7 +79,7 @@ export function AcoesRapidas({
   distribuicoesAcumuladas: number;
   proximaLiberacao: Date | null;
   moeda?: "BRL" | "USD" | "USDT";
-  saqueEmergencialLiberado: boolean;
+  liberacaoEmergencial: LiberacaoAtiva | null;
   codigoIndicacao: string | null;
   primeiroAporteElegivelIndicacao: boolean;
 }) {
@@ -162,20 +165,20 @@ export function AcoesRapidas({
           <IconHeart width={16} height={16} /> Doar para uma entidade
         </LinkButton>
 
-        {saqueEmergencialLiberado ? (
+        {liberacaoEmergencial ? (
           <Button
             variant="ghost"
             className="w-full justify-start border border-red-500/40 text-red-300 hover:bg-red-500/10"
             onClick={() => setAberto("saque-emergencia")}
           >
-            <IconAlert width={16} height={16} /> Saque de emergência
+            <IconAlert width={16} height={16} /> Solicitar saque emergencial
           </Button>
         ) : (
           <Button
             variant="ghost"
             className="w-full cursor-not-allowed justify-start border border-border/60 opacity-60"
             disabled
-            title="Fale com o administrador para liberar o saque de emergência para sua conta"
+            title="Esta aplicação ainda está no período de carência. Para solicitar um saque emergencial, entre em contato com a administração."
           >
             <IconAlert width={16} height={16} /> Saque de emergência (bloqueado)
           </Button>
@@ -192,11 +195,11 @@ export function AcoesRapidas({
           primeiroAporteElegivelIndicacao={primeiroAporteElegivelIndicacao}
         />
       )}
-      {aberto === "saque-emergencia" && (
+      {aberto === "saque-emergencia" && liberacaoEmergencial && (
         <SaqueEmergenciaModal
           onClose={() => setAberto(null)}
-          capitalDisponivel={capitalDisponivel}
-          capitalCarencia={capitalCarencia}
+          liberacao={liberacaoEmergencial}
+          rendimentoDisponivel={rendimentoDisponivel}
           moeda={moeda}
         />
       )}
@@ -425,27 +428,20 @@ function NovaAplicacaoModal({
   );
 }
 
-const ORIGENS_EMERGENCIA = [
-  { valor: "CAPITAL", label: "Capital Principal", temTaxa: true },
-  { valor: "DISPONIVEL", label: "Disponível p/ Saque", temTaxa: false },
-  { valor: "RENDIMENTO", label: "PLR Acumulado", temTaxa: false },
-  { valor: "BONUS", label: "Bônus de Indicação", temTaxa: false },
-] as const;
-
 function SaqueEmergenciaModal({
   onClose,
-  capitalDisponivel,
-  capitalCarencia,
+  liberacao,
+  rendimentoDisponivel,
   moeda,
 }: {
   onClose: () => void;
-  capitalDisponivel: number;
-  capitalCarencia: number;
+  liberacao: LiberacaoAtiva;
+  rendimentoDisponivel: number;
   moeda: "BRL" | "USD" | "USDT";
 }) {
   const [state, action, pending] = useActionState(solicitarSaqueEmergencia, undefined);
-  const [origem, setOrigem] = useState<(typeof ORIGENS_EMERGENCIA)[number]["valor"]>("CAPITAL");
-  const [valorTexto, setValorTexto] = useState("");
+  const [valorTexto, setValorTexto] = useState(liberacao.valorMaximo.toFixed(2).replace(".", ","));
+  const [incluirRendimento, setIncluirRendimento] = useState(false);
   const router = useRouter();
   const processado = useRef(false);
 
@@ -459,10 +455,14 @@ function SaqueEmergenciaModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
 
-  const valorBruto = Number(valorTexto.replace(/\./g, "").replace(",", ".")) || 0;
-  const origemConfig = ORIGENS_EMERGENCIA.find((o) => o.valor === origem)!;
-  const taxaAntecipacao = origemConfig.temTaxa ? valorBruto * TAXA_ANTECIPACAO_EXIBICAO : 0;
-  const valorLiquido = valorBruto - taxaAntecipacao;
+  const capitalSolicitado = Number(valorTexto.replace(/\./g, "").replace(",", ".")) || 0;
+  const passaDoMaximo = capitalSolicitado > liberacao.valorMaximo;
+  const estimativa = estimarSaqueEmergencial(
+    capitalSolicitado,
+    rendimentoDisponivel,
+    incluirRendimento,
+    new Date(liberacao.aplicacao.criadoEm)
+  );
 
   return (
     <div
@@ -477,22 +477,22 @@ function SaqueEmergenciaModal({
           <IconAlert width={18} height={18} /> Saque de emergência
         </h3>
         <p className="mt-1 text-sm text-muted">
-          Ignora a carência de 90 dias e o calendário normal de saques. O motivo fica registrado
-          para auditoria.
+          Liberado pelo administrador — motivo: "{liberacao.motivo}". Válido até{" "}
+          {formatData(new Date(liberacao.expiraEm))}.
         </p>
 
         <div className="mt-4 rounded-xl border border-border bg-surface-2 p-3">
           <div className="grid grid-cols-2 gap-2 text-center">
             <div>
-              <p className="text-[10px] uppercase tracking-wider text-muted">Disponível</p>
+              <p className="text-[10px] uppercase tracking-wider text-muted">Máximo autorizado</p>
               <p className="text-sm font-semibold text-emerald-300">
-                {formatMoeda(capitalDisponivel, moeda)}
+                {formatMoeda(liberacao.valorMaximo, moeda)}
               </p>
             </div>
             <div>
-              <p className="text-[10px] uppercase tracking-wider text-muted">Em carência</p>
-              <p className="text-sm font-semibold text-amber-300">
-                {formatMoeda(capitalCarencia, moeda)}
+              <p className="text-[10px] uppercase tracking-wider text-muted">Saldo da aplicação</p>
+              <p className="text-sm font-semibold text-foreground">
+                {formatMoeda(liberacao.aplicacao.valor, moeda)}
               </p>
             </div>
           </div>
@@ -504,32 +504,12 @@ function SaqueEmergenciaModal({
           </p>
         ) : (
           <form action={action} className="mt-4 space-y-4">
-            <input type="hidden" name="origem" value={origem} />
-
-            <div>
-              <span className="mb-1 block text-sm font-medium text-foreground/90">
-                Origem do saque
-              </span>
-              <div className="grid grid-cols-2 gap-2">
-                {ORIGENS_EMERGENCIA.map((o) => (
-                  <button
-                    key={o.valor}
-                    type="button"
-                    onClick={() => setOrigem(o.valor)}
-                    className={`rounded-lg py-2 text-xs font-semibold transition ${
-                      origem === o.valor
-                        ? "bg-red-500/20 text-red-300"
-                        : "bg-white/5 text-muted hover:bg-white/10"
-                    }`}
-                  >
-                    {o.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <input type="hidden" name="incluirRendimento" value={incluirRendimento ? "1" : "0"} />
 
             <label className="block text-sm">
-              <span className="mb-1 block font-medium text-foreground/90">Valor (R$)</span>
+              <span className="mb-1 block font-medium text-foreground/90">
+                Valor do capital a sacar
+              </span>
               <MoneyInput
                 name="valor"
                 value={valorTexto}
@@ -538,42 +518,62 @@ function SaqueEmergenciaModal({
                 required
                 className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-foreground outline-none focus:border-red-400/60"
               />
+              <span className="mt-1 block text-xs text-muted">
+                Máximo autorizado: {formatMoeda(liberacao.valorMaximo)}
+              </span>
             </label>
 
-            {origemConfig.temTaxa && valorBruto > 0 && (
-              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs">
-                <div className="flex justify-between text-muted">
-                  <span>Valor bruto</span>
-                  <span className="text-foreground">{formatMoeda(valorBruto)}</span>
-                </div>
-                <div className="mt-1 flex justify-between text-amber-300">
-                  <span>Taxa de Antecipação (5%)</span>
-                  <span>-{formatMoeda(taxaAntecipacao)}</span>
-                </div>
-                <div className="mt-1 flex justify-between border-t border-amber-500/20 pt-1 font-semibold text-emerald-300">
-                  <span>Você recebe</span>
-                  <span>{formatMoeda(valorLiquido)}</span>
-                </div>
-              </div>
+            {rendimentoDisponivel > 0 && (
+              <label className="flex items-start gap-2 rounded-lg border border-border bg-surface-2 p-3 text-xs">
+                <input
+                  type="checkbox"
+                  checked={incluirRendimento}
+                  onChange={(e) => setIncluirRendimento(e.target.checked)}
+                  className="mt-0.5"
+                />
+                <span>
+                  Incluir também o rendimento disponível ({formatMoeda(rendimentoDisponivel)}) —
+                  sofre desconto de 15% + IOF regressivo.
+                </span>
+              </label>
             )}
 
-            <label className="block text-sm">
-              <span className="mb-1 block font-medium text-foreground/90">
-                Motivo da emergência (obrigatório)
-              </span>
-              <textarea
-                name="motivo"
-                required
-                minLength={10}
-                rows={3}
-                placeholder="Descreva o motivo (ex: emergência médica, situação familiar urgente...)"
-                className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground outline-none focus:border-red-400/60"
-              />
-            </label>
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs">
+              <div className="flex justify-between text-muted">
+                <span>Valor do capital</span>
+                <span className="text-foreground">{formatMoeda(estimativa.capitalSolicitado)}</span>
+              </div>
+              {incluirRendimento && (
+                <>
+                  <div className="mt-1 flex justify-between text-muted">
+                    <span>Valor do rendimento</span>
+                    <span className="text-foreground">{formatMoeda(estimativa.rendimentoBruto)}</span>
+                  </div>
+                  <div className="mt-1 flex justify-between text-amber-300">
+                    <span>Desconto sobre rendimento (15%)</span>
+                    <span>-{formatMoeda(estimativa.descontoRendimento)}</span>
+                  </div>
+                  <div className="mt-1 flex justify-between text-amber-300">
+                    <span>IOF ({estimativa.aliquotaIOF}%, dia {estimativa.diasCorridos})</span>
+                    <span>-{formatMoeda(estimativa.iof)}</span>
+                  </div>
+                </>
+              )}
+              <div className="mt-1 flex justify-between border-t border-amber-500/20 pt-1 font-semibold text-emerald-300">
+                <span>Valor líquido estimado</span>
+                <span>{formatMoeda(estimativa.valorLiquido)}</span>
+              </div>
+            </div>
+
+            {passaDoMaximo && (
+              <p className="text-sm text-red-400">
+                O valor não pode passar do máximo autorizado ({formatMoeda(liberacao.valorMaximo)}).
+              </p>
+            )}
 
             <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-200">
-              Atenção: essa operação ignora a carência de 90 dias e o calendário normal de
-              saques. O motivo informado fica registrado para auditoria interna.
+              Atenção: essa operação ignora a carência dessa aplicação. A liberação vale só uma
+              vez e é encerrada automaticamente depois deste saque.
             </div>
 
             {state?.error && <p className="text-sm text-red-400">{state.error}</p>}
@@ -589,10 +589,10 @@ function SaqueEmergenciaModal({
               </Button>
               <button
                 type="submit"
-                disabled={pending}
+                disabled={pending || passaDoMaximo || capitalSolicitado <= 0}
                 className="flex-1 rounded-xl bg-red-500/90 py-3 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-50"
               >
-                {pending ? "Processando..." : "Executar saque"}
+                {pending ? "Processando..." : "Confirmar solicitação"}
               </button>
             </div>
           </form>

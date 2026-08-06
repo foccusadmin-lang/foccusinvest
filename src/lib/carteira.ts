@@ -8,11 +8,6 @@ import type { Prisma, TipoCredito } from "@prisma/client";
 const NOVENTA_DIAS_MS = 90 * 24 * 60 * 60 * 1000;
 const EPSILON = 0.005;
 
-/** Taxa de Antecipação: desconto fixo cobrado quando o Saque de Emergência quebra a carência de
- *  90 dias do Capital Principal antes do prazo (baseado em taxas de mercado de antecipação de
- *  recebíveis, que variam de 1,2% a 4,5% ao mês). */
-export const TAXA_ANTECIPACAO = 0.05;
-
 export class SaldoInsuficienteError extends Error {}
 
 export type TxClient = Prisma.TransactionClient;
@@ -220,57 +215,6 @@ export async function reservarCapitalParaSaque(
 
   if (restante > EPSILON) {
     throw new SaldoInsuficienteError("Saldo disponível insuficiente para este saque.");
-  }
-}
-
-/**
- * Igual a `reservarCapitalParaSaque`, mas ignora a carência de 90 dias — usado só no Saque de
- * Emergência, que quebra o lote antes do prazo (por isso cobra a Taxa de Antecipação). Consome
- * os lotes mais antigos primeiro, estejam ou não liberados.
- */
-export async function reservarCapitalParaSaqueEmergencial(
-  tx: TxClient,
-  userId: string,
-  valorBruto: number,
-  solicitacaoSaqueId: string
-): Promise<void> {
-  const lotes = await tx.aplicacao.findMany({
-    where: { userId, status: "CONFIRMADA" },
-    orderBy: { criadoEm: "asc" },
-  });
-
-  const restante = await consumirFIFO(
-    lotes,
-    valorBruto,
-    async (lote) => {
-      await tx.aplicacao.update({
-        where: { id: lote.id },
-        data: { status: "SAQUE_SOLICITADO", solicitacaoSaqueId },
-      });
-    },
-    async (lote, valorConsumido, valorRestanteNaLinha) => {
-      const cheio = await tx.aplicacao.findUniqueOrThrow({ where: { id: lote.id } });
-      await tx.aplicacao.update({
-        where: { id: lote.id },
-        data: { valor: valorRestanteNaLinha },
-      });
-      await tx.aplicacao.create({
-        data: {
-          userId,
-          valor: valorConsumido,
-          moeda: cheio.moeda,
-          origem: cheio.origem,
-          status: "SAQUE_SOLICITADO",
-          criadoEm: cheio.criadoEm,
-          liberaEm: cheio.liberaEm,
-          solicitacaoSaqueId,
-        },
-      });
-    }
-  );
-
-  if (restante > EPSILON) {
-    throw new SaldoInsuficienteError("Capital insuficiente para este saque de emergência.");
   }
 }
 
