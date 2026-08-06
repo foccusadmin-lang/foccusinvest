@@ -90,6 +90,12 @@ const BOTOES: Botao[] = [
     cor: "bg-rose-700 hover:bg-rose-600",
     icone: <IconGeneric path="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 0 1-4 0v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 0 1 0-4h.09a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1-1.55V3a2 2 0 0 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9a1.7 1.7 0 0 0 1.55 1H21a2 2 0 0 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1Z" />,
   },
+  {
+    label: "Mockups do Sistema",
+    href: "/restrito/mockups",
+    cor: "bg-stone-600 hover:bg-stone-500",
+    icone: <IconGeneric path="M4 4h16v12H4zM8 20h8M12 16v4M9 8h2M9 11h6" />,
+  },
   { label: "Ativar Empresas", cor: "bg-yellow-600", icone: <IconGeneric path="M20 6 9 17l-5-5" />, emBreve: true },
   { label: "Gestão de Contratos", cor: "bg-purple-600", icone: <IconGeneric path="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M9 15h6M9 11h6" />, emBreve: true },
 ];
