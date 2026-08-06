@@ -4,14 +4,10 @@ import { prisma } from "@/lib/prisma";
 import { PlrIndividualForm } from "./plr-form";
 import { LancamentosRecentes } from "./lancamentos-recentes";
 
-const TRINTA_E_UM_DIAS_MS = 31 * 24 * 60 * 60 * 1000;
-
 export default async function RestritoPlrIndividualPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
   if (session.user.perfil !== "ADMIN") redirect("/painel");
-
-  const desde = new Date(new Date().getTime() - TRINTA_E_UM_DIAS_MS);
 
   const [usuarios, capitaisPorUsuario, lancamentosRecentes] = await Promise.all([
     prisma.user.findMany({
@@ -23,14 +19,17 @@ export default async function RestritoPlrIndividualPage() {
       where: { status: { in: ["CONFIRMADA", "SAQUE_SOLICITADO"] } },
       _sum: { valor: true },
     }),
+    // Sem corte por data — cada lançamento já guarda a própria data (a escolhida no
+    // formulário), e a lista agrupada por dia (com todos os grupos recolhidos por padrão)
+    // fica leve mesmo mostrando o histórico completo.
     prisma.creditoCarteira.findMany({
       where: {
         tipo: "RENDIMENTO",
         origem: { startsWith: "PLR manual" },
-        criadoEm: { gte: desde },
       },
       include: { user: { select: { name: true, email: true } } },
       orderBy: { criadoEm: "desc" },
+      take: 2000,
     }),
   ]);
 
@@ -58,7 +57,7 @@ export default async function RestritoPlrIndividualPage() {
       </div>
 
       <p className="mb-3 mt-10 text-xs font-semibold uppercase tracking-[0.15em] text-muted">
-        Lançamentos recentes (últimos 31 dias)
+        Lançamentos (todos, agrupados por data)
       </p>
 
       <LancamentosRecentes lancamentos={lancamentosRecentes} />
