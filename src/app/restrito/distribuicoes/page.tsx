@@ -59,8 +59,8 @@ export default async function RestritoDistribuicoesPage() {
                       {formatData(d.periodoInicio)} — {formatData(d.periodoFim)}
                     </p>
                     <p className="text-xs text-muted">
-                      {d.participantes.length} investidor(es) elegível(is) · lançado por{" "}
-                      {d.criadoPor.name ?? d.criadoPor.email}
+                      Lançado em {formatData(d.criadoEm)} · {d.participantes.length} investidor(es)
+                      elegível(is) · por {d.criadoPor.name ?? d.criadoPor.email}
                     </p>
                   </div>
                   <div className="text-right">

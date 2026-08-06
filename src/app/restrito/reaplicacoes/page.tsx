@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { formatMoeda, formatData } from "@/lib/format";
+import { formatMoeda } from "@/lib/format";
+import { ReaplicacoesTabelas } from "./reaplicacoes-tabelas";
 
 export default async function RestritoReaplicacoesPage() {
   const session = await auth();
@@ -74,73 +75,7 @@ export default async function RestritoReaplicacoesPage() {
           Ninguém reaplicou ainda.
         </p>
       ) : (
-        <>
-          <p className="mb-3 mt-6 text-xs font-semibold uppercase tracking-[0.15em] text-muted">
-            Por investidor
-          </p>
-          <div className="overflow-x-auto rounded-2xl border border-border">
-            <table className="w-full min-w-[760px] text-left text-sm">
-              <thead className="bg-surface-2 text-xs uppercase tracking-wider text-muted">
-                <tr>
-                  <th className="px-4 py-3">Investidor</th>
-                  <th className="px-4 py-3">Total reaplicado</th>
-                  <th className="px-4 py-3">Rend. disponível (sobrou)</th>
-                  <th className="px-4 py-3">Capital atual</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {resumoPorUsuario.map((u) => (
-                  <tr key={u.userId} className="bg-surface">
-                    <td className="px-4 py-3">
-                      <p className="font-medium text-foreground">{u.nome}</p>
-                      <p className="text-xs text-muted">
-                        {u.email} · {u.quantidade}x
-                      </p>
-                    </td>
-                    <td className="px-4 py-3 font-semibold text-gold-light">
-                      {formatMoeda(u.totalReaplicado)}
-                    </td>
-                    <td className="px-4 py-3 font-semibold text-emerald-300">
-                      {formatMoeda(u.rendimentoDisponivel)}
-                    </td>
-                    <td className="px-4 py-3 font-semibold text-foreground">
-                      {formatMoeda(u.capitalAtual)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <p className="mb-3 mt-10 text-xs font-semibold uppercase tracking-[0.15em] text-muted">
-            Cada reaplicação
-          </p>
-          <div className="overflow-x-auto rounded-2xl border border-border">
-            <table className="w-full min-w-[600px] text-left text-sm">
-              <thead className="bg-surface-2 text-xs uppercase tracking-wider text-muted">
-                <tr>
-                  <th className="px-4 py-3">Investidor</th>
-                  <th className="px-4 py-3">Valor</th>
-                  <th className="px-4 py-3">Data</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {reaplicacoes.map((r) => (
-                  <tr key={r.id} className="bg-surface">
-                    <td className="px-4 py-3">
-                      <p className="font-medium text-foreground">{r.user.name ?? "—"}</p>
-                      <p className="text-xs text-muted">{r.user.email}</p>
-                    </td>
-                    <td className="px-4 py-3 font-semibold text-gold-light">
-                      {formatMoeda(r.valor, r.moeda as "BRL")}
-                    </td>
-                    <td className="px-4 py-3 text-muted">{formatData(r.criadoEm)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
+        <ReaplicacoesTabelas resumoPorUsuario={resumoPorUsuario} reaplicacoes={reaplicacoes} />
       )}
     </div>
   );
