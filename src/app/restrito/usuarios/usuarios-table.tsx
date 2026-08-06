@@ -70,10 +70,11 @@ export function UsuariosTable({ usuarios }: { usuarios: LinhaUsuario[] }) {
       </div>
 
       <div className="mt-4 overflow-x-auto rounded-2xl border border-border">
-        <table className="w-full min-w-[960px] text-left text-sm">
+        <table className="w-full min-w-[1080px] text-left text-sm">
           <thead className="bg-surface-2 text-xs uppercase tracking-wider text-muted">
             <tr>
               <th className="px-4 py-3">Nome</th>
+              <th className="px-4 py-3">Código</th>
               <th className="px-4 py-3">Documento</th>
               <th className="px-4 py-3">E-mail</th>
               <th className="px-4 py-3">Saldos</th>
@@ -86,6 +87,7 @@ export function UsuariosTable({ usuarios }: { usuarios: LinhaUsuario[] }) {
             {filtrados.map((u) => (
               <tr key={u.id} className="bg-surface">
                 <td className="px-4 py-3 font-medium text-foreground">{u.nome}</td>
+                <td className="px-4 py-3 font-mono text-xs text-gold-light">{u.codigo || "—"}</td>
                 <td className="px-4 py-3 font-mono text-xs text-muted">{u.documento}</td>
                 <td className="px-4 py-3 text-muted">{u.email}</td>
                 <td className="px-4 py-3 text-xs">
@@ -168,7 +170,7 @@ export function UsuariosTable({ usuarios }: { usuarios: LinhaUsuario[] }) {
             ))}
             {filtrados.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-sm text-muted">
+                <td colSpan={8} className="px-4 py-6 text-center text-sm text-muted">
                   Nenhum usuário encontrado.
                 </td>
               </tr>

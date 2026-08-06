@@ -2,8 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { formatMoeda } from "@/lib/format";
-import { CodigoIndicacaoActions } from "./codigo-actions";
-import { IndicadoPorActions } from "./indicado-por-actions";
+import { IndicacoesLista } from "./indicacoes-lista";
 
 export default async function RestritoIndicacoesPage() {
   const session = await auth();
@@ -58,50 +57,7 @@ export default async function RestritoIndicacoesPage() {
         Códigos e indicações
       </p>
 
-      <div className="overflow-x-auto rounded-2xl border border-border">
-        <table className="w-full min-w-[960px] text-left text-sm">
-          <thead className="bg-surface-2 text-xs uppercase tracking-wider text-muted">
-            <tr>
-              <th className="px-4 py-3">Nome</th>
-              <th className="px-4 py-3">Código</th>
-              <th className="px-4 py-3">Indicado por</th>
-              <th className="px-4 py-3">Indicados diretos</th>
-              <th className="px-4 py-3">Bônus recebido</th>
-              <th className="px-4 py-3">Ações</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {usuarios.map((u) => (
-              <tr key={u.id} className="bg-surface">
-                <td className="px-4 py-3 font-medium text-foreground">{u.name ?? u.email}</td>
-                <td className="px-4 py-3 font-mono text-xs text-gold-light">
-                  {u.codigoIndicacao ?? "—"}
-                </td>
-                <td className="px-4 py-3">
-                  <IndicadoPorActions
-                    userId={u.id}
-                    indicadoPorAtual={
-                      u.indicadoPor
-                        ? {
-                            nome: u.indicadoPor.name ?? u.indicadoPor.email,
-                            codigo: u.indicadoPor.codigoIndicacao,
-                          }
-                        : null
-                    }
-                  />
-                </td>
-                <td className="px-4 py-3 text-foreground">{u.indicados.length}</td>
-                <td className="px-4 py-3 font-semibold text-fuchsia-300">
-                  {formatMoeda(bonusPorId.get(u.id) ?? 0)}
-                </td>
-                <td className="px-4 py-3">
-                  <CodigoIndicacaoActions userId={u.id} codigoAtual={u.codigoIndicacao} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <IndicacoesLista usuarios={usuarios} bonusPorId={bonusPorId} />
     </div>
   );
 }
