@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { formatMoeda, formatData } from "@/lib/format";
 import { useGrupoPorData } from "./use-grupo-data";
 
@@ -12,8 +13,40 @@ type Credito = {
   solicitacaoSaqueId: string | null;
 };
 
+/** Extrai o percentual de um lançamento de "PLR manual 0,13% (admin)" — só esse tipo de
+ *  crédito carrega o percentual no próprio texto de origem. */
+function extrairPercentual(origem: string): number | null {
+  const match = origem.match(/^PLR manual ([\d.,]+)%/);
+  if (!match) return null;
+  const valor = Number(match[1].replace(",", "."));
+  return Number.isNaN(valor) ? null : valor;
+}
+
+/** Percentual acumulado de cada crédito dentro do próprio grupo (mês), somando em ordem
+ *  cronológica — ex: dia 1 lança 0,13%, dia 2 lança 0,15% (acumulado 0,28%), dia 3 lança
+ *  0,5% (acumulado 0,78%). Créditos que não são PLR manual (sem percentual) não somam nada,
+ *  mas mantêm o acumulado de quem veio antes. */
+function calcularAcumulados(grupoItens: Credito[]): Map<string, number> {
+  const ordemCronologica = [...grupoItens].sort(
+    (a, b) => a.criadoEm.getTime() - b.criadoEm.getTime()
+  );
+  const acumulados = new Map<string, number>();
+  let soma = 0;
+  for (const c of ordemCronologica) {
+    const percentual = extrairPercentual(c.origem);
+    if (percentual !== null) soma += percentual;
+    acumulados.set(c.id, soma);
+  }
+  return acumulados;
+}
+
 export function RendimentosHistorico({ itens }: { itens: Credito[] }) {
   const { grupos, expandidos, toggle } = useGrupoPorData(itens);
+
+  const acumuladosPorGrupo = useMemo(
+    () => grupos.map(([data, grupoItens]) => [data, calcularAcumulados(grupoItens)] as const),
+    [grupos]
+  );
 
   if (grupos.length === 0) {
     return (
@@ -25,9 +58,11 @@ export function RendimentosHistorico({ itens }: { itens: Credito[] }) {
 
   return (
     <div className="space-y-3">
-      {grupos.map(([data, grupoItens]) => {
+      {grupos.map(([data, grupoItens], i) => {
         const aberto = expandidos.has(data);
         const total = grupoItens.reduce((acc, c) => acc + c.valor, 0);
+        const acumulados = acumuladosPorGrupo[i][1];
+        const percentualTotalGrupo = Math.max(0, ...Array.from(acumulados.values()));
         return (
           <div key={data} className="overflow-hidden rounded-2xl border border-border">
             <button
@@ -39,6 +74,14 @@ export function RendimentosHistorico({ itens }: { itens: Credito[] }) {
                 <p className="font-semibold text-foreground">{data}</p>
                 <p className="text-xs text-muted">
                   {grupoItens.length} crédito(s) · Total {formatMoeda(total)}
+                  {percentualTotalGrupo > 0 && (
+                    <>
+                      {" "}
+                      · <span className="text-gold-light">
+                        {percentualTotalGrupo.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}% acumulado
+                      </span>
+                    </>
+                  )}
                 </p>
               </div>
               <span className="text-muted">{aberto ? "▲" : "▼"}</span>
@@ -48,6 +91,7 @@ export function RendimentosHistorico({ itens }: { itens: Credito[] }) {
               <div className="divide-y divide-border">
                 {grupoItens.map((c) => {
                   const usado = Boolean(c.utilizadoEm || c.solicitacaoSaqueId);
+                  const acumulado = acumulados.get(c.id) ?? 0;
                   return (
                     <div
                       key={c.id}
@@ -58,6 +102,11 @@ export function RendimentosHistorico({ itens }: { itens: Credito[] }) {
                         <p className="text-xs text-muted">
                           {formatData(c.criadoEm)} · {c.origem}
                         </p>
+                        {acumulado > 0 && (
+                          <p className="text-xs text-emerald-300">
+                            Acumulado no mês: {acumulado.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%
+                          </p>
+                        )}
                       </div>
                       <span
                         className={`rounded-full px-3 py-1 text-xs font-semibold ${
