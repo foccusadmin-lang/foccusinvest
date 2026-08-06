@@ -44,6 +44,10 @@ export async function aprovarSaque(saqueId: string) {
   await registrarAuditoria(admin.id, "aprovar_saque", saqueId);
   revalidatePath("/restrito/saques");
   revalidatePath("/restrito/painel");
+  revalidatePath("/restrito/usuarios");
+  revalidatePath("/restrito/plr-individual");
+  revalidatePath("/restrito/reaplicacoes");
+  revalidatePath("/restrito/indicacoes");
   revalidatePath("/painel");
   revalidatePath("/painel/historico");
 }
@@ -75,13 +79,23 @@ export async function recusarSaque(saqueId: string, justificativa: string) {
   await registrarAuditoria(admin.id, "recusar_saque", `${saqueId}: ${justificativa}`);
   revalidatePath("/restrito/saques");
   revalidatePath("/restrito/painel");
+  revalidatePath("/restrito/usuarios");
+  revalidatePath("/restrito/plr-individual");
+  revalidatePath("/restrito/reaplicacoes");
+  revalidatePath("/restrito/indicacoes");
   revalidatePath("/painel");
   revalidatePath("/painel/historico");
 }
 
-/** Só confirma que o Pix foi enviado — o débito da carteira já aconteceu em aprovarSaque. */
+/** Só confirma que o Pix foi enviado — o débito da carteira já aconteceu em aprovarSaque.
+ *  Exige que o saque já esteja APROVADO (nunca confia só no botão estar desabilitado na tela). */
 export async function marcarSaquePago(saqueId: string) {
   const admin = await requireAdmin();
+
+  const saque = await prisma.solicitacaoSaque.findUnique({ where: { id: saqueId } });
+  if (!saque || saque.status !== "APROVADO") {
+    throw new Error("Esse saque precisa estar aprovado (e debitado da carteira) antes de marcar como pago.");
+  }
 
   await prisma.solicitacaoSaque.update({
     where: { id: saqueId },
