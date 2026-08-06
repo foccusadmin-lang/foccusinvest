@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { MaskedInput } from "@/components/ui/masked-input";
 import { converterUsuarioEmEntidadeAction } from "./actions";
 
 const TIPOS = [
@@ -68,10 +69,9 @@ function ConverterUsuarioModal({ onClose }: { onClose: () => void }) {
           <form action={action} className="mt-4 space-y-3">
             <label className="block text-sm">
               <span className="mb-1 block font-medium text-foreground/90">CNPJ do investidor já cadastrado</span>
-              <input
+              <MaskedInput
                 name="cnpj"
-                type="text"
-                placeholder="00.000.000/0000-00"
+                mask="cnpj"
                 required
                 className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-foreground outline-none focus:border-gold/60"
               />

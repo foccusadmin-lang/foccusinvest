@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { MaskedInput } from "@/components/ui/masked-input";
 import { atualizarDadosPessoais } from "./actions";
 
 export function DadosPessoaisForm({
@@ -76,11 +77,10 @@ export function DadosPessoaisForm({
         <>
           <label className="block text-sm">
             <span className="mb-1 block font-medium text-foreground/90">CPF</span>
-            <input
+            <MaskedInput
               name="cpf"
-              type="text"
+              mask="cpf"
               defaultValue={cpf}
-              placeholder="000.000.000-00"
               required
               className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-foreground outline-none focus:border-gold/60"
             />
@@ -100,11 +100,10 @@ export function DadosPessoaisForm({
         <>
           <label className="block text-sm">
             <span className="mb-1 block font-medium text-foreground/90">CNPJ</span>
-            <input
+            <MaskedInput
               name="cnpj"
-              type="text"
+              mask="cnpj"
               defaultValue={cnpj}
-              placeholder="00.000.000/0000-00"
               required
               className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-foreground outline-none focus:border-gold/60"
             />
@@ -121,11 +120,10 @@ export function DadosPessoaisForm({
           </label>
           <label className="block text-sm">
             <span className="mb-1 block font-medium text-foreground/90">CPF do representante</span>
-            <input
+            <MaskedInput
               name="cpfRepresentante"
-              type="text"
+              mask="cpf"
               defaultValue={cpfRepresentante}
-              placeholder="000.000.000-00"
               required
               className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-foreground outline-none focus:border-gold/60"
             />
@@ -135,11 +133,10 @@ export function DadosPessoaisForm({
 
       <label className="block text-sm">
         <span className="mb-1 block font-medium text-foreground/90">Telefone</span>
-        <input
+        <MaskedInput
           name="telefone"
-          type="text"
+          mask="telefone"
           defaultValue={telefone}
-          placeholder="(00) 00000-0000"
           className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-foreground outline-none focus:border-gold/60"
         />
       </label>

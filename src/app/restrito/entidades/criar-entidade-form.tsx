@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { MaskedInput } from "@/components/ui/masked-input";
 import { criarEntidade } from "./actions";
 
 const TIPOS = [
@@ -83,11 +84,11 @@ function CriarEntidadeModal({ onClose }: { onClose: () => void }) {
 
             <Campo name="razaoSocial" label="Razão social" required />
             <Campo name="nomeFantasia" label="Nome fantasia" />
-            <Campo name="cnpj" label="CNPJ" placeholder="00.000.000/0000-00" required />
+            <Campo name="cnpj" label="CNPJ" mask="cnpj" required />
             <Campo name="email" label="E-mail" type="email" required />
             <Campo name="representanteLegal" label="Nome do responsável legal" required />
-            <Campo name="cpfRepresentante" label="CPF do responsável" placeholder="000.000.000-00" required />
-            <Campo name="telefone" label="Telefone" />
+            <Campo name="cpfRepresentante" label="CPF do responsável" mask="cpf" required />
+            <Campo name="telefone" label="Telefone" mask="telefone" />
             <Campo name="endereco" label="Endereço completo" />
             <div className="grid grid-cols-2 gap-3">
               <Campo name="cidade" label="Cidade" />
@@ -141,6 +142,7 @@ function Campo({
   required,
   placeholder,
   defaultValue,
+  mask,
 }: {
   name: string;
   label: string;
@@ -148,18 +150,29 @@ function Campo({
   required?: boolean;
   placeholder?: string;
   defaultValue?: string;
+  mask?: "cpf" | "cnpj" | "telefone";
 }) {
   return (
     <label className="block text-sm">
       <span className="mb-1 block font-medium text-foreground/90">{label}</span>
-      <input
-        name={name}
-        type={type}
-        required={required}
-        placeholder={placeholder}
-        defaultValue={defaultValue}
-        className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-foreground outline-none focus:border-gold/60"
-      />
+      {mask ? (
+        <MaskedInput
+          name={name}
+          mask={mask}
+          required={required}
+          defaultValue={defaultValue}
+          className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-foreground outline-none focus:border-gold/60"
+        />
+      ) : (
+        <input
+          name={name}
+          type={type}
+          required={required}
+          placeholder={placeholder}
+          defaultValue={defaultValue}
+          className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-foreground outline-none focus:border-gold/60"
+        />
+      )}
     </label>
   );
 }

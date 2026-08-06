@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { MaskedInput } from "@/components/ui/masked-input";
 import { completarCadastroPF, completarCadastroPJ } from "./actions";
 
 function Field({
@@ -11,6 +12,7 @@ function Field({
   required = true,
   placeholder,
   defaultValue,
+  mask,
 }: {
   label: string;
   name: string;
@@ -18,18 +20,29 @@ function Field({
   required?: boolean;
   placeholder?: string;
   defaultValue?: string;
+  mask?: "cpf" | "cnpj" | "telefone";
 }) {
   return (
     <label className="block text-sm">
       <span className="mb-1 block font-medium text-foreground/90">{label}</span>
-      <input
-        name={name}
-        type={type}
-        required={required}
-        placeholder={placeholder}
-        defaultValue={defaultValue}
-        className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-foreground outline-none focus:border-gold/60"
-      />
+      {mask ? (
+        <MaskedInput
+          name={name}
+          mask={mask}
+          required={required}
+          defaultValue={defaultValue}
+          className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-foreground outline-none focus:border-gold/60"
+        />
+      ) : (
+        <input
+          name={name}
+          type={type}
+          required={required}
+          placeholder={placeholder}
+          defaultValue={defaultValue}
+          className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-foreground outline-none focus:border-gold/60"
+        />
+      )}
     </label>
   );
 }
@@ -66,9 +79,9 @@ export function CadastroForm() {
         <form action={pfAction} className="space-y-4">
           <Field label="Nome completo" name="nomeCompleto" />
           <Field label="E-mail" name="email" type="email" />
-          <Field label="CPF" name="cpf" placeholder="000.000.000-00" />
+          <Field label="CPF" name="cpf" mask="cpf" />
           <Field label="Data de nascimento" name="dataNascimento" type="date" />
-          <Field label="Telefone" name="telefone" placeholder="(00) 00000-0000" />
+          <Field label="Telefone" name="telefone" mask="telefone" />
           <Field label="Endereço" name="endereco" required={false} />
           {pfState?.error && (
             <p className="text-sm text-red-400">{pfState.error}</p>
@@ -82,10 +95,10 @@ export function CadastroForm() {
           <Field label="Razão social" name="razaoSocial" />
           <Field label="Nome fantasia" name="nomeFantasia" required={false} />
           <Field label="E-mail" name="email" type="email" />
-          <Field label="CNPJ" name="cnpj" placeholder="00.000.000/0000-00" />
+          <Field label="CNPJ" name="cnpj" mask="cnpj" />
           <Field label="Representante legal" name="representanteLegal" />
-          <Field label="CPF do representante" name="cpfRepresentante" placeholder="000.000.000-00" />
-          <Field label="Telefone" name="telefone" placeholder="(00) 00000-0000" />
+          <Field label="CPF do representante" name="cpfRepresentante" mask="cpf" />
+          <Field label="Telefone" name="telefone" mask="telefone" />
           <Field label="Endereço" name="endereco" required={false} />
           {pjState?.error && (
             <p className="text-sm text-red-400">{pjState.error}</p>

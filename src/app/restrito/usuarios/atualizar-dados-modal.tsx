@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { MaskedInput } from "@/components/ui/masked-input";
 import { atualizarDadosUsuario } from "./gerenciar-actions";
 
 type Usuario = {
@@ -145,11 +146,10 @@ function AtualizarDadosModal({ usuario, onClose }: { usuario: Usuario; onClose: 
               <>
                 <label className="block text-sm">
                   <span className="mb-1 block font-medium text-foreground/90">CPF</span>
-                  <input
+                  <MaskedInput
                     name="cpf"
-                    type="text"
+                    mask="cpf"
                     defaultValue={usuario.cpf}
-                    placeholder="000.000.000-00"
                     required
                     className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-foreground outline-none focus:border-gold/60"
                   />
@@ -171,11 +171,10 @@ function AtualizarDadosModal({ usuario, onClose }: { usuario: Usuario; onClose: 
               <>
                 <label className="block text-sm">
                   <span className="mb-1 block font-medium text-foreground/90">CNPJ</span>
-                  <input
+                  <MaskedInput
                     name="cnpj"
-                    type="text"
+                    mask="cnpj"
                     defaultValue={usuario.cnpj}
-                    placeholder="00.000.000/0000-00"
                     required
                     className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-foreground outline-none focus:border-gold/60"
                   />
@@ -196,11 +195,10 @@ function AtualizarDadosModal({ usuario, onClose }: { usuario: Usuario; onClose: 
                   <span className="mb-1 block font-medium text-foreground/90">
                     CPF do representante
                   </span>
-                  <input
+                  <MaskedInput
                     name="cpfRepresentante"
-                    type="text"
+                    mask="cpf"
                     defaultValue={usuario.cpfRepresentante}
-                    placeholder="000.000.000-00"
                     required
                     className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-foreground outline-none focus:border-gold/60"
                   />
@@ -210,11 +208,10 @@ function AtualizarDadosModal({ usuario, onClose }: { usuario: Usuario; onClose: 
 
             <label className="block text-sm">
               <span className="mb-1 block font-medium text-foreground/90">Telefone</span>
-              <input
+              <MaskedInput
                 name="telefone"
-                type="text"
+                mask="telefone"
                 defaultValue={usuario.telefone}
-                placeholder="(00) 00000-0000"
                 className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-foreground outline-none focus:border-gold/60"
               />
             </label>
