@@ -15,8 +15,9 @@ function parseValor(raw: FormDataEntryValue | null): number {
 }
 
 /** Redistribui o capital "livre" (lotes CONFIRMADA, não reservados num saque em andamento)
- *  entre uma parte disponível na hora e uma parte em carência até a data escolhida pelo admin.
- *  O total de capital não muda — só como ele está dividido entre disponível/carência. */
+ *  entre uma parte disponível na hora e uma ou mais faixas em carência, cada uma com a própria
+ *  data de liberação — útil quando o investidor aportou em datas diferentes e cada parte tem um
+ *  prazo próprio de carência. O total de capital não muda, só como ele está dividido. */
 export async function ajustarCarenciaUsuario(
   _prevState: CarenciaState,
   formData: FormData
@@ -26,7 +27,7 @@ export async function ajustarCarenciaUsuario(
 
   const userId = String(formData.get("userId") ?? "");
   const valorDisponivel = parseValor(formData.get("valorDisponivel"));
-  const dataCarencia = String(formData.get("dataCarencia") ?? "");
+  const quantidadeFaixas = Number(formData.get("quantidadeFaixas") ?? "0");
 
   if (!userId) return { error: "Usuário inválido." };
   if (Number.isNaN(valorDisponivel) || valorDisponivel < 0) {
@@ -51,13 +52,35 @@ export async function ajustarCarenciaUsuario(
     };
   }
 
-  const restanteCarencia = Math.max(0, totalLivre - valorDisponivel);
+  const faixas: { valor: number; data: Date }[] = [];
+  for (let i = 0; i < quantidadeFaixas; i++) {
+    const valor = parseValor(formData.get(`carenciaValor_${i}`));
+    const dataTexto = String(formData.get(`carenciaData_${i}`) ?? "");
+    if (!valor || Number.isNaN(valor) || valor <= EPSILON) continue;
 
-  let novaData: Date | null = null;
-  if (restanteCarencia > EPSILON) {
-    if (!dataCarencia) return { error: "Informe a data em que o restante sai da carência." };
-    novaData = new Date(`${dataCarencia}T00:00:00`);
-    if (Number.isNaN(novaData.getTime())) return { error: "Data inválida." };
+    if (!dataTexto) return { error: `Informe a data de liberação da faixa em carência nº ${i + 1}.` };
+    const data = new Date(`${dataTexto}T00:00:00`);
+    if (Number.isNaN(data.getTime())) return { error: `Data inválida na faixa em carência nº ${i + 1}.` };
+
+    faixas.push({ valor, data });
+  }
+
+  const totalCarencia = faixas.reduce((acc, f) => acc + f.valor, 0);
+  const somaTotal = valorDisponivel + totalCarencia;
+
+  if (somaTotal > totalLivre + EPSILON) {
+    return {
+      error: `A soma do valor disponível com as faixas em carência (${formatMoeda(somaTotal)}) passa do capital livre atual (${formatMoeda(totalLivre)}).`,
+    };
+  }
+
+  // A diferença que sobrar (se o admin não preencheu faixas suficientes pra cobrir todo o
+  // capital livre) fica numa última faixa "sem data específica" — reaproveita a data mais
+  // distante informada, ou hoje mesmo se nenhuma faixa foi criada.
+  const restanteSemFaixa = Math.max(0, totalLivre - somaTotal);
+  if (restanteSemFaixa > EPSILON) {
+    const dataFallback = faixas.length > 0 ? faixas[faixas.length - 1].data : new Date();
+    faixas.push({ valor: restanteSemFaixa, data: dataFallback });
   }
 
   await prisma.$transaction(async (tx) => {
@@ -75,25 +98,27 @@ export async function ajustarCarenciaUsuario(
         },
       });
     }
-    if (restanteCarencia > EPSILON && novaData) {
+    for (const faixa of faixas) {
       await tx.aplicacao.create({
         data: {
           userId,
-          valor: restanteCarencia,
+          valor: faixa.valor,
           moeda: "BRL",
           origem: "AJUSTE_ADMIN",
           status: "CONFIRMADA",
-          liberaEm: novaData,
+          liberaEm: faixa.data,
         },
       });
     }
   });
 
+  const resumoCarencia = faixas.map((f) => `${formatMoeda(f.valor)} até ${formatData(f.data)}`).join("; ");
+
   await prisma.logAuditoria.create({
     data: {
       userId: session.user.id,
       acao: "ajustar_carencia_usuario",
-      detalhes: `${usuario.email} | disponível: ${formatMoeda(valorDisponivel)} | carência: ${formatMoeda(restanteCarencia)}${novaData ? ` até ${formatData(novaData)}` : ""}`,
+      detalhes: `${usuario.email} | disponível: ${formatMoeda(valorDisponivel)} | carência: ${resumoCarencia || "—"}`,
     },
   });
 
@@ -103,9 +128,7 @@ export async function ajustarCarenciaUsuario(
 
   return {
     sucesso: `Capital de ${usuario.name ?? usuario.email} ajustado: ${formatMoeda(valorDisponivel)} disponível${
-      restanteCarencia > EPSILON && novaData
-        ? `, ${formatMoeda(restanteCarencia)} em carência até ${formatData(novaData)}`
-        : ""
+      faixas.length > 0 ? `, em carência: ${resumoCarencia}` : ""
     }.`,
   };
 }

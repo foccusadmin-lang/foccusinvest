@@ -4,7 +4,7 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatMoeda } from "@/lib/format";
 import { MoneyInput } from "@/components/ui/money-input";
-import { IconClock } from "@/components/icons";
+import { IconClock, IconPlus } from "@/components/icons";
 import { ajustarCarenciaUsuario } from "./carencia-actions";
 
 type Usuario = {
@@ -14,6 +14,14 @@ type Usuario = {
   capitalDisponivel: number;
   capitalCarencia: number;
 };
+
+type Faixa = { id: string; valor: string; data: string };
+
+let proximoId = 0;
+function novaFaixa(valor = "", data = ""): Faixa {
+  proximoId += 1;
+  return { id: `faixa-${proximoId}`, valor, data };
+}
 
 export function AjusteCarenciaButton({ usuario }: { usuario: Usuario }) {
   const [aberto, setAberto] = useState(false);
@@ -40,7 +48,9 @@ function AjusteCarenciaModal({ usuario, onClose }: { usuario: Usuario; onClose: 
   const [valorDisponivel, setValorDisponivel] = useState(
     usuario.capitalDisponivel.toFixed(2).replace(".", ",")
   );
-  const [dataCarencia, setDataCarencia] = useState("");
+  const [faixas, setFaixas] = useState<Faixa[]>(() => [
+    novaFaixa(usuario.capitalCarencia > 0 ? usuario.capitalCarencia.toFixed(2).replace(".", ",") : ""),
+  ]);
   const router = useRouter();
   const processado = useRef(false);
 
@@ -55,7 +65,30 @@ function AjusteCarenciaModal({ usuario, onClose }: { usuario: Usuario; onClose: 
   }, [state]);
 
   const valorDisponivelNumero = Number(valorDisponivel.replace(/\./g, "").replace(",", ".")) || 0;
-  const restanteCarencia = Math.max(0, totalLivre - valorDisponivelNumero);
+  const totalFaixas = faixas.reduce(
+    (acc, f) => acc + (Number(f.valor.replace(/\./g, "").replace(",", ".")) || 0),
+    0
+  );
+  const totalAlocado = valorDisponivelNumero + totalFaixas;
+  const restanteAlocar = totalLivre - totalAlocado;
+  const faixaSemData = faixas.some(
+    (f) => (Number(f.valor.replace(/\./g, "").replace(",", ".")) || 0) > 0.005 && !f.data
+  );
+
+  function atualizarFaixa(id: string, campo: "valor" | "data", valor: string) {
+    setFaixas((atual) => atual.map((f) => (f.id === id ? { ...f, [campo]: valor } : f)));
+  }
+
+  function adicionarFaixa() {
+    setFaixas((atual) => [
+      ...atual,
+      novaFaixa(restanteAlocar > 0 ? restanteAlocar.toFixed(2).replace(".", ",") : ""),
+    ]);
+  }
+
+  function removerFaixa(id: string) {
+    setFaixas((atual) => (atual.length > 1 ? atual.filter((f) => f.id !== id) : atual));
+  }
 
   return (
     <div
@@ -63,13 +96,14 @@ function AjusteCarenciaModal({ usuario, onClose }: { usuario: Usuario; onClose: 
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded-2xl border border-border bg-surface p-6 shadow-2xl"
+        className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-border bg-surface p-6 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="text-lg font-semibold text-foreground">Ajustar carência</h3>
         <p className="mt-1 text-xs text-muted">
-          Define quanto do capital livre desse investidor fica disponível pra saque agora, e até
-          quando o restante fica em carência.
+          Define quanto do capital livre desse investidor fica disponível pra saque agora, e em
+          quais datas o restante sai da carência — dá pra dividir em mais de uma faixa, caso ele
+          tenha aportado em datas diferentes.
         </p>
 
         <div className="mt-3 rounded-xl border border-border bg-surface-2 p-4">
@@ -104,6 +138,7 @@ function AjusteCarenciaModal({ usuario, onClose }: { usuario: Usuario; onClose: 
         ) : (
           <form action={action} className="mt-4 space-y-4">
             <input type="hidden" name="userId" value={usuario.id} />
+            <input type="hidden" name="quantidadeFaixas" value={faixas.length} />
 
             <label className="block text-sm">
               <span className="mb-1 block font-medium text-foreground/90">
@@ -122,24 +157,68 @@ function AjusteCarenciaModal({ usuario, onClose }: { usuario: Usuario; onClose: 
               </span>
             </label>
 
-            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
-              Restante em carência: <strong>{formatMoeda(restanteCarencia)}</strong>
+            <div className="space-y-3">
+              {faixas.map((faixa, i) => (
+                <div key={faixa.id} className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-amber-200">
+                      Valor em carência {faixas.length > 1 ? `(faixa ${i + 1})` : ""}
+                    </span>
+                    {faixas.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removerFaixa(faixa.id)}
+                        className="text-xs text-red-300 hover:underline"
+                      >
+                        Remover
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <MoneyInput
+                      name={`carenciaValor_${i}`}
+                      value={faixa.valor}
+                      onValueChange={(v) => atualizarFaixa(faixa.id, "valor", v)}
+                      placeholder="0,00"
+                      className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground outline-none focus:border-purple-400/60"
+                    />
+                    <input
+                      name={`carenciaData_${i}`}
+                      type="date"
+                      value={faixa.data}
+                      onChange={(e) => atualizarFaixa(faixa.id, "data", e.target.value)}
+                      className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground outline-none focus:border-purple-400/60"
+                    />
+                  </div>
+                </div>
+              ))}
+
+              <button
+                type="button"
+                onClick={adicionarFaixa}
+                className="flex w-full items-center justify-center gap-1 rounded-lg border border-dashed border-border py-2 text-xs font-semibold text-muted hover:border-purple-400/60 hover:text-purple-300"
+              >
+                <IconPlus width={12} height={12} /> Adicionar outra faixa em carência
+              </button>
             </div>
 
-            {restanteCarencia > 0 && (
-              <label className="block text-sm">
-                <span className="mb-1 block font-medium text-foreground/90">
-                  Data em que o restante sai da carência
-                </span>
-                <input
-                  name="dataCarencia"
-                  type="date"
-                  value={dataCarencia}
-                  onChange={(e) => setDataCarencia(e.target.value)}
-                  required
-                  className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-foreground outline-none focus:border-purple-400/60"
-                />
-              </label>
+            <div
+              className={`rounded-lg border p-3 text-xs ${
+                Math.abs(restanteAlocar) <= 0.005
+                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+                  : "border-red-500/30 bg-red-500/10 text-red-300"
+              }`}
+            >
+              {Math.abs(restanteAlocar) <= 0.005
+                ? "Valor totalmente distribuído."
+                : restanteAlocar > 0
+                  ? `Falta distribuir ${formatMoeda(restanteAlocar)} (some ao disponível ou a uma faixa).`
+                  : `Passou ${formatMoeda(Math.abs(restanteAlocar))} do total livre — reduza algum valor.`}
+            </div>
+
+            {faixaSemData && (
+              <p className="text-sm text-red-400">Informe a data de liberação de cada faixa em carência preenchida.</p>
             )}
 
             {state?.error && <p className="text-sm text-red-400">{state.error}</p>}
@@ -154,7 +233,7 @@ function AjusteCarenciaModal({ usuario, onClose }: { usuario: Usuario; onClose: 
               </button>
               <button
                 type="submit"
-                disabled={pending || valorDisponivelNumero > totalLivre}
+                disabled={pending || Math.abs(restanteAlocar) > 0.005 || faixaSemData}
                 className="flex-1 rounded-xl bg-purple-500/90 py-3 text-sm font-semibold text-white hover:bg-purple-500 disabled:opacity-50"
               >
                 {pending ? "Salvando..." : "Salvar ajuste"}
