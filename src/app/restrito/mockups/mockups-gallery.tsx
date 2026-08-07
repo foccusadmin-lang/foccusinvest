@@ -36,7 +36,10 @@ async function capturarIframe(iframe: HTMLIFrameElement): Promise<Blob> {
     Math.max(ALTURA_MINIMA, doc.documentElement.scrollHeight)
   );
 
-  const html2canvas = (await import("html2canvas")).default;
+  // html2canvas-pro (não o html2canvas original) — o original quebra com "Attempting to
+  // parse an unsupported color function oklab", porque o Tailwind v4 gera color-mix()/oklab()
+  // pra opacidade de cor (ex: bg-white/10), e só o fork -pro entende essas funções de cor.
+  const html2canvas = (await import("html2canvas-pro")).default;
   const canvas = await html2canvas(doc.documentElement, {
     backgroundColor: "#030303",
     width: LARGURA_CAPTURA,
