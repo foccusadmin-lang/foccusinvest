@@ -69,7 +69,7 @@ function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () 
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded-2xl border border-border bg-surface p-6 shadow-2xl"
+        className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-border bg-surface p-6 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="text-lg font-semibold text-foreground">Ajuste de saldo</h3>
