@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { formatMoeda } from "@/lib/format";
 import { getConfiguracao } from "@/lib/configuracao";
 import {
-  reservarCapitalParaSaque,
+  reservarCapitalParaSaqueAdmin,
   reservarCreditosParaSaque,
   SaldoInsuficienteError,
 } from "@/lib/carteira";
@@ -152,8 +152,9 @@ async function ajustarCredito(
 }
 
 /** Saque feito pelo admin em nome do investidor — pra ajudar quem tem dificuldade de mexer no
- *  app sozinho. Usa o mesmo caminho de reserva/débito do saque normal (respeita a carência do
- *  Capital e o modo automático/manual configurado), só que quem pede é o admin. */
+ *  app sozinho. Ignora a carência do Capital (libera o valor antes do prazo por decisão do
+ *  admin) e não tem restrição de dia/horário — pode ser feito a qualquer momento. Só respeita o
+ *  modo automático/manual configurado pra saques. */
 async function realizarSaqueAssistido(
   userId: string,
   tipo: "CAPITAL" | "RENDIMENTO" | "BONUS",
@@ -171,7 +172,7 @@ async function realizarSaqueAssistido(
       });
 
       if (tipo === "CAPITAL") {
-        await reservarCapitalParaSaque(tx, userId, valor, saque.id);
+        await reservarCapitalParaSaqueAdmin(tx, userId, valor, saque.id);
       } else {
         await reservarCreditosParaSaque(tx, userId, valor, tipo, saque.id);
       }

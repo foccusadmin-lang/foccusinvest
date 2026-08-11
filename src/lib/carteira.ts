@@ -219,6 +219,58 @@ export async function reservarCapitalParaSaque(
 }
 
 /**
+ * Igual a `reservarCapitalParaSaque`, mas ignora a carência de 90 dias — usado só no saque
+ * assistido do admin (ajuda quem tem dificuldade de sacar sozinho), que pode liberar o capital
+ * antes do prazo por decisão do próprio admin, em qualquer dia/horário. Consome os lotes mais
+ * antigos primeiro, estejam ou não liberados.
+ */
+export async function reservarCapitalParaSaqueAdmin(
+  tx: TxClient,
+  userId: string,
+  valor: number,
+  solicitacaoSaqueId: string
+): Promise<void> {
+  const lotes = await tx.aplicacao.findMany({
+    where: { userId, status: "CONFIRMADA" },
+    orderBy: { criadoEm: "asc" },
+  });
+
+  const restante = await consumirFIFO(
+    lotes,
+    valor,
+    async (lote) => {
+      await tx.aplicacao.update({
+        where: { id: lote.id },
+        data: { status: "SAQUE_SOLICITADO", solicitacaoSaqueId },
+      });
+    },
+    async (lote, valorConsumido, valorRestanteNaLinha) => {
+      const cheio = await tx.aplicacao.findUniqueOrThrow({ where: { id: lote.id } });
+      await tx.aplicacao.update({
+        where: { id: lote.id },
+        data: { valor: valorRestanteNaLinha },
+      });
+      await tx.aplicacao.create({
+        data: {
+          userId,
+          valor: valorConsumido,
+          moeda: cheio.moeda,
+          origem: cheio.origem,
+          status: "SAQUE_SOLICITADO",
+          criadoEm: cheio.criadoEm,
+          liberaEm: cheio.liberaEm,
+          solicitacaoSaqueId,
+        },
+      });
+    }
+  );
+
+  if (restante > EPSILON) {
+    throw new SaldoInsuficienteError("Capital insuficiente pra esse saque (livre + em carência).");
+  }
+}
+
+/**
  * Reserva créditos (rendimento) disponíveis para uma solicitação de saque, dividindo quando
  * necessário. Deve ser chamada dentro de uma transação já aberta pelo chamador.
  */

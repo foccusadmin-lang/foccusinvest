@@ -177,9 +177,9 @@ function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () 
               </div>
               {operacao === "SAQUE" && (
                 <p className="mt-2 text-xs text-muted">
-                  Use pra ajudar quem tem dificuldade de sacar sozinho no app. Reserva o valor
-                  igual a um saque normal (respeita a carência do Capital) e segue o modo
-                  automático/manual configurado.
+                  Use pra ajudar quem tem dificuldade de sacar sozinho no app. Ignora a carência
+                  do Capital (libera antes do prazo) e não tem restrição de dia ou horário — só
+                  segue o modo automático/manual configurado.
                 </p>
               )}
             </div>
