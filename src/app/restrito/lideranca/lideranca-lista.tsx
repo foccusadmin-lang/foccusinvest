@@ -115,10 +115,18 @@ function LiderAcoes({ lider }: { lider: LiderLinha }) {
 
 function GerenciarIncentivoModal({ lider, onClose }: { lider: LiderLinha; onClose: () => void }) {
   const [state, action, pending] = useActionState(gerenciarIncentivoAction, undefined);
-  const [operacao, setOperacao] = useState<"ADICIONAR" | "DEFINIR" | "EXCLUIR">("ADICIONAR");
+  const [operacao, setOperacao] = useState<"ADICIONAR" | "DEFINIR" | "PERCENTUAL" | "EXCLUIR">("ADICIONAR");
   const [valor, setValor] = useState("");
+  const [percentual, setPercentual] = useState("0,10");
   const router = useRouter();
   const processado = useRef(false);
+
+  const percentualNumero = Number(percentual.replace(",", ".")) || 0;
+  const valorPercentual = lider.capital * (percentualNumero / 100);
+  // O server action só entende ADICIONAR/DEFINIR/EXCLUIR — "% do capital" é uma forma de
+  // calcular o valor, mas some sempre como um ADICIONAR (soma ao que já tiver disponível).
+  const operacaoEnviada = operacao === "PERCENTUAL" ? "ADICIONAR" : operacao;
+  const valorEnviado = operacao === "PERCENTUAL" ? valorPercentual.toFixed(2).replace(".", ",") : valor;
 
   useEffect(() => {
     if (state?.sucesso && !processado.current) {
@@ -143,11 +151,17 @@ function GerenciarIncentivoModal({ lider, onClose }: { lider: LiderLinha; onClos
         <p className="mt-1 text-sm text-muted">{lider.nome}</p>
         <p className="text-xs text-muted">{lider.email}</p>
 
-        <div className="mt-3 rounded-xl border border-border bg-surface-2 p-3 text-center">
-          <p className="text-[10px] uppercase tracking-wider text-muted">Disponível agora</p>
-          <p className="text-sm font-semibold text-gold-light">
-            {formatMoeda(lider.incentivoDisponivel)}
-          </p>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <div className="rounded-xl border border-border bg-surface-2 p-3 text-center">
+            <p className="text-[10px] uppercase tracking-wider text-muted">Capital atual</p>
+            <p className="text-sm font-semibold text-emerald-300">{formatMoeda(lider.capital)}</p>
+          </div>
+          <div className="rounded-xl border border-border bg-surface-2 p-3 text-center">
+            <p className="text-[10px] uppercase tracking-wider text-muted">Incentivo disponível</p>
+            <p className="text-sm font-semibold text-gold-light">
+              {formatMoeda(lider.incentivoDisponivel)}
+            </p>
+          </div>
         </div>
 
         {state?.sucesso ? (
@@ -167,9 +181,10 @@ function GerenciarIncentivoModal({ lider, onClose }: { lider: LiderLinha; onClos
             className="mt-4 space-y-4"
           >
             <input type="hidden" name="userId" value={lider.id} />
-            <input type="hidden" name="operacao" value={operacao} />
+            <input type="hidden" name="operacao" value={operacaoEnviada} />
+            {operacao !== "EXCLUIR" && <input type="hidden" name="valor" value={valorEnviado} />}
 
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => setOperacao("ADICIONAR")}
@@ -177,7 +192,16 @@ function GerenciarIncentivoModal({ lider, onClose }: { lider: LiderLinha; onClos
                   operacao === "ADICIONAR" ? "bg-emerald-500/20 text-emerald-300" : "bg-white/5 text-muted"
                 }`}
               >
-                + Adicionar
+                + Adicionar valor
+              </button>
+              <button
+                type="button"
+                onClick={() => setOperacao("PERCENTUAL")}
+                className={`rounded-lg py-2 text-xs font-semibold transition ${
+                  operacao === "PERCENTUAL" ? "bg-gold/25 text-gold-light" : "bg-white/5 text-muted"
+                }`}
+              >
+                % do capital
               </button>
               <button
                 type="button"
@@ -199,13 +223,40 @@ function GerenciarIncentivoModal({ lider, onClose }: { lider: LiderLinha; onClos
               </button>
             </div>
 
-            {operacao !== "EXCLUIR" && (
+            {operacao === "PERCENTUAL" && (
+              <div className="space-y-2">
+                <label className="block text-sm">
+                  <span className="mb-1 block font-medium text-foreground/90">
+                    Percentual sobre o capital
+                  </span>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={percentual}
+                      onChange={(e) => setPercentual(e.target.value.replace(/[^0-9,]/g, ""))}
+                      placeholder="0,10"
+                      required
+                      className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 pr-8 text-foreground outline-none focus:border-gold/60"
+                    />
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted">
+                      %
+                    </span>
+                  </div>
+                </label>
+                <div className="rounded-lg border border-gold/30 bg-gold/10 p-3 text-xs text-gold-light">
+                  {percentual}% de {formatMoeda(lider.capital)} = liberar{" "}
+                  <strong>{formatMoeda(valorPercentual)}</strong> de incentivo
+                </div>
+              </div>
+            )}
+
+            {(operacao === "ADICIONAR" || operacao === "DEFINIR") && (
               <label className="block text-sm">
                 <span className="mb-1 block font-medium text-foreground/90">
                   {operacao === "ADICIONAR" ? "Valor a adicionar" : "Novo valor disponível"}
                 </span>
                 <MoneyInput
-                  name="valor"
                   value={valor}
                   onValueChange={setValor}
                   placeholder="0,00"
@@ -234,7 +285,12 @@ function GerenciarIncentivoModal({ lider, onClose }: { lider: LiderLinha; onClos
               </button>
               <button
                 type="submit"
-                disabled={pending}
+                disabled={
+                  pending ||
+                  (operacao !== "EXCLUIR" &&
+                    (!Number(valorEnviado.replace(/\./g, "").replace(",", ".")) ||
+                      Number(valorEnviado.replace(/\./g, "").replace(",", ".")) <= 0))
+                }
                 className={`flex-1 rounded-xl py-3 text-sm font-semibold disabled:opacity-50 ${
                   operacao === "EXCLUIR"
                     ? "bg-red-500/80 text-white hover:bg-red-500"
