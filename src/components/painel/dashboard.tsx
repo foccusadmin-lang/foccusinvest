@@ -17,6 +17,7 @@ export type ResumoFinanceiro = {
   distribuicoesDisponiveis: number;
   bonusIndicacao: number;
   incentivoLiderancaAcumulado: number;
+  incentivoLiderancaDisponivel: number;
   valoresReaplicados: number;
   valoresEmProcessamento: number;
   saquesPendentes: number;
@@ -206,6 +207,7 @@ export function PainelDashboard({
           primeiroAporteElegivelIndicacao={usuario.primeiroAporteElegivelIndicacao ?? true}
           ehLider={usuario.ehLider ?? false}
           indicadosDiretos={usuario.indicadosDiretos ?? []}
+          incentivoLiderancaDisponivel={resumo.incentivoLiderancaDisponivel}
         />
 
         <p className="mb-3 mt-10 text-xs font-semibold uppercase tracking-[0.15em] text-muted">

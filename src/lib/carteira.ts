@@ -92,6 +92,7 @@ export async function getResumoCarteira(userId: string): Promise<ResumoFinanceir
   let distribuicoesDisponiveis = 0;
   let bonusIndicacao = 0;
   let incentivoLiderancaAcumulado = 0;
+  let incentivoLiderancaDisponivel = 0;
 
   for (const c of creditos) {
     if (c.tipo === "RENDIMENTO") {
@@ -101,9 +102,14 @@ export async function getResumoCarteira(userId: string): Promise<ResumoFinanceir
       // reservado (solicitacaoSaqueId, ainda sem utilizadoEm) continua contando aqui.
       if (c.utilizadoEm) distribuicoesJaSaiu += c.valor;
       if (!c.utilizadoEm && !c.solicitacaoSaqueId) distribuicoesDisponiveis += c.valor;
-      // Incentivo de liderança (0,10%/dia) já está incluso em distribuicoesAcumuladas acima —
-      // aqui só separa o valor pra exibir num card à parte no resumo do líder.
-      if (c.origem.startsWith("Incentivo de liderança")) incentivoLiderancaAcumulado += c.valor;
+      // Incentivo de liderança (0,10%/dia) já está incluso em distribuicoesAcumuladas/
+      // distribuicoesDisponiveis acima (entra no mesmo saque/reaplicação de rendimento
+      // normalmente) — aqui só separa o valor pra exibir à parte no resumo e no modal de
+      // reaplicar do líder.
+      if (c.origem.startsWith("Incentivo de liderança")) {
+        incentivoLiderancaAcumulado += c.valor;
+        if (!c.utilizadoEm && !c.solicitacaoSaqueId) incentivoLiderancaDisponivel += c.valor;
+      }
     } else if (c.tipo === "BONUS") {
       if (!c.utilizadoEm && !c.solicitacaoSaqueId) bonusIndicacao += c.valor;
     }
@@ -161,6 +167,7 @@ export async function getResumoCarteira(userId: string): Promise<ResumoFinanceir
     distribuicoesDisponiveis,
     bonusIndicacao,
     incentivoLiderancaAcumulado,
+    incentivoLiderancaDisponivel,
     valoresReaplicados,
     valoresEmProcessamento,
     saquesPendentes,

@@ -22,6 +22,7 @@ export default function PreviewPainelPage() {
         distribuicoesDisponiveis: 71.42,
         bonusIndicacao: 0,
         incentivoLiderancaAcumulado: 0,
+        incentivoLiderancaDisponivel: 0,
         valoresReaplicados: 0,
         valoresEmProcessamento: 0,
         saquesPendentes: 0,

@@ -60,7 +60,8 @@ const CONFIG: Record<TipoAcaoSimples, AcaoConfig> = {
   },
   reaplicar: {
     titulo: "Reaplicar",
-    descricao: "Reaplica rendimentos e bônus disponíveis. Valor mínimo de R$ 100,00.",
+    descricao:
+      "Reaplica rendimentos, bônus disponíveis e incentivo de liderança (se você for líder). Valor mínimo de R$ 100,00 — o novo lote fica com carência de 90 dias.",
     action: reaplicar,
     textoBotao: "Reaplicar agora",
   },
@@ -84,6 +85,7 @@ export function AcoesRapidas({
   primeiroAporteElegivelIndicacao,
   ehLider,
   indicadosDiretos,
+  incentivoLiderancaDisponivel,
 }: {
   saldoParaReaplicar: number;
   janelaSaqueRendimentoAberta: boolean;
@@ -100,6 +102,7 @@ export function AcoesRapidas({
   primeiroAporteElegivelIndicacao: boolean;
   ehLider: boolean;
   indicadosDiretos: IndicadoDireto[];
+  incentivoLiderancaDisponivel: number;
 }) {
   const [aberto, setAberto] = useState<TipoAcao | null>(null);
   const reaplicarDesativado = saldoParaReaplicar < MINIMO_REAPLICACAO;
@@ -247,6 +250,8 @@ export function AcoesRapidas({
             proximaLiberacao={proximaLiberacao}
             moeda={moeda}
             saldoParaReaplicar={saldoParaReaplicar}
+            ehLider={ehLider}
+            incentivoLiderancaDisponivel={incentivoLiderancaDisponivel}
           />
         )}
     </>
@@ -645,6 +650,8 @@ function AcaoModal({
   proximaLiberacao,
   moeda,
   saldoParaReaplicar,
+  ehLider,
+  incentivoLiderancaDisponivel,
 }: {
   tipo: TipoAcaoSimples;
   onClose: () => void;
@@ -654,6 +661,8 @@ function AcaoModal({
   proximaLiberacao: Date | null;
   moeda: "BRL" | "USD" | "USDT";
   saldoParaReaplicar: number;
+  ehLider: boolean;
+  incentivoLiderancaDisponivel: number;
 }) {
   const cfg = CONFIG[tipo];
   const [state, action, pending] = useActionState(cfg.action, undefined);
@@ -739,6 +748,11 @@ function AcaoModal({
             <p className="text-sm font-semibold text-emerald-300">
               {formatMoeda(saldoParaReaplicar, moeda)}
             </p>
+            {ehLider && incentivoLiderancaDisponivel > 0 && (
+              <p className="mt-1 text-[11px] text-gold-light">
+                Inclui {formatMoeda(incentivoLiderancaDisponivel, moeda)} de incentivo de liderança
+              </p>
+            )}
           </div>
         )}
 
