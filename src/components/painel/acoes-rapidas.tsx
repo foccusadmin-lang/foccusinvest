@@ -833,7 +833,8 @@ function PainelLiderModal({
           <IconUsers width={18} height={18} /> Painel de Líder
         </h3>
         <p className="mt-1 text-sm text-muted">
-          Pessoas que se cadastraram usando o seu código de indicação diretamente.
+          Pessoas que se cadastraram usando o seu código de indicação diretamente, ou que o
+          administrador adicionou como indicadas por você.
         </p>
 
         <div className="mt-4 rounded-lg border border-gold/30 bg-gold/10 p-3 text-xs text-gold-light">
