@@ -6,7 +6,7 @@ import { HeaderMenu } from "./header-menu";
 import { ViewSwitcher } from "@/components/admin/view-switcher";
 import { ConvidarAmigoButton } from "./convidar-amigo-button";
 import { formatMoeda, formatData } from "@/lib/format";
-import { IconWallet, IconTrendingUp, IconGift, IconVerified } from "@/components/icons";
+import { IconWallet, IconTrendingUp, IconGift, IconVerified, IconUsers } from "@/components/icons";
 import type { LiberacaoAtiva } from "@/lib/emergencia";
 
 export type ResumoFinanceiro = {
@@ -16,6 +16,7 @@ export type ResumoFinanceiro = {
   distribuicoesAcumuladas: number;
   distribuicoesDisponiveis: number;
   bonusIndicacao: number;
+  incentivoLiderancaAcumulado: number;
   valoresReaplicados: number;
   valoresEmProcessamento: number;
   saquesPendentes: number;
@@ -96,7 +97,9 @@ export function PainelDashboard({
         <p className="mb-3 text-xs font-semibold uppercase tracking-[0.15em] text-muted">
           Resumo
         </p>
-        <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <section
+          className={`grid grid-cols-1 gap-4 sm:grid-cols-3 ${usuario.ehLider ? "lg:grid-cols-4" : ""}`}
+        >
           <SummaryCard
             tone="gold"
             icon={<IconWallet width={18} height={18} />}
@@ -118,6 +121,15 @@ export function PainelDashboard({
             value={formatMoeda(resumo.bonusIndicacao, moeda)}
             hint="Bônus de indicação"
           />
+          {usuario.ehLider && (
+            <SummaryCard
+              tone="gold"
+              icon={<IconUsers width={18} height={18} />}
+              label="Incentivo de liderança"
+              value={formatMoeda(resumo.incentivoLiderancaAcumulado, moeda)}
+              hint="0,10% ao dia sobre seu capital"
+            />
+          )}
         </section>
 
         <section className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">

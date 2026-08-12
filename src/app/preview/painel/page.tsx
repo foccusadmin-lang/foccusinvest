@@ -21,6 +21,7 @@ export default function PreviewPainelPage() {
         distribuicoesAcumuladas: valores.reduce((a, b) => a + b, 0),
         distribuicoesDisponiveis: 71.42,
         bonusIndicacao: 0,
+        incentivoLiderancaAcumulado: 0,
         valoresReaplicados: 0,
         valoresEmProcessamento: 0,
         saquesPendentes: 0,
