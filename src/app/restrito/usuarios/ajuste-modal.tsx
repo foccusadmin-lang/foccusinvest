@@ -13,12 +13,15 @@ type Usuario = {
   capital: number;
   rendimento: number;
   bonus: number;
+  incentivoLideranca?: number;
+  ehLider?: boolean;
 };
 
 const TIPOS = [
   { valor: "CAPITAL", label: "Capital Principal" },
   { valor: "RENDIMENTO", label: "PLR / Rendimento disponível" },
   { valor: "BONUS", label: "Bônus de indicação" },
+  { valor: "INCENTIVO_LIDERANCA", label: "Incentivo de liderança", soLider: true },
 ] as const;
 
 export function AjusteSaldoButton({ usuario }: { usuario: Usuario }) {
@@ -46,6 +49,8 @@ function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () 
   const [chavePix, setChavePix] = useState("");
   const router = useRouter();
   const processado = useRef(false);
+
+  const tiposDisponiveis = TIPOS.filter((t) => !("soLider" in t && t.soLider) || usuario.ehLider);
 
   useEffect(() => {
     if (state?.sucesso && !processado.current) {
@@ -77,7 +82,9 @@ function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () 
         <div className="mt-3 rounded-xl border border-border bg-surface-2 p-4">
           <p className="font-semibold text-foreground">{usuario.nome}</p>
           <p className="text-xs text-muted">{usuario.email}</p>
-          <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs">
+          <div
+            className={`mt-3 grid gap-2 text-center text-xs ${usuario.ehLider ? "grid-cols-4" : "grid-cols-3"}`}
+          >
             <div>
               <p className="text-muted">Capital</p>
               <p className="font-semibold text-emerald-300">{formatMoeda(usuario.capital)}</p>
@@ -90,6 +97,14 @@ function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () 
               <p className="text-muted">Bônus</p>
               <p className="font-semibold text-fuchsia-300">{formatMoeda(usuario.bonus)}</p>
             </div>
+            {usuario.ehLider && (
+              <div>
+                <p className="text-muted">Incentivo</p>
+                <p className="font-semibold text-gold-light">
+                  {formatMoeda(usuario.incentivoLideranca ?? 0)}
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -191,7 +206,7 @@ function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () 
                   : "Selecione os tipos de saldo e o valor de cada um"}
               </span>
               <div className="space-y-2">
-                {TIPOS.map((t) => {
+                {tiposDisponiveis.map((t) => {
                   const selecionado = tipos.includes(t.valor);
                   return (
                     <div

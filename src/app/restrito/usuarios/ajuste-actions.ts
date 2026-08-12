@@ -10,6 +10,12 @@ import {
   reservarCreditosParaSaque,
   SaldoInsuficienteError,
 } from "@/lib/carteira";
+import {
+  adicionarIncentivoLideranca,
+  definirIncentivoLideranca,
+  zerarIncentivoLideranca,
+  reservarIncentivoLiderancaParaSaque,
+} from "@/lib/incentivo-lideranca";
 
 export type AjusteSaldoState = { error?: string; sucesso?: string } | undefined;
 
@@ -19,6 +25,7 @@ const LABEL_TIPO: Record<string, string> = {
   CAPITAL: "Capital Principal",
   RENDIMENTO: "PLR / Rendimento disponível",
   BONUS: "Bônus de indicação",
+  INCENTIVO_LIDERANCA: "Incentivo de liderança",
 };
 
 function parseValor(raw: FormDataEntryValue | null): number {
@@ -157,7 +164,7 @@ async function ajustarCredito(
  *  modo automático/manual configurado pra saques. */
 async function realizarSaqueAssistido(
   userId: string,
-  tipo: "CAPITAL" | "RENDIMENTO" | "BONUS",
+  tipo: "CAPITAL" | "RENDIMENTO" | "BONUS" | "INCENTIVO_LIDERANCA",
   valor: number,
   chavePix: string
 ): Promise<string | null> {
@@ -165,14 +172,22 @@ async function realizarSaqueAssistido(
   const automatico =
     tipo === "CAPITAL" ? config.modoSaqueCapital === "AUTOMATICO" : config.modoSaqueRendimento === "AUTOMATICO";
 
+  // Incentivo de liderança some da carteira do investidor exatamente como um saque de
+  // rendimento — só a origem do crédito consumido é diferente (ver reservarIncentivoLideranca-
+  // ParaSaque). O registro em SolicitacaoSaque usa tipo RENDIMENTO porque não existe um tipo de
+  // saque próprio pra isso — a distinção fica no crédito de origem, não no saque em si.
+  const tipoSaque = tipo === "INCENTIVO_LIDERANCA" ? "RENDIMENTO" : tipo;
+
   try {
     await prisma.$transaction(async (tx) => {
       const saque = await tx.solicitacaoSaque.create({
-        data: { userId, tipo, valor, moeda: "BRL", motivoEmergencia: chavePix },
+        data: { userId, tipo: tipoSaque, valor, moeda: "BRL", motivoEmergencia: chavePix },
       });
 
       if (tipo === "CAPITAL") {
         await reservarCapitalParaSaqueAdmin(tx, userId, valor, saque.id);
+      } else if (tipo === "INCENTIVO_LIDERANCA") {
+        await reservarIncentivoLiderancaParaSaque(tx, userId, valor, saque.id);
       } else {
         await reservarCreditosParaSaque(tx, userId, valor, tipo, saque.id);
       }
@@ -224,13 +239,17 @@ export async function ajustarSaldoUsuario(
   const usuario = await prisma.user.findUnique({ where: { id: userId } });
   if (!usuario) return { error: "Usuário não encontrado." };
 
+  if (tipos.includes("INCENTIVO_LIDERANCA") && usuario.perfil !== "LIDER") {
+    return { error: "Incentivo de liderança só pode ser ajustado pra quem é líder." };
+  }
+
   if (operacao === "SAQUE") {
     const chavePix = String(formData.get("chavePix") ?? "").trim();
     if (!chavePix) return { error: "Informe a chave Pix pra onde o valor vai ser enviado." };
 
     const valoresSaque = new Map<string, number>();
     for (const tipo of tipos) {
-      if (tipo !== "CAPITAL" && tipo !== "RENDIMENTO" && tipo !== "BONUS") {
+      if (tipo !== "CAPITAL" && tipo !== "RENDIMENTO" && tipo !== "BONUS" && tipo !== "INCENTIVO_LIDERANCA") {
         return { error: "Tipo de saldo inválido pra saque." };
       }
       const valor = parseValor(formData.get(`valor_${tipo}`));
@@ -244,7 +263,7 @@ export async function ajustarSaldoUsuario(
       const valor = valoresSaque.get(tipo)!;
       const erro = await realizarSaqueAssistido(
         userId,
-        tipo as "CAPITAL" | "RENDIMENTO" | "BONUS",
+        tipo as "CAPITAL" | "RENDIMENTO" | "BONUS" | "INCENTIVO_LIDERANCA",
         valor,
         chavePix
       );
@@ -281,6 +300,7 @@ export async function ajustarSaldoUsuario(
       if (tipo === "CAPITAL") erro = await ajustarCapital(userId, 0, "DEFINIR");
       else if (tipo === "RENDIMENTO") erro = await ajustarCredito(userId, "RENDIMENTO", 0, "DEFINIR");
       else if (tipo === "BONUS") erro = await ajustarCredito(userId, "BONUS", 0, "DEFINIR");
+      else if (tipo === "INCENTIVO_LIDERANCA") erro = await zerarIncentivoLideranca(userId);
 
       if (erro) return { error: erro };
     }
@@ -314,6 +334,10 @@ export async function ajustarSaldoUsuario(
     if (tipo === "CAPITAL") erro = await ajustarCapital(userId, valor, operacao);
     else if (tipo === "RENDIMENTO") erro = await ajustarCredito(userId, "RENDIMENTO", valor, operacao);
     else if (tipo === "BONUS") erro = await ajustarCredito(userId, "BONUS", valor, operacao);
+    else if (tipo === "INCENTIVO_LIDERANCA") {
+      if (operacao === "ADICIONAR") await adicionarIncentivoLideranca(userId, valor);
+      else erro = await definirIncentivoLideranca(userId, valor);
+    }
 
     if (erro) return { error: erro };
   }

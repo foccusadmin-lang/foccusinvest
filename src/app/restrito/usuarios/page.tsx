@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { maskCPF, maskCNPJ } from "@/lib/cpf-cnpj";
+import { ORIGEM_INCENTIVO_PREFIXO } from "@/lib/incentivo-lideranca";
 import { UsuariosTable, type LinhaUsuario } from "./usuarios-table";
 
 export default async function RestritoUsuariosPage() {
@@ -24,6 +25,7 @@ export default async function RestritoUsuariosPage() {
     capitalCarenciaPorUsuario,
     aplicacoesElegiveis,
     liberacoesAtivas,
+    incentivoLiderancaPorUsuario,
   ] = await Promise.all([
     prisma.aplicacao.groupBy({
       by: ["userId"],
@@ -54,6 +56,16 @@ export default async function RestritoUsuariosPage() {
       where: { status: "ATIVA" },
       orderBy: { criadoEm: "desc" },
     }),
+    prisma.creditoCarteira.groupBy({
+      by: ["userId"],
+      where: {
+        tipo: "RENDIMENTO",
+        utilizadoEm: null,
+        solicitacaoSaqueId: null,
+        origem: { startsWith: ORIGEM_INCENTIVO_PREFIXO },
+      },
+      _sum: { valor: true },
+    }),
   ]);
 
   const capitalPorId = new Map(capitaisPorUsuario.map((c) => [c.userId, c._sum.valor ?? 0]));
@@ -68,6 +80,9 @@ export default async function RestritoUsuariosPage() {
   );
   const capitalCarenciaPorId = new Map(
     capitalCarenciaPorUsuario.map((c) => [c.userId, c._sum.valor ?? 0])
+  );
+  const incentivoLiderancaPorId = new Map(
+    incentivoLiderancaPorUsuario.map((c) => [c.userId, c._sum.valor ?? 0])
   );
 
   const aplicacoesPorUsuario = new Map<string, LinhaUsuario["aplicacoesElegiveisEmergencia"]>();
@@ -112,6 +127,7 @@ export default async function RestritoUsuariosPage() {
     capitalCarencia: capitalCarenciaPorId.get(u.id) ?? 0,
     rendimento: rendimentoPorId.get(u.id) ?? 0,
     bonus: bonusPorId.get(u.id) ?? 0,
+    incentivoLideranca: incentivoLiderancaPorId.get(u.id) ?? 0,
     statusCadastro: u.statusCadastro,
     perfil: u.perfil,
     createdAt: u.createdAt,

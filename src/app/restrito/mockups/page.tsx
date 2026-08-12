@@ -26,6 +26,7 @@ const ITENS: MockupItem[] = [
   // Administrador
   { key: "admin-painel", label: "Painel administrativo", grupo: "Administrador", path: "/preview/admin-painel" },
   { key: "admin-usuarios", label: "Usuários", grupo: "Administrador", path: "/preview/admin-usuarios" },
+  { key: "admin-lideranca", label: "Liderança", grupo: "Administrador", path: "/preview/admin-lideranca" },
   { key: "admin-aportes", label: "Aportes (Pix)", grupo: "Administrador", path: "/preview/admin-aportes" },
   { key: "admin-saques", label: "Saques", grupo: "Administrador", path: "/preview/admin-saques" },
   { key: "admin-distribuicoes", label: "Distribuições", grupo: "Administrador", path: "/preview/admin-distribuicoes" },

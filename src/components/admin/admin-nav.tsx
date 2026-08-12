@@ -19,6 +19,7 @@ const LINKS = [
   { href: "/restrito/historico", label: "Histórico" },
   { href: "/restrito/entidades", label: "Entidades" },
   { href: "/restrito/doacoes", label: "Doações" },
+  { href: "/restrito/lideranca", label: "Liderança" },
 ];
 
 export function AdminNav() {

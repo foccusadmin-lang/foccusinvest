@@ -31,6 +31,7 @@ export type LinhaUsuario = {
   capitalCarencia: number;
   rendimento: number;
   bonus: number;
+  incentivoLideranca: number;
   statusCadastro: StatusCadastro;
   perfil: PerfilUsuario;
   createdAt: Date;
@@ -129,6 +130,8 @@ export function UsuariosTable({ usuarios }: { usuarios: LinhaUsuario[] }) {
                         capital: u.capital,
                         rendimento: u.rendimento,
                         bonus: u.bonus,
+                        incentivoLideranca: u.incentivoLideranca,
+                        ehLider: u.perfil === "LIDER",
                       }}
                     />
                     <AjusteCarenciaButton
