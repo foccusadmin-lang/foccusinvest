@@ -40,6 +40,7 @@ export async function ajustarCarenciaUsuario(
   const lotes = await prisma.aplicacao.findMany({
     where: { userId, status: "CONFIRMADA" },
     orderBy: { criadoEm: "asc" },
+    omit: { comprovante: true },
   });
   const totalLivre = lotes.reduce((acc, l) => acc + l.valor, 0);
 

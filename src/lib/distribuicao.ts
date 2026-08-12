@@ -35,7 +35,7 @@ export async function criarDistribuicao(params: {
   await prisma.$transaction(async (tx) => {
     const usuarios = await tx.user.findMany({
       where: { statusCadastro: "APROVADO" },
-      include: { aplicacoes: true },
+      include: { aplicacoes: { omit: { comprovante: true } } },
     });
 
     const elegiveis = usuarios

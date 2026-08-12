@@ -17,6 +17,7 @@ export default async function RestritoDoacoesPage() {
         entidade: { include: { user: { include: { pessoaJuridica: true } } } },
       },
       orderBy: { criadoEm: "asc" },
+      omit: { comprovante: true },
     }),
     prisma.doacao.findMany({
       where: { status: { in: ["CONFIRMADA", "CANCELADA", "ESTORNADA"] } },
@@ -26,6 +27,7 @@ export default async function RestritoDoacoesPage() {
       },
       orderBy: { criadoEm: "desc" },
       take: 30,
+      omit: { comprovante: true },
     }),
   ]);
 

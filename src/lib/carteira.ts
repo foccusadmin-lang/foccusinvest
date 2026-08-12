@@ -53,7 +53,10 @@ export async function getResumoCarteira(userId: string): Promise<ResumoFinanceir
   const agora = new Date();
 
   const [aplicacoes, creditos, saquesAtivos] = await Promise.all([
-    prisma.aplicacao.findMany({ where: { userId } }),
+    // `omit: { comprovante: true }` — o comprovante (imagem do Pix) é bytea pesado que ninguém
+    // usa aqui; sem isso, essa query (que roda em toda carga do painel) fica MUITO mais lenta
+    // pra investidores com vários aportes.
+    prisma.aplicacao.findMany({ where: { userId }, omit: { comprovante: true } }),
     prisma.creditoCarteira.findMany({ where: { userId } }),
     prisma.solicitacaoSaque.findMany({
       where: { userId, status: { in: ["SOLICITADO", "APROVADO"] } },
@@ -193,6 +196,7 @@ export async function reservarCapitalParaSaque(
   const disponiveis = await tx.aplicacao.findMany({
     where: { userId, status: "CONFIRMADA", liberaEm: { lte: new Date() } },
     orderBy: { criadoEm: "asc" },
+    omit: { comprovante: true },
   });
 
   const restante = await consumirFIFO(
@@ -245,6 +249,7 @@ export async function reservarCapitalParaSaqueAdmin(
   const lotes = await tx.aplicacao.findMany({
     where: { userId, status: "CONFIRMADA" },
     orderBy: { criadoEm: "asc" },
+    omit: { comprovante: true },
   });
 
   const restante = await consumirFIFO(
@@ -341,38 +346,47 @@ export async function reaplicarSaldoDisponivel(
   userId: string,
   valor: number
 ): Promise<void> {
-  const disponiveis = await tx.creditoCarteira.findMany({
-    where: { userId, utilizadoEm: null, solicitacaoSaqueId: null },
-    orderBy: [{ tipo: "desc" }, { criadoEm: "asc" }], // RENDIMENTO antes de BONUS
-  });
+  // Nota: `orderBy: { tipo: "desc" }` NÃO garante RENDIMENTO antes de BONUS — enums nativos do
+  // Postgres ordenam pelo ordinal declarado no `CREATE TYPE` (RENDIMENTO=1, BONUS=2), não
+  // alfabeticamente, então "desc" traz BONUS primeiro. Por isso consome em duas passadas
+  // separadas (RENDIMENTO, depois BONUS), cada uma FIFO por criadoEm — mesmo padrão de
+  // `reservarCreditosParaSaque`.
+  let restante = valor;
+  for (const tipo of ["RENDIMENTO", "BONUS"] as const) {
+    if (restante <= 0) break;
+    const disponiveis = await tx.creditoCarteira.findMany({
+      where: { userId, tipo, utilizadoEm: null, solicitacaoSaqueId: null },
+      orderBy: { criadoEm: "asc" },
+    });
 
-  const restante = await consumirFIFO(
-    disponiveis,
-    valor,
-    async (credito) => {
-      await tx.creditoCarteira.update({
-        where: { id: credito.id },
-        data: { utilizadoEm: new Date() },
-      });
-    },
-    async (credito, _valorConsumido, valorRestanteNaLinha) => {
-      const cheio = await tx.creditoCarteira.findUniqueOrThrow({ where: { id: credito.id } });
-      await tx.creditoCarteira.update({
-        where: { id: credito.id },
-        data: { valor: valorRestanteNaLinha },
-      });
-      await tx.creditoCarteira.create({
-        data: {
-          userId,
-          tipo: cheio.tipo,
-          valor: cheio.valor - valorRestanteNaLinha,
-          moeda: cheio.moeda,
-          origem: cheio.origem,
-          utilizadoEm: new Date(),
-        },
-      });
-    }
-  );
+    restante = await consumirFIFO(
+      disponiveis,
+      restante,
+      async (credito) => {
+        await tx.creditoCarteira.update({
+          where: { id: credito.id },
+          data: { utilizadoEm: new Date() },
+        });
+      },
+      async (credito, _valorConsumido, valorRestanteNaLinha) => {
+        const cheio = await tx.creditoCarteira.findUniqueOrThrow({ where: { id: credito.id } });
+        await tx.creditoCarteira.update({
+          where: { id: credito.id },
+          data: { valor: valorRestanteNaLinha },
+        });
+        await tx.creditoCarteira.create({
+          data: {
+            userId,
+            tipo: cheio.tipo,
+            valor: cheio.valor - valorRestanteNaLinha,
+            moeda: cheio.moeda,
+            origem: cheio.origem,
+            utilizadoEm: new Date(),
+          },
+        });
+      }
+    );
+  }
 
   if (restante > EPSILON) {
     throw new SaldoInsuficienteError("Saldo disponível insuficiente para reaplicação.");

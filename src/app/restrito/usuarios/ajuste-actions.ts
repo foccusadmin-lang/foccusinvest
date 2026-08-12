@@ -39,6 +39,7 @@ async function reduzirCapital(userId: string, valorReduzir: number): Promise<str
   const lotes = await prisma.aplicacao.findMany({
     where: { userId, status: "CONFIRMADA" },
     orderBy: { criadoEm: "asc" },
+    omit: { comprovante: true },
   });
 
   let restante = valorReduzir;

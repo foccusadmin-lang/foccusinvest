@@ -14,6 +14,7 @@ export default async function RestritoReaplicacoesPage() {
       where: { origem: "REAPLICACAO" },
       include: { user: { select: { name: true, email: true } } },
       orderBy: { criadoEm: "desc" },
+      omit: { comprovante: true },
     }),
     prisma.aplicacao.groupBy({
       by: ["userId"],

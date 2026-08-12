@@ -431,6 +431,7 @@ export async function listarAportesElegiveisIndicacao(): Promise<AporteElegivelI
       status: { in: ["CONFIRMADA", "SAQUE_SOLICITADO", "RETIRADA"] },
     },
     orderBy: { criadoEm: "asc" },
+    select: { id: true, valor: true, criadoEm: true },
   });
   if (!primeiroAporte) return [];
 

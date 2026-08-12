@@ -36,7 +36,10 @@ export default async function RestritoPainelPage() {
   ] = await Promise.all([
     prisma.user.count({ where: { perfil: { not: "ADMIN" } } }),
     prisma.user.count({ where: { statusCadastro: "PENDENTE", perfil: { not: "ADMIN" } } }),
-    prisma.aplicacao.findMany({ where: { status: { in: ["CONFIRMADA", "SAQUE_SOLICITADO"] } } }),
+    prisma.aplicacao.findMany({
+      where: { status: { in: ["CONFIRMADA", "SAQUE_SOLICITADO"] } },
+      omit: { comprovante: true },
+    }),
     prisma.solicitacaoSaque.findMany({ where: { status: { in: ["SOLICITADO", "APROVADO"] } } }),
     prisma.aplicacao.count({ where: { status: "AGUARDANDO_APROVACAO" } }),
     prisma.creditoCarteira.aggregate({ where: { tipo: "RENDIMENTO" }, _sum: { valor: true } }),

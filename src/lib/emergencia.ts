@@ -21,6 +21,7 @@ export async function listarAplicacoesElegiveis(userId: string): Promise<Aplicac
   const lotes = await prisma.aplicacao.findMany({
     where: { userId, status: "CONFIRMADA" },
     orderBy: { criadoEm: "asc" },
+    omit: { comprovante: true },
   });
   return lotes.map((l) => ({
     id: l.id,

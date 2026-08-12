@@ -14,6 +14,7 @@ export default async function RestritoAportesPage() {
       where: { status: "AGUARDANDO_APROVACAO" },
       include: { user: { select: { name: true, email: true } } },
       orderBy: { criadoEm: "asc" },
+      omit: { comprovante: true },
     }),
     prisma.aplicacao.findMany({
       where: { status: { in: ["CONFIRMADA", "REJEITADA"] }, origem: "NOVA_APLICACAO" },
@@ -23,6 +24,7 @@ export default async function RestritoAportesPage() {
       },
       orderBy: { aprovadoEm: "desc" },
       take: 20,
+      omit: { comprovante: true },
     }),
   ]);
 

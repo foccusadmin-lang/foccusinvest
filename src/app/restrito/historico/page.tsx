@@ -37,6 +37,7 @@ export default async function RestritoHistoricoPage({
       include: { user: { select: { name: true, email: true } } },
       orderBy: { criadoEm: "desc" },
       take: limite,
+      omit: { comprovante: true },
     }),
     prisma.solicitacaoSaque.findMany({
       where: filtroUsuario,
