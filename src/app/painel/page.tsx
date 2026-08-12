@@ -40,6 +40,23 @@ export default async function PainelPage() {
     },
   });
 
+  const ehLider = session.user.perfil === "LIDER";
+  const indicadosDiretos = ehLider
+    ? (
+        await prisma.user.findMany({
+          where: { indicadoPorId: user.id },
+          include: { pessoaFisica: true, pessoaJuridica: true },
+          orderBy: { createdAt: "desc" },
+        })
+      ).map((u) => ({
+        id: u.id,
+        nome: u.pessoaFisica?.nomeCompleto ?? u.pessoaJuridica?.razaoSocial ?? u.name ?? u.email,
+        email: u.email,
+        statusCadastro: u.statusCadastro,
+        criadoEm: u.createdAt,
+      }))
+    : [];
+
   return (
     <PainelDashboard
       usuario={{
@@ -51,6 +68,8 @@ export default async function PainelPage() {
         ehAdmin: session.user.perfil === "ADMIN",
         liberacaoEmergencial,
         primeiroAporteElegivelIndicacao: aportesAnteriores === 0,
+        ehLider,
+        indicadosDiretos,
       }}
       resumo={resumo}
       janelaSaqueRendimentoAberta={janelaSaqueRendimentoAberta()}

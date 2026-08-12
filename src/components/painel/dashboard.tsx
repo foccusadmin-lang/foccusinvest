@@ -1,7 +1,7 @@
 import { Logo } from "@/components/logo";
 import { SummaryCard } from "./summary-card";
 import { RendimentosChart, type PontoRendimento } from "./rendimentos-chart";
-import { AcoesRapidas } from "./acoes-rapidas";
+import { AcoesRapidas, type IndicadoDireto } from "./acoes-rapidas";
 import { HeaderMenu } from "./header-menu";
 import { ViewSwitcher } from "@/components/admin/view-switcher";
 import { ConvidarAmigoButton } from "./convidar-amigo-button";
@@ -35,6 +35,8 @@ export type PainelUsuario = {
   ehAdmin?: boolean;
   liberacaoEmergencial?: LiberacaoAtiva | null;
   primeiroAporteElegivelIndicacao?: boolean;
+  ehLider?: boolean;
+  indicadosDiretos?: IndicadoDireto[];
 };
 
 const statusLabel: Record<string, { label: string; className: string }> = {
@@ -190,6 +192,8 @@ export function PainelDashboard({
           liberacaoEmergencial={usuario.liberacaoEmergencial ?? null}
           codigoIndicacao={usuario.codigoIndicacao ?? null}
           primeiroAporteElegivelIndicacao={usuario.primeiroAporteElegivelIndicacao ?? true}
+          ehLider={usuario.ehLider ?? false}
+          indicadosDiretos={usuario.indicadosDiretos ?? []}
         />
 
         <p className="mb-3 mt-10 text-xs font-semibold uppercase tracking-[0.15em] text-muted">

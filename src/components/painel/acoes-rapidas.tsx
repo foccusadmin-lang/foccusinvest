@@ -4,7 +4,7 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, LinkButton } from "@/components/ui/button";
 import { MoneyInput } from "@/components/ui/money-input";
-import { IconPlus, IconArrowDown, IconRefresh, IconHeart, IconAlert } from "@/components/icons";
+import { IconPlus, IconArrowDown, IconRefresh, IconHeart, IconAlert, IconUsers } from "@/components/icons";
 import { formatMoeda, formatData } from "@/lib/format";
 import { PIX_CHAVE, PIX_TIPO_CHAVE, PIX_BENEFICIARIO } from "@/lib/config";
 import {
@@ -21,8 +21,22 @@ import {
 } from "@/lib/emergencia-calculo";
 import type { LiberacaoAtiva } from "@/lib/emergencia";
 
-type TipoAcao = "aplicacao" | "saque-capital" | "saque-rendimento" | "reaplicar" | "saque-emergencia";
+type TipoAcao =
+  | "aplicacao"
+  | "saque-capital"
+  | "saque-rendimento"
+  | "reaplicar"
+  | "saque-emergencia"
+  | "painel-lider";
 type TipoAcaoSimples = "saque-capital" | "saque-rendimento" | "reaplicar";
+
+export type IndicadoDireto = {
+  id: string;
+  nome: string;
+  email: string;
+  statusCadastro: string;
+  criadoEm: Date;
+};
 
 type AcaoConfig = {
   titulo: string;
@@ -68,6 +82,8 @@ export function AcoesRapidas({
   liberacaoEmergencial,
   codigoIndicacao,
   primeiroAporteElegivelIndicacao,
+  ehLider,
+  indicadosDiretos,
 }: {
   saldoParaReaplicar: number;
   janelaSaqueRendimentoAberta: boolean;
@@ -82,6 +98,8 @@ export function AcoesRapidas({
   liberacaoEmergencial: LiberacaoAtiva | null;
   codigoIndicacao: string | null;
   primeiroAporteElegivelIndicacao: boolean;
+  ehLider: boolean;
+  indicadosDiretos: IndicadoDireto[];
 }) {
   const [aberto, setAberto] = useState<TipoAcao | null>(null);
   const reaplicarDesativado = saldoParaReaplicar < MINIMO_REAPLICACAO;
@@ -183,6 +201,16 @@ export function AcoesRapidas({
             <IconAlert width={16} height={16} /> Saque de emergência (bloqueado)
           </Button>
         )}
+
+        {ehLider && (
+          <Button
+            variant="ghost"
+            className="w-full justify-start border border-gold/40 text-gold-light hover:bg-gold/10"
+            onClick={() => setAberto("painel-lider")}
+          >
+            <IconUsers width={16} height={16} /> Painel de Líder
+          </Button>
+        )}
       </section>
 
       {aberto === "aplicacao" && (
@@ -203,18 +231,24 @@ export function AcoesRapidas({
           moeda={moeda}
         />
       )}
-      {aberto && aberto !== "aplicacao" && aberto !== "saque-emergencia" && (
-        <AcaoModal
-          tipo={aberto}
-          onClose={() => setAberto(null)}
-          capitalDisponivel={capitalDisponivel}
-          capitalCarencia={capitalCarencia}
-          rendimentoDisponivel={rendimentoDisponivel}
-          proximaLiberacao={proximaLiberacao}
-          moeda={moeda}
-          saldoParaReaplicar={saldoParaReaplicar}
-        />
+      {aberto === "painel-lider" && (
+        <PainelLiderModal onClose={() => setAberto(null)} indicados={indicadosDiretos} />
       )}
+      {aberto &&
+        aberto !== "aplicacao" &&
+        aberto !== "saque-emergencia" &&
+        aberto !== "painel-lider" && (
+          <AcaoModal
+            tipo={aberto}
+            onClose={() => setAberto(null)}
+            capitalDisponivel={capitalDisponivel}
+            capitalCarencia={capitalCarencia}
+            rendimentoDisponivel={rendimentoDisponivel}
+            proximaLiberacao={proximaLiberacao}
+            moeda={moeda}
+            saldoParaReaplicar={saldoParaReaplicar}
+          />
+        )}
     </>
   );
 }
@@ -766,6 +800,87 @@ function AcaoModal({
             </div>
           </form>
         )}
+      </div>
+    </div>
+  );
+}
+
+const STATUS_INDICADO: Record<string, { label: string; className: string }> = {
+  INCOMPLETO: { label: "Cadastro incompleto", className: "bg-white/10 text-muted" },
+  PENDENTE: { label: "Em análise", className: "bg-sky-500/15 text-sky-300" },
+  APROVADO: { label: "Verificado", className: "bg-emerald-500/15 text-emerald-300" },
+  SUSPENSO: { label: "Suspenso", className: "bg-red-500/15 text-red-300" },
+  REJEITADO: { label: "Rejeitado", className: "bg-red-500/15 text-red-300" },
+};
+
+function PainelLiderModal({
+  onClose,
+  indicados,
+}: {
+  onClose: () => void;
+  indicados: IndicadoDireto[];
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-gold/40 bg-surface p-6 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="flex items-center gap-2 text-lg font-semibold text-gold-light">
+          <IconUsers width={18} height={18} /> Painel de Líder
+        </h3>
+        <p className="mt-1 text-sm text-muted">
+          Pessoas que se cadastraram usando o seu código de indicação diretamente.
+        </p>
+
+        <div className="mt-4 rounded-lg border border-gold/30 bg-gold/10 p-3 text-xs text-gold-light">
+          Como líder, você recebe um incentivo de liderança de 0,10% ao dia sobre seu capital,
+          além da rentabilidade diária normal — aparece no seu histórico como "Incentivo de
+          liderança".
+        </div>
+
+        {indicados.length === 0 ? (
+          <p className="mt-4 rounded-lg border border-border bg-surface-2 p-4 text-center text-sm text-muted">
+            Ninguém se cadastrou com o seu código ainda.
+          </p>
+        ) : (
+          <div className="mt-4 space-y-2">
+            {indicados.map((i) => {
+              const status = STATUS_INDICADO[i.statusCadastro] ?? {
+                label: i.statusCadastro,
+                className: "bg-white/10 text-muted",
+              };
+              return (
+                <div
+                  key={i.id}
+                  className="flex items-center justify-between gap-3 rounded-lg border border-border bg-surface-2 p-3"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-foreground">{i.nome}</p>
+                    <p className="truncate text-xs text-muted">{i.email}</p>
+                    <p className="text-[10px] text-muted">Desde {formatData(i.criadoEm)}</p>
+                  </div>
+                  <span
+                    className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${status.className}`}
+                  >
+                    {status.label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={onClose}
+          className="mt-6 w-full rounded-xl border border-border/60 py-3 text-sm font-semibold text-muted hover:text-foreground"
+        >
+          Fechar
+        </button>
       </div>
     </div>
   );

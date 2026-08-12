@@ -5,6 +5,11 @@ type TxClient = Prisma.TransactionClient;
 
 const UM_DIA_MS = 24 * 60 * 60 * 1000;
 
+/** Incentivo de liderança: 0,10% ao dia sobre o capital elegível do próprio líder, creditado
+ *  junto (mas separado) de cada fatia diária de PLR/distribuição que ele recebe — só pra quem
+ *  tem perfil LIDER. */
+const LIDER_INCENTIVO_DIARIO = 0.001;
+
 export function diasEntre(inicio: Date, fim: Date): number {
   return Math.floor((fim.getTime() - inicio.getTime()) / UM_DIA_MS) + 1;
 }
@@ -95,6 +100,13 @@ export async function sincronizarDistribuicoesDoUsuario(
     include: { distribuicao: true },
   });
 
+  if (participacoes.length === 0) return;
+
+  // Só busca o perfil se existe alguma fatia pra creditar — evita uma query à toa pra quem
+  // não tem distribuição ativa (a maioria das consultas de carteira).
+  const usuario = await tx.user.findUnique({ where: { id: userId }, select: { perfil: true } });
+  const ehLider = usuario?.perfil === "LIDER";
+
   for (const p of participacoes) {
     const diasTotais = diasEntre(p.distribuicao.periodoInicio, p.distribuicao.periodoFim);
     const diasDecorridos = Math.min(
@@ -104,6 +116,7 @@ export async function sincronizarDistribuicoesDoUsuario(
     const diasNovos = diasDecorridos - p.diasCreditados;
     if (diasNovos <= 0) continue;
 
+    const periodo = `${p.distribuicao.periodoInicio.toISOString().slice(0, 10)} a ${p.distribuicao.periodoFim.toISOString().slice(0, 10)}`;
     const valorPorDia = p.valorTotalCota / diasTotais;
     const valorNovo = valorPorDia * diasNovos;
 
@@ -113,9 +126,25 @@ export async function sincronizarDistribuicoesDoUsuario(
         tipo: "RENDIMENTO",
         valor: valorNovo,
         moeda: p.distribuicao.moeda,
-        origem: `Distribuição ${p.distribuicao.periodoInicio.toISOString().slice(0, 10)} a ${p.distribuicao.periodoFim.toISOString().slice(0, 10)}`,
+        origem: `Distribuição ${periodo}`,
       },
     });
+
+    // Incentivo de liderança: 0,10% ao dia sobre o capital elegível do próprio líder, creditado
+    // à parte (aparece como um lançamento separado no histórico), nos mesmos dias em que o PLR
+    // diário dessa distribuição é liberado.
+    if (ehLider) {
+      const incentivoNovo = p.capitalElegivel * LIDER_INCENTIVO_DIARIO * diasNovos;
+      await tx.creditoCarteira.create({
+        data: {
+          userId,
+          tipo: "RENDIMENTO",
+          valor: incentivoNovo,
+          moeda: p.distribuicao.moeda,
+          origem: `Incentivo de liderança 0,10%/dia · ${periodo}`,
+        },
+      });
+    }
 
     await tx.distribuicaoParticipante.update({
       where: { id: p.id },
