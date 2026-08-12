@@ -112,8 +112,8 @@ export function PainelDashboard({
             tone="green"
             icon={<IconTrendingUp width={18} height={18} />}
             label="Rendimentos"
-            value={formatMoeda(resumo.distribuicoesAcumuladas, moeda)}
-            hint="Liberado toda sexta-feira"
+            value={formatMoeda(resumo.distribuicoesDisponiveis, moeda)}
+            hint="Total disponível de todos os meses"
           />
           <SummaryCard
             tone="purple"
