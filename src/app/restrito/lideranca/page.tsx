@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { listarLideres } from "@/lib/incentivo-lideranca";
 import { PromoverLiderButton } from "./promover-lider-form";
 import { LiderancaLista } from "./lideranca-lista";
+import { LiberarIncentivoTodosButton } from "./liberar-incentivo-form";
 
 export default async function RestritoLiderancaPage() {
   const session = await auth();
@@ -22,7 +23,10 @@ export default async function RestritoLiderancaPage() {
             Gerencie aqui quem é líder e o incentivo de cada um.
           </p>
         </div>
-        <PromoverLiderButton />
+        <div className="flex flex-wrap gap-2">
+          <LiberarIncentivoTodosButton lideres={lideres} />
+          <PromoverLiderButton />
+        </div>
       </div>
 
       <div className="mt-6">

@@ -86,6 +86,7 @@ export function AcoesRapidas({
   ehLider,
   indicadosDiretos,
   incentivoLiderancaDisponivel,
+  incentivoLiderancaAcumulado,
 }: {
   saldoParaReaplicar: number;
   janelaSaqueRendimentoAberta: boolean;
@@ -103,6 +104,7 @@ export function AcoesRapidas({
   ehLider: boolean;
   indicadosDiretos: IndicadoDireto[];
   incentivoLiderancaDisponivel: number;
+  incentivoLiderancaAcumulado: number;
 }) {
   const [aberto, setAberto] = useState<TipoAcao | null>(null);
   const reaplicarDesativado = saldoParaReaplicar < MINIMO_REAPLICACAO;
@@ -235,7 +237,12 @@ export function AcoesRapidas({
         />
       )}
       {aberto === "painel-lider" && (
-        <PainelLiderModal onClose={() => setAberto(null)} indicados={indicadosDiretos} />
+        <PainelLiderModal
+          onClose={() => setAberto(null)}
+          indicados={indicadosDiretos}
+          incentivoAcumulado={incentivoLiderancaAcumulado}
+          incentivoDisponivel={incentivoLiderancaDisponivel}
+        />
       )}
       {aberto &&
         aberto !== "aplicacao" &&
@@ -830,9 +837,13 @@ const STATUS_INDICADO: Record<string, { label: string; className: string }> = {
 function PainelLiderModal({
   onClose,
   indicados,
+  incentivoAcumulado,
+  incentivoDisponivel,
 }: {
   onClose: () => void;
   indicados: IndicadoDireto[];
+  incentivoAcumulado: number;
+  incentivoDisponivel: number;
 }) {
   return (
     <div
@@ -851,10 +862,29 @@ function PainelLiderModal({
           administrador adicionou como indicadas por você.
         </p>
 
-        <div className="mt-4 rounded-lg border border-gold/30 bg-gold/10 p-3 text-xs text-gold-light">
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <div className="rounded-xl border border-gold/30 bg-gold/10 p-3 text-center">
+            <p className="text-[10px] uppercase tracking-wider text-gold-light">
+              Incentivo acumulado
+            </p>
+            <p className="mt-1 text-sm font-semibold text-gold-light">
+              {formatMoeda(incentivoAcumulado)}
+            </p>
+          </div>
+          <div className="rounded-xl border border-gold/30 bg-gold/10 p-3 text-center">
+            <p className="text-[10px] uppercase tracking-wider text-gold-light">
+              Incentivo disponível
+            </p>
+            <p className="mt-1 text-sm font-semibold text-gold-light">
+              {formatMoeda(incentivoDisponivel)}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-3 rounded-lg border border-gold/30 bg-gold/10 p-3 text-xs text-gold-light">
           Como líder, você recebe um incentivo de liderança de 0,10% ao dia sobre seu capital,
-          além da rentabilidade diária normal — aparece no seu histórico como "Incentivo de
-          liderança".
+          além da rentabilidade diária normal, e pode receber lançamentos extras do admin —
+          tudo aparece no seu histórico como "Incentivo de liderança".
         </div>
 
         {indicados.length === 0 ? (

@@ -208,6 +208,7 @@ export function PainelDashboard({
           ehLider={usuario.ehLider ?? false}
           indicadosDiretos={usuario.indicadosDiretos ?? []}
           incentivoLiderancaDisponivel={resumo.incentivoLiderancaDisponivel}
+          incentivoLiderancaAcumulado={resumo.incentivoLiderancaAcumulado}
         />
 
         <p className="mb-3 mt-10 text-xs font-semibold uppercase tracking-[0.15em] text-muted">
