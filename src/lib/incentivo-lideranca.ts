@@ -125,6 +125,52 @@ export async function reservarIncentivoLiderancaParaSaque(
   }
 }
 
+export type ResultadoLiberacao = { creditados: number; total: number };
+
+/** Libera um percentual de incentivo de liderança pra TODOS os líderes de uma vez — percentual
+ *  aplicado sobre o capital de cada um. Reaproveitada tanto pelo botão manual do admin quanto
+ *  pelo cron automático (ver /api/cron/liberar-incentivo-lideranca), pra nunca duplicar a
+ *  lógica entre os dois caminhos. */
+export async function liberarIncentivoParaTodosLideres(
+  percentual: number,
+  criadoEm: Date,
+  origemSufixo: string
+): Promise<ResultadoLiberacao> {
+  const lideres = await prisma.user.findMany({ where: { perfil: "LIDER" }, select: { id: true } });
+  const liderIds = lideres.map((l) => l.id);
+  if (liderIds.length === 0) return { creditados: 0, total: 0 };
+
+  const capitaisPorLider = await prisma.aplicacao.groupBy({
+    by: ["userId"],
+    where: { userId: { in: liderIds }, status: { in: ["CONFIRMADA", "SAQUE_SOLICITADO"] } },
+    _sum: { valor: true },
+  });
+  const capitalPorId = new Map(capitaisPorLider.map((c) => [c.userId, c._sum.valor ?? 0]));
+
+  const origem = `${ORIGEM_INCENTIVO_PREFIXO} ${percentual}%${origemSufixo}`;
+
+  const creditos = liderIds
+    .map((userId) => ({ userId, valor: (capitalPorId.get(userId) ?? 0) * (percentual / 100) }))
+    .filter((c) => c.valor > 0);
+
+  const total = creditos.reduce((acc, c) => acc + c.valor, 0);
+
+  if (creditos.length > 0) {
+    await prisma.creditoCarteira.createMany({
+      data: creditos.map((c) => ({
+        userId: c.userId,
+        tipo: "RENDIMENTO",
+        valor: c.valor,
+        moeda: "BRL",
+        origem,
+        criadoEm,
+      })),
+    });
+  }
+
+  return { creditados: creditos.length, total };
+}
+
 export type LiderResumo = {
   id: string;
   nome: string;

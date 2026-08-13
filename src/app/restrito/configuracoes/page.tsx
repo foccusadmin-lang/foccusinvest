@@ -22,6 +22,7 @@ export default async function RestritoConfiguracoesPage() {
           modoSaqueCapital={configuracao.modoSaqueCapital}
           modoSaqueRendimento={configuracao.modoSaqueRendimento}
           modoVerificacaoCadastro={configuracao.modoVerificacaoCadastro}
+          modoIncentivoLideranca={configuracao.modoIncentivoLideranca}
         />
       </div>
     </div>

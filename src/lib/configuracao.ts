@@ -10,7 +10,11 @@ export async function getConfiguracao() {
 }
 
 export async function atualizarModoSaque(
-  campo: "modoSaqueCapital" | "modoSaqueRendimento" | "modoVerificacaoCadastro",
+  campo:
+    | "modoSaqueCapital"
+    | "modoSaqueRendimento"
+    | "modoVerificacaoCadastro"
+    | "modoIncentivoLideranca",
   modo: ModoProcessamento
 ) {
   await prisma.configuracaoSistema.upsert({

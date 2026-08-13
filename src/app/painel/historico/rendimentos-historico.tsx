@@ -40,7 +40,13 @@ function calcularAcumulados(grupoItens: Credito[]): Map<string, number> {
   return acumulados;
 }
 
-export function RendimentosHistorico({ itens }: { itens: Credito[] }) {
+export function RendimentosHistorico({
+  itens,
+  mensagemVazio = "Você ainda não recebeu créditos de PLR/rendimento.",
+}: {
+  itens: Credito[];
+  mensagemVazio?: string;
+}) {
   const { grupos, expandidos, toggle } = useGrupoPorData(itens);
 
   const acumuladosPorGrupo = useMemo(
@@ -51,7 +57,7 @@ export function RendimentosHistorico({ itens }: { itens: Credito[] }) {
   if (grupos.length === 0) {
     return (
       <p className="rounded-2xl border border-border bg-surface p-6 text-center text-sm text-muted">
-        Você ainda não recebeu créditos de PLR/rendimento.
+        {mensagemVazio}
       </p>
     );
   }

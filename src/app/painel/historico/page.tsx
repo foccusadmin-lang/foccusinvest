@@ -7,10 +7,12 @@ import { AplicacoesHistorico } from "./aplicacoes-historico";
 import { SaquesHistorico } from "./saques-historico";
 import { RendimentosHistorico } from "./rendimentos-historico";
 import { BonusHistorico } from "./bonus-historico";
+import { ORIGEM_INCENTIVO_PREFIXO } from "@/lib/incentivo-lideranca";
 
 export default async function HistoricoPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
+  const ehLider = session.user.perfil === "LIDER";
 
   const [aplicacoes, saques, creditosPlr, creditosBonus] = await Promise.all([
     prisma.aplicacao.findMany({
@@ -67,6 +69,11 @@ export default async function HistoricoPage() {
     }),
   ]);
 
+  const creditosIncentivo = creditosPlr.filter((c) => c.origem.startsWith(ORIGEM_INCENTIVO_PREFIXO));
+  const creditosPlrSemIncentivo = creditosPlr.filter(
+    (c) => !c.origem.startsWith(ORIGEM_INCENTIVO_PREFIXO)
+  );
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border/80 bg-ink/80">
@@ -97,7 +104,19 @@ export default async function HistoricoPage() {
         <p className="mb-3 mt-10 text-xs font-semibold uppercase tracking-[0.15em] text-muted">
           Rendimentos / PLR
         </p>
-        <RendimentosHistorico itens={creditosPlr} />
+        <RendimentosHistorico itens={creditosPlrSemIncentivo} />
+
+        {ehLider && (
+          <>
+            <p className="mb-3 mt-10 text-xs font-semibold uppercase tracking-[0.15em] text-gold-light">
+              Incentivo de liderança
+            </p>
+            <RendimentosHistorico
+              itens={creditosIncentivo}
+              mensagemVazio="Você ainda não recebeu incentivo de liderança."
+            />
+          </>
+        )}
 
         <p className="mb-3 mt-10 text-xs font-semibold uppercase tracking-[0.15em] text-muted">
           Bônus

@@ -8,7 +8,7 @@ import {
   adicionarIncentivoLideranca,
   definirIncentivoLideranca,
   zerarIncentivoLideranca,
-  ORIGEM_INCENTIVO_PREFIXO,
+  liberarIncentivoParaTodosLideres,
 } from "@/lib/incentivo-lideranca";
 
 export type LiderancaState = { error?: string; sucesso?: string } | undefined;
@@ -157,47 +157,18 @@ export async function liberarIncentivoLiderancaTodosAction(
     return { error: "A data do lançamento não pode ser no futuro." };
   }
 
-  const lideres = await prisma.user.findMany({ where: { perfil: "LIDER" }, select: { id: true } });
-  if (lideres.length === 0) {
-    return { error: "Nenhum líder cadastrado no momento." };
-  }
-  const liderIds = lideres.map((l) => l.id);
-
-  const capitaisPorLider = await prisma.aplicacao.groupBy({
-    by: ["userId"],
-    where: { userId: { in: liderIds }, status: { in: ["CONFIRMADA", "SAQUE_SOLICITADO"] } },
-    _sum: { valor: true },
-  });
-  const capitalPorId = new Map(capitaisPorLider.map((c) => [c.userId, c._sum.valor ?? 0]));
-
-  const origem = observacao
-    ? `${ORIGEM_INCENTIVO_PREFIXO} ${percentual}% (admin) — ${observacao}`
-    : `${ORIGEM_INCENTIVO_PREFIXO} ${percentual}% (admin)`;
-
-  const creditos = liderIds
-    .map((userId) => ({ userId, valor: (capitalPorId.get(userId) ?? 0) * (percentual / 100) }))
-    .filter((c) => c.valor > 0);
-
-  const totalCreditado = creditos.reduce((acc, c) => acc + c.valor, 0);
-
-  if (creditos.length > 0) {
-    await prisma.creditoCarteira.createMany({
-      data: creditos.map((c) => ({
-        userId: c.userId,
-        tipo: "RENDIMENTO",
-        valor: c.valor,
-        moeda: "BRL",
-        origem,
-        criadoEm,
-      })),
-    });
-  }
+  const origemSufixo = observacao ? ` (admin) — ${observacao}` : " (admin)";
+  const { creditados, total } = await liberarIncentivoParaTodosLideres(
+    percentual,
+    criadoEm,
+    origemSufixo
+  );
 
   await prisma.logAuditoria.create({
     data: {
       userId: admin.id,
       acao: "liberar_incentivo_lideranca_todos",
-      detalhes: `${percentual}% para ${creditos.length} líder(es) em ${dataTexto}, total ${formatMoeda(totalCreditado)}${observacao ? ` | ${observacao}` : ""}`,
+      detalhes: `${percentual}% para ${creditados} líder(es) em ${dataTexto}, total ${formatMoeda(total)}${observacao ? ` | ${observacao}` : ""}`,
     },
   });
 
@@ -205,11 +176,11 @@ export async function liberarIncentivoLiderancaTodosAction(
   revalidatePath("/restrito/painel");
   revalidatePath("/painel/historico");
 
-  if (creditos.length === 0) {
+  if (creditados === 0) {
     return { error: "Nenhum líder tem capital elegível (maior que zero) no momento." };
   }
 
   return {
-    sucesso: `Incentivo de ${percentual}% liberado para ${creditos.length} líder(es). Total creditado: ${formatMoeda(totalCreditado)}.`,
+    sucesso: `Incentivo de ${percentual}% liberado para ${creditados} líder(es). Total creditado: ${formatMoeda(total)}.`,
   };
 }

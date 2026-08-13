@@ -3,9 +3,13 @@
 import { useTransition } from "react";
 import type { ModoProcessamento } from "@prisma/client";
 import { definirModoSaque } from "./config-actions";
-import { IconWallet, IconVerified } from "@/components/icons";
+import { IconWallet, IconVerified, IconUsers } from "@/components/icons";
 
-type CampoConfig = "modoSaqueCapital" | "modoSaqueRendimento" | "modoVerificacaoCadastro";
+type CampoConfig =
+  | "modoSaqueCapital"
+  | "modoSaqueRendimento"
+  | "modoVerificacaoCadastro"
+  | "modoIncentivoLideranca";
 
 function Toggle({
   label,
@@ -47,10 +51,12 @@ export function ControleSaques({
   modoSaqueCapital,
   modoSaqueRendimento,
   modoVerificacaoCadastro,
+  modoIncentivoLideranca,
 }: {
   modoSaqueCapital: ModoProcessamento;
   modoSaqueRendimento: ModoProcessamento;
   modoVerificacaoCadastro: ModoProcessamento;
+  modoIncentivoLideranca: ModoProcessamento;
 }) {
   return (
     <div className="space-y-3">
@@ -78,6 +84,19 @@ export function ControleSaques({
         />
         <p className="text-xs text-muted">
           Automático aprova o investidor assim que ele completa o cadastro, sem revisão manual.
+        </p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-6 rounded-2xl border border-gold/30 bg-gold/10 p-4">
+        <div className="flex items-center gap-2 text-gold-light">
+          <IconUsers width={16} height={16} />
+          <span className="text-sm font-semibold">Incentivo de Liderança</span>
+        </div>
+        <Toggle label="Modo" campo="modoIncentivoLideranca" valor={modoIncentivoLideranca} />
+        <p className="text-xs text-muted">
+          Automático libera 0,10% sobre o capital de todos os líderes, de segunda a sexta às
+          19h. No manual, use o botão "% Liberar incentivo pra todos" na aba Liderança —
+          inclusive pra lançar um dia esquecido, escolhendo a data.
         </p>
       </div>
     </div>

@@ -492,6 +492,7 @@ model ConfiguracaoSistema {
   modoSaqueCapital        ModoProcessamento @default(MANUAL)
   modoSaqueRendimento     ModoProcessamento @default(MANUAL)
   modoVerificacaoCadastro ModoProcessamento @default(MANUAL)
+  modoIncentivoLideranca  ModoProcessamento @default(MANUAL)
   updatedAt               DateTime          @updatedAt
 }
 

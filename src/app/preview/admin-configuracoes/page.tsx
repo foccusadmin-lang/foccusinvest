@@ -13,6 +13,7 @@ export default function PreviewAdminConfiguracoesPage() {
           modoSaqueCapital="AUTOMATICO"
           modoSaqueRendimento="MANUAL"
           modoVerificacaoCadastro="MANUAL"
+          modoIncentivoLideranca="MANUAL"
         />
       </div>
     </AdminPreviewShell>

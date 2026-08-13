@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/sincronizar-distribuicoes",
       "schedule": "30 22 * * *"
+    },
+    {
+      "path": "/api/cron/liberar-incentivo-lideranca",
+      "schedule": "0 22 * * 1-5"
     }
   ]
 }
