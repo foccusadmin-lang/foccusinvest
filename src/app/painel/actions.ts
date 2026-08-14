@@ -13,7 +13,12 @@ import {
   SaldoInsuficienteError,
 } from "@/lib/carteira";
 import { obterLiberacaoAtivaDoUsuario, executarSaqueEmergencial } from "@/lib/emergencia";
-import { reaplicarSaldoPorFonte, type FonteReaplicacao } from "@/lib/incentivo-lideranca";
+import {
+  reaplicarSaldoPorFonte,
+  type FonteReaplicacao,
+  reservarSaqueRendimentoPorFonte,
+  type FonteSaqueRendimento,
+} from "@/lib/incentivo-lideranca";
 import { getConfiguracao } from "@/lib/configuracao";
 import { janelaSaqueRendimentoAberta, MENSAGEM_JANELA_FECHADA } from "@/lib/janela-saque";
 import { valorPorExtenso } from "@/lib/valor-extenso";
@@ -299,6 +304,94 @@ export async function solicitarSaqueRendimento(
     sucesso: automatico
       ? `Saque de rendimentos de ${formatMoeda(valor)} processado automaticamente.`
       : `Saque de rendimentos de ${formatMoeda(valor)} solicitado. Aguarde aprovação.`,
+  };
+}
+
+/** Igual a `solicitarSaqueRendimento`, mas deixa o investidor escolher exatamente de onde vem
+ *  o valor — PLR e/ou incentivo de liderança (só pra líder), cada um total ou parcial — em vez
+ *  de consumir tudo misturado numa fila só. Cria uma única solicitação de saque. */
+export async function solicitarSaqueRendimentoPorFonte(
+  _prevState: AcaoState,
+  formData: FormData
+): Promise<AcaoState> {
+  let userId: string;
+  try {
+    userId = await requireVerifiedUserId();
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+
+  if (!janelaSaqueRendimentoAberta()) {
+    return { error: MENSAGEM_JANELA_FECHADA };
+  }
+
+  const usuario = await prisma.user.findUnique({ where: { id: userId }, select: { perfil: true } });
+  const ehLider = usuario?.perfil === "LIDER";
+
+  const chavePix = String(formData.get("chavePix") ?? "").trim();
+  if (!chavePix) {
+    return { error: "Informe a chave Pix para receber o saque." };
+  }
+
+  const fontes = formData.getAll("fontes").map(String) as FonteSaqueRendimento[];
+  if (fontes.length === 0) {
+    return { error: "Selecione ao menos uma fonte pra sacar." };
+  }
+
+  const itens: { fonte: FonteSaqueRendimento; valor: number }[] = [];
+  for (const fonte of fontes) {
+    if (fonte !== "PLR" && fonte !== "INCENTIVO_LIDERANCA") {
+      return { error: "Fonte inválida." };
+    }
+    if (fonte === "INCENTIVO_LIDERANCA" && !ehLider) {
+      return { error: "Incentivo de liderança só pode ser sacado por quem é líder." };
+    }
+    const valor = parseValor(formData.get(`valor_${fonte}`));
+    if (!valor || valor <= 0 || Number.isNaN(valor)) {
+      return { error: "Informe um valor válido para cada fonte selecionada." };
+    }
+    itens.push({ fonte, valor });
+  }
+
+  const total = itens.reduce((acc, i) => acc + i.valor, 0);
+  if (!total || total <= 0) {
+    return { error: "Informe um valor válido." };
+  }
+
+  const config = await getConfiguracao();
+  const automatico = config.modoSaqueRendimento === "AUTOMATICO";
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const saque = await tx.solicitacaoSaque.create({
+        data: { userId, tipo: "RENDIMENTO", valor: total, moeda: "BRL", motivoEmergencia: chavePix },
+      });
+      await reservarSaqueRendimentoPorFonte(tx, userId, itens, saque.id);
+
+      if (automatico) {
+        await tx.creditoCarteira.updateMany({
+          where: { solicitacaoSaqueId: saque.id },
+          data: { utilizadoEm: new Date() },
+        });
+        await tx.solicitacaoSaque.update({
+          where: { id: saque.id },
+          data: { status: "PAGO", processadoEm: new Date() },
+        });
+      }
+    });
+  } catch (e) {
+    if (e instanceof SaldoInsuficienteError) {
+      return { error: e.message };
+    }
+    throw e;
+  }
+
+  revalidatePath("/painel");
+  revalidatePath("/painel/historico");
+  return {
+    sucesso: automatico
+      ? `Saque de rendimentos de ${formatMoeda(total)} processado automaticamente.`
+      : `Saque de rendimentos de ${formatMoeda(total)} solicitado. Aguarde aprovação.`,
   };
 }
 

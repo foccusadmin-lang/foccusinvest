@@ -214,6 +214,76 @@ export async function reaplicarSaldoPorFonte(
   });
 }
 
+export type FonteSaqueRendimento = "PLR" | "INCENTIVO_LIDERANCA";
+
+const LABEL_FONTE_SAQUE: Record<FonteSaqueRendimento, string> = {
+  PLR: "Rendimento/PLR",
+  INCENTIVO_LIDERANCA: "Incentivo de liderança",
+};
+
+/** Reserva rendimento disponível pra um saque, fonte por fonte (PLR e/ou incentivo de
+ *  liderança) — total ou parcial de cada uma, ao contrário de `reservarCreditosParaSaque`
+ *  (lib/carteira.ts), que consome tudo misturado numa fila só. Cria uma única solicitação de
+ *  saque (o valor total já foi somado pelo chamador). Deve ser chamada dentro de uma
+ *  transação já aberta pelo chamador. */
+export async function reservarSaqueRendimentoPorFonte(
+  tx: TxClient,
+  userId: string,
+  itens: { fonte: FonteSaqueRendimento; valor: number }[],
+  solicitacaoSaqueId: string
+): Promise<void> {
+  for (const item of itens) {
+    if (item.valor <= EPSILON) continue;
+
+    const where =
+      item.fonte === "INCENTIVO_LIDERANCA"
+        ? {
+            userId,
+            tipo: "RENDIMENTO" as const,
+            utilizadoEm: null,
+            solicitacaoSaqueId: null,
+            origem: { startsWith: ORIGEM_INCENTIVO_PREFIXO },
+          }
+        : {
+            userId,
+            tipo: "RENDIMENTO" as const,
+            utilizadoEm: null,
+            solicitacaoSaqueId: null,
+            NOT: { origem: { startsWith: ORIGEM_INCENTIVO_PREFIXO } },
+          };
+
+    const disponiveis = await tx.creditoCarteira.findMany({ where, orderBy: { criadoEm: "asc" } });
+
+    const restante = await consumirFIFO(
+      disponiveis,
+      item.valor,
+      async (credito) => {
+        await tx.creditoCarteira.update({ where: { id: credito.id }, data: { solicitacaoSaqueId } });
+      },
+      async (credito, _valorConsumido, valorRestanteNaLinha) => {
+        const cheio = await tx.creditoCarteira.findUniqueOrThrow({ where: { id: credito.id } });
+        await tx.creditoCarteira.update({ where: { id: credito.id }, data: { valor: valorRestanteNaLinha } });
+        await tx.creditoCarteira.create({
+          data: {
+            userId,
+            tipo: cheio.tipo,
+            valor: cheio.valor - valorRestanteNaLinha,
+            moeda: cheio.moeda,
+            origem: cheio.origem,
+            solicitacaoSaqueId,
+          },
+        });
+      }
+    );
+
+    if (restante > EPSILON) {
+      throw new SaldoInsuficienteError(
+        `Saldo de ${LABEL_FONTE_SAQUE[item.fonte]} insuficiente para este saque.`
+      );
+    }
+  }
+}
+
 export type ResultadoLiberacao = { creditados: number; total: number };
 
 /** Libera um percentual de incentivo de liderança pra TODOS os líderes de uma vez — percentual

@@ -11,6 +11,7 @@ import {
   criarAplicacao,
   solicitarSaqueCapital,
   solicitarSaqueRendimento,
+  solicitarSaqueRendimentoPorFonte,
   solicitarSaqueEmergencia,
   reaplicar,
   reaplicarPorFonte,
@@ -256,11 +257,20 @@ export function AcoesRapidas({
           moeda={moeda}
         />
       )}
+      {aberto === "saque-rendimento" && ehLider && (
+        <SaqueRendimentoLiderModal
+          onClose={() => setAberto(null)}
+          plrDisponivel={Math.max(0, rendimentoDisponivel - incentivoLiderancaDisponivel)}
+          incentivoDisponivel={incentivoLiderancaDisponivel}
+          moeda={moeda}
+        />
+      )}
       {aberto &&
         aberto !== "aplicacao" &&
         aberto !== "saque-emergencia" &&
         aberto !== "painel-lider" &&
-        !(aberto === "reaplicar" && ehLider) && (
+        !(aberto === "reaplicar" && ehLider) &&
+        !(aberto === "saque-rendimento" && ehLider) && (
           <AcaoModal
             tipo={aberto}
             onClose={() => setAberto(null)}
@@ -1125,6 +1135,202 @@ function ReaplicarLiderModal({
                 disabled={pending || selecionadas.size === 0}
               >
                 {pending ? "Enviando..." : "Reaplicar agora"}
+              </Button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
+type FonteSaque = "PLR" | "INCENTIVO_LIDERANCA";
+
+const FONTE_SAQUE_INFO: Record<FonteSaque, { label: string }> = {
+  PLR: { label: "Rendimento / PLR" },
+  INCENTIVO_LIDERANCA: { label: "Incentivo de liderança" },
+};
+
+function SaqueRendimentoLiderModal({
+  onClose,
+  plrDisponivel,
+  incentivoDisponivel,
+  moeda,
+}: {
+  onClose: () => void;
+  plrDisponivel: number;
+  incentivoDisponivel: number;
+  moeda: "BRL" | "USD" | "USDT";
+}) {
+  const [state, action, pending] = useActionState(solicitarSaqueRendimentoPorFonte, undefined);
+  const router = useRouter();
+  const processado = useRef(false);
+
+  const disponivelPorFonte: Record<FonteSaque, number> = {
+    PLR: plrDisponivel,
+    INCENTIVO_LIDERANCA: incentivoDisponivel,
+  };
+
+  const [selecionadas, setSelecionadas] = useState<Set<FonteSaque>>(new Set());
+  const [valores, setValores] = useState<Record<FonteSaque, string>>({
+    PLR: "",
+    INCENTIVO_LIDERANCA: "",
+  });
+
+  useEffect(() => {
+    if (state?.sucesso && !processado.current) {
+      processado.current = true;
+      router.refresh();
+      const timeout = setTimeout(onClose, 1800);
+      return () => clearTimeout(timeout);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state]);
+
+  function alternarFonte(fonte: FonteSaque, marcado: boolean) {
+    setSelecionadas((atual) => {
+      const novo = new Set(atual);
+      if (marcado) {
+        novo.add(fonte);
+        setValores((v) => ({
+          ...v,
+          [fonte]: disponivelPorFonte[fonte].toLocaleString("pt-BR", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          }),
+        }));
+      } else {
+        novo.delete(fonte);
+      }
+      return novo;
+    });
+  }
+
+  const total = Array.from(selecionadas).reduce((acc, fonte) => {
+    const num = Number(valores[fonte].replace(/\./g, "").replace(",", ".")) || 0;
+    return acc + num;
+  }, 0);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="max-h-[90vh] w-full max-w-sm overflow-y-auto rounded-2xl border border-gold/40 bg-surface p-6 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="flex items-center gap-2 text-lg font-semibold text-gold-light">
+          <IconArrowDown width={18} height={18} /> Saque de rendimentos
+        </h3>
+        <p className="mt-1 text-sm text-muted">
+          Escolha as fontes que quer sacar — total, parcial ou individualmente. Disponível às
+          sextas-feiras, 08h-18h30.
+        </p>
+
+        {state?.sucesso ? (
+          <p className="mt-6 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-300">
+            {state.sucesso}
+          </p>
+        ) : (
+          <form action={action} className="mt-4 space-y-3">
+            {(Object.keys(FONTE_SAQUE_INFO) as FonteSaque[])
+              .filter((fonte) => disponivelPorFonte[fonte] > 0)
+              .map((fonte) => {
+                const marcado = selecionadas.has(fonte);
+                return (
+                  <div
+                    key={fonte}
+                    className={`rounded-xl border p-3 transition ${
+                      marcado ? "border-gold/50 bg-gold/10" : "border-border bg-surface-2"
+                    }`}
+                  >
+                    <label className="flex items-center justify-between gap-2 text-sm">
+                      <span className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          name="fontes"
+                          value={fonte}
+                          checked={marcado}
+                          onChange={(e) => alternarFonte(fonte, e.target.checked)}
+                        />
+                        <span className="font-medium text-foreground/90">
+                          {FONTE_SAQUE_INFO[fonte].label}
+                        </span>
+                      </span>
+                      <span className="text-xs text-muted">
+                        Disponível: {formatMoeda(disponivelPorFonte[fonte], moeda)}
+                      </span>
+                    </label>
+
+                    {marcado && (
+                      <div className="mt-2 flex gap-2">
+                        <MoneyInput
+                          name={`valor_${fonte}`}
+                          value={valores[fonte]}
+                          onValueChange={(v) => setValores((atual) => ({ ...atual, [fonte]: v }))}
+                          placeholder="0,00"
+                          className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-foreground outline-none focus:border-gold/60"
+                        />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setValores((atual) => ({
+                              ...atual,
+                              [fonte]: disponivelPorFonte[fonte].toLocaleString("pt-BR", {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              }),
+                            }))
+                          }
+                          className="shrink-0 rounded-lg bg-sky-500/15 px-3 py-2 text-xs font-semibold text-sky-300 hover:bg-sky-500/25"
+                        >
+                          Total
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium text-foreground/90">Chave Pix</span>
+              <input
+                name="chavePix"
+                type="text"
+                placeholder="CPF, e-mail, telefone ou chave aleatória"
+                required
+                className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-foreground outline-none focus:border-gold/60"
+              />
+            </label>
+
+            <div className="rounded-lg border border-gold/30 bg-gold/10 p-3 text-center">
+              <p className="text-[10px] uppercase tracking-wider text-gold-light">
+                Total a sacar
+              </p>
+              <p className="mt-1 text-sm font-semibold text-gold-light">
+                {formatMoeda(total, moeda)}
+              </p>
+            </div>
+
+            {state?.error && <p className="text-sm text-red-400">{state.error}</p>}
+
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                className="flex-1 border border-border/60"
+                onClick={onClose}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                variant="gold"
+                className="flex-1"
+                disabled={pending || selecionadas.size === 0}
+              >
+                {pending ? "Enviando..." : "Solicitar saque"}
               </Button>
             </div>
           </form>
