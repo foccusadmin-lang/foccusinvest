@@ -193,6 +193,7 @@ export function PainelDashboard({
         </p>
         <AcoesRapidas
           saldoParaReaplicar={resumo.distribuicoesDisponiveis + resumo.bonusIndicacao}
+          bonusDisponivel={resumo.bonusIndicacao}
           janelaSaqueRendimentoAberta={janelaSaqueRendimentoAberta}
           verificado={usuario.statusCadastro === "APROVADO"}
           capitalPrincipal={resumo.capitalPrincipal}

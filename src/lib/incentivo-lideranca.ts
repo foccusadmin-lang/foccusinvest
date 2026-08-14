@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { formatMoeda } from "@/lib/format";
-import { consumirFIFO, SaldoInsuficienteError, type TxClient } from "@/lib/carteira";
+import { consumirFIFO, calcularLiberacao, SaldoInsuficienteError, type TxClient } from "@/lib/carteira";
 
 /** Incentivo de liderança fica guardado como CreditoCarteira tipo RENDIMENTO (soma normalmente
  *  em rendimento disponível, saque, reaplicação...), diferenciado só pelo prefixo da origem —
@@ -123,6 +123,95 @@ export async function reservarIncentivoLiderancaParaSaque(
   if (restante > 0.005) {
     throw new SaldoInsuficienteError("Incentivo de liderança disponível insuficiente para este saque.");
   }
+}
+
+export type FonteReaplicacao = "PLR" | "INCENTIVO_LIDERANCA" | "BONUS";
+
+const LABEL_FONTE: Record<FonteReaplicacao, string> = {
+  PLR: "Rendimento/PLR",
+  INCENTIVO_LIDERANCA: "Incentivo de liderança",
+  BONUS: "Bônus de indicação",
+};
+
+/** Reaplica valores escolhidos pelo próprio investidor, fonte por fonte (PLR, incentivo de
+ *  liderança e/ou bônus) — total ou parcial de cada uma, ao contrário de `reaplicarSaldoDisponivel`
+ *  (lib/carteira.ts), que sempre consome tudo misturado numa fila só. Cria um único novo lote
+ *  (Aplicacao) com a soma de tudo, com a carência normal de 90 dias. */
+export async function reaplicarSaldoPorFonte(
+  tx: TxClient,
+  userId: string,
+  itens: { fonte: FonteReaplicacao; valor: number }[]
+): Promise<void> {
+  let totalReaplicado = 0;
+
+  for (const item of itens) {
+    if (item.valor <= EPSILON) continue;
+    totalReaplicado += item.valor;
+
+    const where =
+      item.fonte === "BONUS"
+        ? { userId, tipo: "BONUS" as const, utilizadoEm: null, solicitacaoSaqueId: null }
+        : item.fonte === "INCENTIVO_LIDERANCA"
+          ? {
+              userId,
+              tipo: "RENDIMENTO" as const,
+              utilizadoEm: null,
+              solicitacaoSaqueId: null,
+              origem: { startsWith: ORIGEM_INCENTIVO_PREFIXO },
+            }
+          : {
+              userId,
+              tipo: "RENDIMENTO" as const,
+              utilizadoEm: null,
+              solicitacaoSaqueId: null,
+              NOT: { origem: { startsWith: ORIGEM_INCENTIVO_PREFIXO } },
+            };
+
+    const disponiveis = await tx.creditoCarteira.findMany({ where, orderBy: { criadoEm: "asc" } });
+
+    const restante = await consumirFIFO(
+      disponiveis,
+      item.valor,
+      async (credito) => {
+        await tx.creditoCarteira.update({ where: { id: credito.id }, data: { utilizadoEm: new Date() } });
+      },
+      async (credito, _valorConsumido, valorRestanteNaLinha) => {
+        const cheio = await tx.creditoCarteira.findUniqueOrThrow({ where: { id: credito.id } });
+        await tx.creditoCarteira.update({ where: { id: credito.id }, data: { valor: valorRestanteNaLinha } });
+        await tx.creditoCarteira.create({
+          data: {
+            userId,
+            tipo: cheio.tipo,
+            valor: cheio.valor - valorRestanteNaLinha,
+            moeda: cheio.moeda,
+            origem: cheio.origem,
+            utilizadoEm: new Date(),
+          },
+        });
+      }
+    );
+
+    if (restante > EPSILON) {
+      throw new SaldoInsuficienteError(
+        `Saldo de ${LABEL_FONTE[item.fonte]} insuficiente para reaplicação.`
+      );
+    }
+  }
+
+  if (totalReaplicado <= EPSILON) {
+    throw new SaldoInsuficienteError("Informe pelo menos um valor pra reaplicar.");
+  }
+
+  await tx.aplicacao.create({
+    data: {
+      userId,
+      valor: totalReaplicado,
+      moeda: "BRL",
+      origem: "REAPLICACAO",
+      status: "CONFIRMADA",
+      liberaEm: calcularLiberacao(),
+    },
+  });
 }
 
 export type ResultadoLiberacao = { creditados: number; total: number };

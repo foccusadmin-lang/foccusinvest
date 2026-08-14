@@ -13,6 +13,7 @@ import {
   SaldoInsuficienteError,
 } from "@/lib/carteira";
 import { obterLiberacaoAtivaDoUsuario, executarSaqueEmergencial } from "@/lib/emergencia";
+import { reaplicarSaldoPorFonte, type FonteReaplicacao } from "@/lib/incentivo-lideranca";
 import { getConfiguracao } from "@/lib/configuracao";
 import { janelaSaqueRendimentoAberta, MENSAGEM_JANELA_FECHADA } from "@/lib/janela-saque";
 import { valorPorExtenso } from "@/lib/valor-extenso";
@@ -375,6 +376,64 @@ export async function reaplicar(
 
   revalidatePath("/painel");
   return { sucesso: `${formatMoeda(valor)} reaplicados. Novo lote com carência de 90 dias criado.` };
+}
+
+/** Igual a `reaplicar`, mas deixa o investidor escolher exatamente de onde vem o valor — PLR,
+ *  incentivo de liderança (só pra líder) e/ou bônus, cada um total ou parcial — em vez de
+ *  consumir tudo misturado numa fila só. */
+export async function reaplicarPorFonte(
+  _prevState: AcaoState,
+  formData: FormData
+): Promise<AcaoState> {
+  let userId: string;
+  try {
+    userId = await requireUserId();
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+
+  const usuario = await prisma.user.findUnique({ where: { id: userId }, select: { perfil: true } });
+  const ehLider = usuario?.perfil === "LIDER";
+
+  const fontes = formData.getAll("fontes").map(String) as FonteReaplicacao[];
+  if (fontes.length === 0) {
+    return { error: "Selecione ao menos uma fonte pra reaplicar." };
+  }
+
+  const itens: { fonte: FonteReaplicacao; valor: number }[] = [];
+  for (const fonte of fontes) {
+    if (fonte !== "PLR" && fonte !== "INCENTIVO_LIDERANCA" && fonte !== "BONUS") {
+      return { error: "Fonte inválida." };
+    }
+    if (fonte === "INCENTIVO_LIDERANCA" && !ehLider) {
+      return { error: "Incentivo de liderança só pode ser reaplicado por quem é líder." };
+    }
+    const valor = parseValor(formData.get(`valor_${fonte}`));
+    if (!valor || valor <= 0 || Number.isNaN(valor)) {
+      return { error: "Informe um valor válido para cada fonte selecionada." };
+    }
+    itens.push({ fonte, valor });
+  }
+
+  const total = itens.reduce((acc, i) => acc + i.valor, 0);
+  if (total < VALOR_MINIMO_REAPLICACAO) {
+    return { error: `A reaplicação mínima é ${formatMoeda(VALOR_MINIMO_REAPLICACAO)}.` };
+  }
+
+  try {
+    await prisma.$transaction((tx) => reaplicarSaldoPorFonte(tx, userId, itens));
+  } catch (e) {
+    if (e instanceof SaldoInsuficienteError) {
+      return { error: e.message };
+    }
+    throw e;
+  }
+
+  revalidatePath("/painel");
+  revalidatePath("/painel/historico");
+  return {
+    sucesso: `${formatMoeda(total)} reaplicados. Novo lote com carência de 90 dias criado.`,
+  };
 }
 
 /** Pra quando a pessoa esquece de colocar o código de indicação na hora da aplicação — ela
