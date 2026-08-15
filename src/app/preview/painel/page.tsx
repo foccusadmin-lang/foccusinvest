@@ -13,6 +13,7 @@ export default function PreviewPainelPage() {
         statusCadastro: "APROVADO",
         codigoIndicacao: "7K2QX-WALDIR",
         moeda: "BRL",
+        modoBonusIndicacao: "MANUAL",
       }}
       resumo={{
         capitalPrincipal: 4506.17,

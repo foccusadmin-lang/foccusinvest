@@ -38,6 +38,7 @@ export type PainelUsuario = {
   liberacaoEmergencial?: LiberacaoAtiva | null;
   primeiroAporteElegivelIndicacao?: boolean;
   codigoIndicadorFixo?: string | null;
+  modoBonusIndicacao?: "MANUAL" | "AUTOMATICO";
   ehLider?: boolean;
   indicadosDiretos?: IndicadoDireto[];
 };
@@ -195,6 +196,17 @@ export function PainelDashboard({
             </>
           )}
         </section>
+
+        {usuario.codigoIndicacao && usuario.modoBonusIndicacao === "MANUAL" && (
+          <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs leading-relaxed text-amber-200">
+            <span className="font-semibold text-amber-100">Sobre o Bônus de Indicação:</span> é um
+            programa de incentivo temporário oferecido pela administração da Foccus, ativado em
+            períodos de grandes resultados no mercado financeiro. Quando o mercado apresenta
+            grandes riscos, segundo a análise e estratégia dos nossos especialistas, o programa
+            pode ficar temporariamente desativado — voltando a ser ativado assim que o mercado se
+            estabilizar.
+          </div>
+        )}
 
         <p className="mb-3 mt-8 text-xs font-semibold uppercase tracking-[0.15em] text-muted">
           Ações rápidas

@@ -5,6 +5,7 @@ import { PainelDashboard } from "@/components/painel/dashboard";
 import { getResumoCarteira } from "@/lib/carteira";
 import { janelaSaqueRendimentoAberta } from "@/lib/janela-saque";
 import { obterLiberacaoAtivaDoUsuario } from "@/lib/emergencia";
+import { getConfiguracao } from "@/lib/configuracao";
 
 export default async function PainelPage() {
   const session = await auth();
@@ -35,6 +36,7 @@ export default async function PainelPage() {
 
   const resumo = await getResumoCarteira(user.id);
   const liberacaoEmergencial = await obterLiberacaoAtivaDoUsuario(user.id);
+  const configuracao = await getConfiguracao();
 
   const aportesAnteriores = await prisma.aplicacao.count({
     where: {
@@ -73,6 +75,7 @@ export default async function PainelPage() {
         liberacaoEmergencial,
         primeiroAporteElegivelIndicacao: aportesAnteriores === 0,
         codigoIndicadorFixo: user.indicadoPor?.codigoIndicacao ?? null,
+        modoBonusIndicacao: configuracao.modoBonusIndicacao,
         ehLider,
         indicadosDiretos,
       }}
