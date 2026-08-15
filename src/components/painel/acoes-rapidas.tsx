@@ -6,7 +6,9 @@ import { Button, LinkButton } from "@/components/ui/button";
 import { MoneyInput } from "@/components/ui/money-input";
 import { IconPlus, IconArrowDown, IconRefresh, IconHeart, IconAlert, IconUsers } from "@/components/icons";
 import { formatMoeda, formatData } from "@/lib/format";
-import { PIX_CHAVE, PIX_TIPO_CHAVE, PIX_BENEFICIARIO } from "@/lib/config";
+import { PIX_CHAVE, PIX_TIPO_CHAVE, PIX_BENEFICIARIO, PIX_CIDADE } from "@/lib/config";
+import { gerarPayloadPix } from "@/lib/pix";
+import { PixQrCode } from "@/components/painel/pix-qrcode";
 import {
   criarAplicacao,
   solicitarSaqueCapital,
@@ -334,6 +336,15 @@ function NovaAplicacaoModal({
   }
 
   const valorNumerico = Number(valorTexto.replace(/\./g, "").replace(",", ".")) || 0;
+  const payloadPix =
+    valorNumerico > 0
+      ? gerarPayloadPix({
+          chave: PIX_CHAVE.replace(/\D/g, ""),
+          beneficiario: PIX_BENEFICIARIO,
+          cidade: PIX_CIDADE,
+          valor: valorNumerico,
+        })
+      : "";
 
   return (
     <div
@@ -445,8 +456,15 @@ function NovaAplicacaoModal({
             <div className="mt-4 rounded-xl border border-gold/30 bg-surface-2 p-4">
               <p className="text-xs text-muted">Valor a pagar</p>
               <p className="text-lg font-bold text-gold-light">{formatMoeda(valorNumerico)}</p>
+
+              {payloadPix && (
+                <div className="mt-3 border-t border-border pt-3">
+                  <PixQrCode payload={payloadPix} />
+                </div>
+              )}
+
               <div className="mt-3 border-t border-border pt-3">
-                <p className="text-xs text-muted">Chave Pix ({PIX_TIPO_CHAVE})</p>
+                <p className="text-xs text-muted">Ou pague com a chave Pix ({PIX_TIPO_CHAVE})</p>
                 <div className="mt-1 flex items-center gap-2">
                   <code className="flex-1 truncate rounded-lg bg-black/30 px-2 py-1.5 text-sm text-foreground">
                     {PIX_CHAVE}
