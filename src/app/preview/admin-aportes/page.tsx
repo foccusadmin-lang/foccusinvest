@@ -22,6 +22,8 @@ const recentes: AporteRecente[] = [
     aprovadoEm: new Date(agora - 3 * dia),
     user: { name: "Waldir Rodrigues Custódio", email: "waldir.custodio@exemplo.com" },
     aprovadoPor: { name: "Admin", email: "admin@foccusinvest.com.br" },
+    temIndicador: true,
+    bonusJaCreditado: false,
   },
   {
     id: "ap3",
@@ -31,6 +33,8 @@ const recentes: AporteRecente[] = [
     aprovadoEm: new Date(agora - 8 * dia),
     user: { name: "Carlos Eduardo Lima", email: "carlos.lima@exemplo.com" },
     aprovadoPor: { name: "Admin", email: "admin@foccusinvest.com.br" },
+    temIndicador: false,
+    bonusJaCreditado: false,
   },
 ];
 

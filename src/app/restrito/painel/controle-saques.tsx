@@ -3,13 +3,14 @@
 import { useTransition } from "react";
 import type { ModoProcessamento } from "@prisma/client";
 import { definirModoSaque } from "./config-actions";
-import { IconWallet, IconVerified, IconUsers } from "@/components/icons";
+import { IconWallet, IconVerified, IconUsers, IconGift } from "@/components/icons";
 
 type CampoConfig =
   | "modoSaqueCapital"
   | "modoSaqueRendimento"
   | "modoVerificacaoCadastro"
-  | "modoIncentivoLideranca";
+  | "modoIncentivoLideranca"
+  | "modoBonusIndicacao";
 
 function Toggle({
   label,
@@ -52,11 +53,13 @@ export function ControleSaques({
   modoSaqueRendimento,
   modoVerificacaoCadastro,
   modoIncentivoLideranca,
+  modoBonusIndicacao,
 }: {
   modoSaqueCapital: ModoProcessamento;
   modoSaqueRendimento: ModoProcessamento;
   modoVerificacaoCadastro: ModoProcessamento;
   modoIncentivoLideranca: ModoProcessamento;
+  modoBonusIndicacao: ModoProcessamento;
 }) {
   return (
     <div className="space-y-3">
@@ -97,6 +100,19 @@ export function ControleSaques({
           Automático libera 0,10% sobre o capital de todos os líderes, de segunda a sexta às
           19h. No manual, use o botão "% Liberar incentivo pra todos" na aba Liderança —
           inclusive pra lançar um dia esquecido, escolhendo a data.
+        </p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-6 rounded-2xl border border-fuchsia-500/30 bg-fuchsia-500/10 p-4">
+        <div className="flex items-center gap-2 text-fuchsia-200">
+          <IconGift width={16} height={16} />
+          <span className="text-sm font-semibold">Bônus de Indicação</span>
+        </div>
+        <Toggle label="Modo" campo="modoBonusIndicacao" valor={modoBonusIndicacao} />
+        <p className="text-xs text-muted">
+          Automático libera 5% em toda nova aplicação do indicado (não só a primeira). No manual,
+          só a primeira aplicação libera sozinha — as seguintes ficam disponíveis pro botão
+          "Liberar bônus" em Aportes.
         </p>
       </div>
     </div>

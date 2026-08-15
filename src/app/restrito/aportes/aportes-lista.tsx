@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { formatMoeda, formatData } from "@/lib/format";
 import { AprovarRejeitarAporte } from "./comprovante-actions";
 import { IndicacaoRetroativaButton } from "./indicacao-retroativa-button";
+import { LiberarBonusButton } from "./liberar-bonus-button";
 
 export type AportePendente = {
   id: string;
@@ -20,6 +21,8 @@ export type AporteRecente = {
   aprovadoEm: Date | null;
   user: { name: string | null; email: string };
   aprovadoPor: { name: string | null; email: string } | null;
+  temIndicador: boolean;
+  bonusJaCreditado: boolean;
 };
 
 function combinaBusca(nome: string | null, email: string, termo: string): boolean {
@@ -140,7 +143,12 @@ export function AportesLista({
                     {a.aprovadoEm ? formatData(a.aprovadoEm) : "—"}
                   </td>
                   <td className="px-4 py-3">
-                    {a.status === "CONFIRMADA" && <IndicacaoRetroativaButton aplicacaoId={a.id} />}
+                    {a.status === "CONFIRMADA" &&
+                      (a.temIndicador && !a.bonusJaCreditado ? (
+                        <LiberarBonusButton aplicacaoId={a.id} />
+                      ) : (
+                        <IndicacaoRetroativaButton aplicacaoId={a.id} />
+                      ))}
                   </td>
                 </tr>
               ))}

@@ -12,7 +12,11 @@ export default async function PainelPage() {
 
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
-    include: { pessoaFisica: true, pessoaJuridica: true },
+    include: {
+      pessoaFisica: true,
+      pessoaJuridica: true,
+      indicadoPor: { select: { codigoIndicacao: true } },
+    },
   });
   if (!user) redirect("/login");
 
@@ -68,6 +72,7 @@ export default async function PainelPage() {
         ehAdmin: session.user.perfil === "ADMIN",
         liberacaoEmergencial,
         primeiroAporteElegivelIndicacao: aportesAnteriores === 0,
+        codigoIndicadorFixo: user.indicadoPor?.codigoIndicacao ?? null,
         ehLider,
         indicadosDiretos,
       }}

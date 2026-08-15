@@ -37,6 +37,7 @@ export type PainelUsuario = {
   ehAdmin?: boolean;
   liberacaoEmergencial?: LiberacaoAtiva | null;
   primeiroAporteElegivelIndicacao?: boolean;
+  codigoIndicadorFixo?: string | null;
   ehLider?: boolean;
   indicadosDiretos?: IndicadoDireto[];
 };
@@ -207,6 +208,7 @@ export function PainelDashboard({
           liberacaoEmergencial={usuario.liberacaoEmergencial ?? null}
           codigoIndicacao={usuario.codigoIndicacao ?? null}
           primeiroAporteElegivelIndicacao={usuario.primeiroAporteElegivelIndicacao ?? true}
+          codigoIndicadorFixo={usuario.codigoIndicadorFixo ?? null}
           ehLider={usuario.ehLider ?? false}
           indicadosDiretos={usuario.indicadosDiretos ?? []}
           incentivoLiderancaDisponivel={resumo.incentivoLiderancaDisponivel}

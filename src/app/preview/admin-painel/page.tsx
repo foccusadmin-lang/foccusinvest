@@ -17,6 +17,7 @@ export default function PreviewAdminPainelPage() {
           modoSaqueRendimento="MANUAL"
           modoVerificacaoCadastro="MANUAL"
           modoIncentivoLideranca="MANUAL"
+          modoBonusIndicacao="MANUAL"
         />
       </div>
 

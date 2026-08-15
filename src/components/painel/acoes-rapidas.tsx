@@ -87,6 +87,7 @@ export function AcoesRapidas({
   liberacaoEmergencial,
   codigoIndicacao,
   primeiroAporteElegivelIndicacao,
+  codigoIndicadorFixo,
   ehLider,
   indicadosDiretos,
   incentivoLiderancaDisponivel,
@@ -106,6 +107,7 @@ export function AcoesRapidas({
   liberacaoEmergencial: LiberacaoAtiva | null;
   codigoIndicacao: string | null;
   primeiroAporteElegivelIndicacao: boolean;
+  codigoIndicadorFixo: string | null;
   ehLider: boolean;
   indicadosDiretos: IndicadoDireto[];
   incentivoLiderancaDisponivel: number;
@@ -237,6 +239,7 @@ export function AcoesRapidas({
           moeda={moeda}
           codigoIndicacao={codigoIndicacao}
           primeiroAporteElegivelIndicacao={primeiroAporteElegivelIndicacao}
+          codigoIndicadorFixo={codigoIndicadorFixo}
         />
       )}
       {aberto === "saque-emergencia" && liberacaoEmergencial && (
@@ -302,6 +305,7 @@ function NovaAplicacaoModal({
   moeda,
   codigoIndicacao,
   primeiroAporteElegivelIndicacao,
+  codigoIndicadorFixo,
 }: {
   onClose: () => void;
   capitalPrincipal: number;
@@ -309,11 +313,12 @@ function NovaAplicacaoModal({
   moeda: "BRL" | "USD" | "USDT";
   codigoIndicacao: string | null;
   primeiroAporteElegivelIndicacao: boolean;
+  codigoIndicadorFixo: string | null;
 }) {
   const [state, action, pending] = useActionState(criarAplicacao, undefined);
   const [etapa, setEtapa] = useState<"valor" | "pagamento">("valor");
   const [valorTexto, setValorTexto] = useState("");
-  const [codigoIndicador, setCodigoIndicador] = useState("");
+  const [codigoIndicador, setCodigoIndicador] = useState(codigoIndicadorFixo ?? "");
   const [copiado, setCopiado] = useState(false);
   const router = useRouter();
   const processado = useRef(false);
@@ -405,7 +410,20 @@ function NovaAplicacaoModal({
                   Seu código de indicação: <span className="font-semibold text-gold-light">{codigoIndicacao}</span>
                 </p>
               )}
-              {primeiroAporteElegivelIndicacao && (
+              {primeiroAporteElegivelIndicacao && codigoIndicadorFixo && (
+                <div className="rounded-lg border border-gold/30 bg-gold/10 px-3 py-2">
+                  <span className="block text-xs font-medium text-gold-light">
+                    Você foi indicado por
+                  </span>
+                  <span className="text-sm font-semibold uppercase text-foreground">
+                    {codigoIndicadorFixo}
+                  </span>
+                  <span className="mt-1 block text-xs text-muted">
+                    Fixado a partir do link de convite que você usou pra se cadastrar.
+                  </span>
+                </div>
+              )}
+              {primeiroAporteElegivelIndicacao && !codigoIndicadorFixo && (
                 <label className="block text-sm">
                   <span className="mb-1 block font-medium text-foreground/90">
                     Código de quem te indicou (opcional)

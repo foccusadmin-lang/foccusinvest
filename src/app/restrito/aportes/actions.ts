@@ -4,8 +4,13 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { calcularLiberacao } from "@/lib/carteira";
-import { extrairCodigoIndicadorPendente, creditarBonusIndicacaoPorCodigo } from "@/lib/indicacao";
+import {
+  extrairCodigoIndicadorPendente,
+  creditarBonusIndicacaoPorCodigo,
+  creditarBonusIndicacaoPorAporte,
+} from "@/lib/indicacao";
 import { notificarAporteConfirmado } from "@/lib/notificacoes";
+import { getConfiguracao } from "@/lib/configuracao";
 
 export type AporteAcaoState = { error?: string; sucesso?: string } | undefined;
 
@@ -19,6 +24,7 @@ export async function aprovarAporte(id: string) {
   }
 
   const codigoIndicador = extrairCodigoIndicadorPendente(aplicacao.motivoRejeicao);
+  const config = await getConfiguracao();
 
   await prisma.$transaction(async (tx) => {
     await tx.aplicacao.update({
@@ -33,8 +39,19 @@ export async function aprovarAporte(id: string) {
     });
 
     if (codigoIndicador) {
+      // Código digitado (primeiro aporte, ou já fixado — ver painel/page.tsx): sempre credita e
+      // fixa o vínculo de indicação, em qualquer modo.
       await creditarBonusIndicacaoPorCodigo(tx, {
         codigoIndicador,
+        aplicacaoId: aplicacao.id,
+        aportanteUserId: aplicacao.userId,
+        valorAporte: aplicacao.valor,
+      });
+    } else if (config.modoBonusIndicacao === "AUTOMATICO") {
+      // Sem código nesse aporte (não é o primeiro) — no modo automático, libera sozinho usando
+      // o vínculo de indicação já fixado no cadastro. No modo manual, fica pra o admin liberar
+      // depois pelo botão em Aportes (ver liberarBonusIndicacaoManual).
+      await creditarBonusIndicacaoPorAporte(tx, {
         aplicacaoId: aplicacao.id,
         aportanteUserId: aplicacao.userId,
         valorAporte: aplicacao.valor,
@@ -118,4 +135,42 @@ export async function adicionarIndicacaoRetroativa(
   revalidatePath("/restrito/aportes");
   revalidatePath("/restrito/painel");
   return { sucesso: "Bônus de indicação creditado." };
+}
+
+/** Libera manualmente o bônus de indicação de um aporte específico (que não seja o primeiro do
+ *  indicado, ou que o modo automático não tenha pego) — usa o vínculo de indicação já fixado no
+ *  cadastro (`indicadoPorId`), sem precisar de código. Disponível em qualquer modo, pra sempre
+ *  dar um jeito de corrigir manualmente. Idempotente por aplicacaoId. */
+export async function liberarBonusIndicacaoManual(
+  aplicacaoId: string
+): Promise<{ error?: string; sucesso?: string }> {
+  const session = await auth();
+  if (session?.user?.perfil !== "ADMIN") return { error: "Acesso negado." };
+
+  const aplicacao = await prisma.aplicacao.findUnique({ where: { id: aplicacaoId } });
+  if (!aplicacao) return { error: "Aporte não encontrado." };
+  if (aplicacao.status !== "CONFIRMADA") {
+    return { error: "Só é possível liberar bônus em aportes já confirmados." };
+  }
+
+  const resultado = await prisma.$transaction((tx) =>
+    creditarBonusIndicacaoPorAporte(tx, {
+      aplicacaoId: aplicacao.id,
+      aportanteUserId: aplicacao.userId,
+      valorAporte: aplicacao.valor,
+    })
+  );
+  if (resultado.error) return { error: resultado.error };
+  if (resultado.pulou) {
+    return { error: "Esse investidor não tem nenhum indicador vinculado — nada pra liberar." };
+  }
+
+  await prisma.logAuditoria.create({
+    data: { userId: session.user.id, acao: "liberar_bonus_indicacao_manual", detalhes: aplicacaoId },
+  });
+
+  revalidatePath("/restrito/aportes");
+  revalidatePath("/restrito/indicacoes");
+  revalidatePath("/restrito/painel");
+  return { sucesso: "Bônus de indicação liberado." };
 }

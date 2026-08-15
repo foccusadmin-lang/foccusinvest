@@ -73,5 +73,47 @@ export async function creditarBonusIndicacaoPorCodigo(
     },
   });
 
+  // Fixa o vínculo de indicação no cadastro do indicado (se ainda não tiver um) — assim os
+  // próximos aportes já sabem quem indicou sem precisar digitar o código de novo, e o campo de
+  // indicação aparece pré-preenchido/fixo na Nova Aplicação (ver painel/page.tsx).
+  if (!aportante?.indicadoPorId) {
+    await tx.user.update({ where: { id: aportanteUserId }, data: { indicadoPorId: indicador.id } });
+  }
+
+  return {};
+}
+
+/** Credita 5% de bônus sobre o valor de UM aporte específico, usando o vínculo de indicação já
+ *  fixado no cadastro do indicado (`indicadoPorId`) — ao contrário de `creditarBonusIndicacaoPorCodigo`,
+ *  não exige digitar código nem se limita ao primeiro aporte. Usada tanto pela liberação
+ *  automática (a cada novo aporte, se o modo estiver AUTOMATICO) quanto pelo botão de liberação
+ *  manual do admin. Idempotente por aplicacaoId. Se o indicado não tiver ninguém vinculado,
+ *  simplesmente não faz nada (`pulou: true`) — não é um erro. */
+export async function creditarBonusIndicacaoPorAporte(
+  tx: Prisma.TransactionClient,
+  params: { aplicacaoId: string; aportanteUserId: string; valorAporte: number }
+): Promise<ResultadoIndicacao & { pulou?: boolean }> {
+  const { aplicacaoId, aportanteUserId, valorAporte } = params;
+
+  const aportante = await tx.user.findUnique({ where: { id: aportanteUserId } });
+  if (!aportante?.indicadoPorId) return { pulou: true };
+
+  const jaCreditado = await tx.creditoCarteira.findFirst({
+    where: { tipo: "BONUS", origem: { endsWith: `(${aplicacaoId})` } },
+  });
+  if (jaCreditado) return { error: "Esse aporte já tem um bônus de indicação creditado." };
+
+  const valorBonus = valorAporte * (PERCENTUAL_BONUS_INDICACAO / 100);
+
+  await tx.creditoCarteira.create({
+    data: {
+      userId: aportante.indicadoPorId,
+      tipo: "BONUS",
+      valor: valorBonus,
+      moeda: "BRL",
+      origem: origemBonus(aplicacaoId, aportante.name ?? aportante.email ?? "investidor"),
+    },
+  });
+
   return {};
 }

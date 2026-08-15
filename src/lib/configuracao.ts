@@ -14,7 +14,8 @@ export async function atualizarModoSaque(
     | "modoSaqueCapital"
     | "modoSaqueRendimento"
     | "modoVerificacaoCadastro"
-    | "modoIncentivoLideranca",
+    | "modoIncentivoLideranca"
+    | "modoBonusIndicacao",
   modo: ModoProcessamento
 ) {
   await prisma.configuracaoSistema.upsert({
