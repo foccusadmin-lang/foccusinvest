@@ -20,6 +20,7 @@ const LINKS = [
   { href: "/restrito/entidades", label: "Entidades" },
   { href: "/restrito/doacoes", label: "Doações" },
   { href: "/restrito/lideranca", label: "Liderança" },
+  { href: "/restrito/guia", label: "Guia Foccus" },
 ];
 
 export function AdminNav() {

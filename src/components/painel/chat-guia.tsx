@@ -1,11 +1,34 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { enviarMensagemGuia } from "@/app/painel/guia-actions";
+import { enviarMensagemGuia, carregarHistoricoGuia } from "@/app/painel/guia-actions";
 import type { MensagemGuia } from "@/lib/gemini";
 import { IconChat, IconSparkles, IconArrowLeft } from "@/components/icons";
 
 type Mensagem = { role: "user" | "model"; texto: string };
+
+const REGEX_URL = /(https?:\/\/[^\s]+)/g;
+
+/** Deixa URLs clicáveis dentro da mensagem (ex: o link do wa.me na resposta de atendimento
+ *  humano) — o resto do texto continua como texto simples. */
+function renderTextoComLinks(texto: string) {
+  const partes = texto.split(REGEX_URL);
+  return partes.map((parte, i) =>
+    REGEX_URL.test(parte) ? (
+      <a
+        key={i}
+        href={parte}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="underline decoration-gold-light/60 underline-offset-2 hover:text-gold-light"
+      >
+        {parte}
+      </a>
+    ) : (
+      <span key={i}>{parte}</span>
+    )
+  );
+}
 
 function mensagemBoasVindas(primeiroNome: string, novato: boolean): string {
   if (novato) {
@@ -14,20 +37,54 @@ function mensagemBoasVindas(primeiroNome: string, novato: boolean): string {
   return `Oi, ${primeiroNome}! 👋 Sou o Guia Foccus. Posso te ajudar com dúvidas sobre aportes, saques, rendimentos, reaplicação ou qualquer outra parte da plataforma. Manda sua pergunta!`;
 }
 
+/** Lê a mensagem em voz alta usando a Web Speech API do navegador (sem custo, sem API externa).
+ *  Falha silenciosamente se o navegador não suportar. */
+function falar(texto: string, onFim: () => void) {
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+    onFim();
+    return;
+  }
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(texto);
+  utterance.lang = "pt-BR";
+  utterance.rate = 1;
+  utterance.onend = onFim;
+  utterance.onerror = onFim;
+  window.speechSynthesis.speak(utterance);
+}
+
 export function ChatGuia({ primeiroNome, novato }: { primeiroNome: string; novato: boolean }) {
   const [aberto, setAberto] = useState(false);
   const [mensagens, setMensagens] = useState<Mensagem[]>([]);
+  const [carregado, setCarregado] = useState(false);
   const [texto, setTexto] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [falando, setFalando] = useState<number | null>(null);
+  const [suportaAudio, setSuportaAudio] = useState(false);
   const fimRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (aberto && mensagens.length === 0) {
-      setMensagens([{ role: "model", texto: mensagemBoasVindas(primeiroNome, novato) }]);
-    }
+    setSuportaAudio(typeof window !== "undefined" && "speechSynthesis" in window);
+    return () => {
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!aberto || carregado) return;
+    setCarregado(true);
+    carregarHistoricoGuia().then((historico) => {
+      if (historico.length > 0) {
+        setMensagens(historico);
+      } else {
+        setMensagens([{ role: "model", texto: mensagemBoasVindas(primeiroNome, novato) }]);
+      }
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [aberto]);
+  }, [aberto, carregado]);
 
   useEffect(() => {
     fimRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -56,6 +113,16 @@ export function ChatGuia({ primeiroNome, novato }: { primeiroNome: string; novat
     if (resultado.resposta) {
       setMensagens((atual) => [...atual, { role: "model", texto: resultado.resposta! }]);
     }
+  }
+
+  function alternarAudio(indice: number, texto: string) {
+    if (falando === indice) {
+      window.speechSynthesis.cancel();
+      setFalando(null);
+      return;
+    }
+    setFalando(indice);
+    falar(texto, () => setFalando((atual) => (atual === indice ? null : atual)));
   }
 
   return (
@@ -92,7 +159,17 @@ export function ChatGuia({ primeiroNome, novato }: { primeiroNome: string; novat
                       : "border border-border bg-surface-2 text-foreground/90"
                   }`}
                 >
-                  {m.texto}
+                  {renderTextoComLinks(m.texto)}
+                  {m.role === "model" && suportaAudio && (
+                    <button
+                      type="button"
+                      onClick={() => alternarAudio(i, m.texto)}
+                      title={falando === i ? "Parar áudio" : "Ouvir esta mensagem"}
+                      className="ml-2 inline-flex align-middle text-xs text-muted hover:text-gold-light"
+                    >
+                      {falando === i ? "⏹️" : "🔊"}
+                    </button>
+                  )}
                 </div>
               </div>
             ))}

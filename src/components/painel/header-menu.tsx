@@ -3,8 +3,9 @@
 import Image from "next/image";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
-import { IconBell, IconLogout, IconSettings, IconClock } from "@/components/icons";
+import { IconBell, IconLogout, IconSettings, IconClock, IconHeadset } from "@/components/icons";
 import { IndicacaoHeaderButton } from "./indicacao-header-button";
+import { TELEFONE_ATENDIMENTO_ADMIN, mensagemSuportePadrao } from "@/lib/config";
 
 export function HeaderMenu({
   primeiroNome,
@@ -24,6 +25,16 @@ export function HeaderMenu({
         <IconBell width={16} height={16} />
       </button>
       <IndicacaoHeaderButton codigoIndicacao={codigoIndicacao ?? null} />
+      <a
+        href={`https://wa.me/${TELEFONE_ATENDIMENTO_ADMIN}?text=${encodeURIComponent(mensagemSuportePadrao(primeiroNome))}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="Falar com suporte"
+        title="Falar com suporte"
+        className="flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted transition hover:text-gold-light"
+      >
+        <IconHeadset width={16} height={16} />
+      </a>
       <Link
         href="/painel/historico"
         aria-label="Histórico"

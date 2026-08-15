@@ -152,6 +152,14 @@ export const IconSparkles = (props: SVGProps<SVGSVGElement>) => (
   </Icon>
 );
 
+export const IconHeadset = (props: SVGProps<SVGSVGElement>) => (
+  <Icon {...props}>
+    <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
+    <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3Z" />
+    <path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3Z" />
+  </Icon>
+);
+
 export const IconIdCard = (props: SVGProps<SVGSVGElement>) => (
   <Icon {...props}>
     <rect x="2" y="5" width="20" height="14" rx="2" />

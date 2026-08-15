@@ -1,3 +1,9 @@
+import {
+  TELEFONE_ATENDIMENTO_ADMIN,
+  TELEFONE_ATENDIMENTO_ADMIN_FORMATADO,
+  mensagemSuportePadrao,
+} from "@/lib/config";
+
 /** Base de conhecimento fixa da plataforma, usada como system instruction do assistente Gemini
  *  (o "Guia Foccus"). Mantém tudo que o assistente precisa saber sobre regras e fluxos reais do
  *  sistema — se alguma regra do produto mudar, atualizar aqui também. */
@@ -16,6 +22,8 @@ REGRAS DE COMPORTAMENTO
 - Se perguntarem algo fora do escopo da plataforma (assuntos gerais, outros temas), responda educadamente que
   você só ajuda com dúvidas sobre o uso da Foccus Invest.
 - Se a pessoa parecer confusa ou disser que é nova, seja mais didático e ofereça passo a passo.
+- Se a pessoa pedir explicitamente pra falar com um humano/atendente/pessoa da equipe, oriente a
+  chamar o administrador no WhatsApp (11) 97404-1863 e diga que também tem um link direto no chat.
 - Sempre que fizer sentido, aponte o botão/tela exata onde a ação acontece (ex: "no botão 'Nova aplicação'
   em Ações rápidas", "na aba Histórico").
 
@@ -131,4 +139,101 @@ export function montarContextoUsuario(dados: {
         ? "(já aportou mas ainda está conhecendo a plataforma — pode ser mais direto, mas ainda explique bem)"
         : "(já usa a plataforma há um tempo — pode ser mais direto e técnico nas respostas)"
   }`;
+}
+
+/** Detecta pedido explícito de falar com um humano — resolvido direto aqui (sem chamar o
+ *  Gemini), pra garantir 100% de consistência nesse caso específico em vez de depender do
+ *  modelo entender a intenção certa toda vez. A regra de sistema acima cobre paráfrases que
+ *  esse regex não pegar. */
+const PADRAO_QUER_HUMANO =
+  /falar com (um |uma )?(humano|atendente|pessoa|alguém da equipe)|atendimento humano|suporte humano|quero falar com (alguém|uma pessoa)|falar com o admin/i;
+
+export function pedeAtendimentoHumano(texto: string): boolean {
+  return PADRAO_QUER_HUMANO.test(texto);
+}
+
+export function respostaAtendimentoHumano(primeiroNome: string): string {
+  const link = `https://wa.me/${TELEFONE_ATENDIMENTO_ADMIN}?text=${encodeURIComponent(mensagemSuportePadrao(primeiroNome))}`;
+  return `Claro, ${primeiroNome}! Você pode falar diretamente com a nossa equipe pelo WhatsApp: ${TELEFONE_ATENDIMENTO_ADMIN_FORMATADO}.\n\n${link}`;
+}
+
+/** Tópicos fixos usados pra classificar cada pergunta — mesmas seções da base de conhecimento
+ *  acima. Classificação por palavra-chave (determinística, sem custo de API extra): serve tanto
+ *  pra detectar se o usuário já perguntou sobre o mesmo assunto (repetição = dificuldade) quanto
+ *  pro painel do admin agrupar as perguntas mais frequentes. */
+export const TOPICOS_GUIA = [
+  "Cadastro e verificação",
+  "Aporte / Nova aplicação",
+  "Capital e carência",
+  "Rendimento / PLR",
+  "Reaplicar",
+  "Bônus de indicação",
+  "Liderança",
+  "Saque de emergência",
+  "Doações",
+  "Contratos",
+  "Histórico",
+  "Outro",
+] as const;
+
+const PALAVRAS_CHAVE_POR_TOPICO: Record<(typeof TOPICOS_GUIA)[number], string[]> = {
+  "Cadastro e verificação": ["cadastro", "cpf", "cnpj", "verificad", "aprovad", "pendente", "login", "google"],
+  "Aporte / Nova aplicação": ["aporte", "aplicar", "aplicação", "aplicacao", "investir", "depositar", "50"],
+  "Capital e carência": ["capital", "carência", "carencia", "90 dias", "disponível pra saque", "disponivel pra saque"],
+  "Rendimento / PLR": ["rendimento", "plr", "lucro", "distribuição", "distribuicao", "rentabilidade"],
+  Reaplicar: ["reaplicar", "reaplicação", "reaplicacao"],
+  "Bônus de indicação": ["bônus", "bonus", "indicação", "indicacao", "código", "codigo", "indicar"],
+  Liderança: ["líder", "lider", "liderança", "lideranca", "incentivo", "painel de líder", "indicado"],
+  "Saque de emergência": ["emergência", "emergencia", "urgente", "antes da carência", "antes da carencia"],
+  Doações: ["doação", "doacao", "doar", "entidade"],
+  Contratos: ["contrato", "prestação de serviços", "prestacao de servicos"],
+  Histórico: ["histórico", "historico", "extrato"],
+  Outro: [],
+};
+
+function escapeRegex(texto: string): string {
+  return texto.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** Regex com \b (word boundary) em vez de includes() puro — evita falso-positivo tipo "aplicar"
+ *  "batendo" dentro de "reaplicar"/"reaplicação", que faria uma pergunta sobre Reaplicar ser
+ *  classificada errado como Aporte só por conter a raiz da palavra. */
+function contemPalavra(normalizado: string, palavra: string): boolean {
+  return new RegExp(`\\b${escapeRegex(palavra)}\\b`, "i").test(normalizado);
+}
+
+export function classificarTopico(texto: string): string {
+  const normalizado = texto.toLowerCase();
+  let melhorTopico: (typeof TOPICOS_GUIA)[number] = "Outro";
+  let melhorPontuacao = 0;
+
+  for (const topico of TOPICOS_GUIA) {
+    if (topico === "Outro") continue;
+    const pontuacao = PALAVRAS_CHAVE_POR_TOPICO[topico].filter((p) => contemPalavra(normalizado, p)).length;
+    if (pontuacao > melhorPontuacao) {
+      melhorPontuacao = pontuacao;
+      melhorTopico = topico;
+    }
+  }
+
+  return melhorTopico;
+}
+
+/** Monta o bloco de FAQ curada pelo admin (ver /restrito/guia) — entra na system instruction
+ *  quando existem entradas, pra padronizar respostas de dúvidas recorrentes em vez de depender
+ *  só do que o modelo geraria sozinho a cada vez. */
+export function montarBlocoFaq(faqs: { topico: string; pergunta: string; resposta: string }[]): string {
+  if (faqs.length === 0) return "";
+  const itens = faqs
+    .map((f) => `- [${f.topico}] P: ${f.pergunta}\n  R: ${f.resposta}`)
+    .join("\n");
+  return `\n\nFAQ CURADA PELO ADMIN (use como referência preferencial quando a pergunta do usuário for parecida com alguma destas — pode adaptar a redação, mas mantenha a informação):\n${itens}`;
+}
+
+/** Aviso opcional pra system instruction quando o usuário já perguntou sobre o mesmo tópico
+ *  antes — pede uma resposta mais didática/prática dessa vez, em vez de repetir a explicação
+ *  padrão que aparentemente não ajudou da primeira vez. */
+export function montarAvisoTopicoRecorrente(topico: string, vezes: number): string {
+  if (vezes < 2) return "";
+  return `\n\nATENÇÃO: este usuário já perguntou sobre "${topico}" outras ${vezes} vez(es) antes. Pode ser que a explicação anterior não tenha ficado clara. Dessa vez, seja ainda mais didático: use um passo a passo bem simples, evite jargão, e pergunte diretamente se ficou alguma dúvida específica.`;
 }
