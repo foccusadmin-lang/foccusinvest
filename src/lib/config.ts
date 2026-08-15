@@ -10,7 +10,7 @@ export const PIX_CIDADE = "JANDIRA";
 export const TELEFONE_ATENDIMENTO_ADMIN = "5511974041863";
 export const TELEFONE_ATENDIMENTO_ADMIN_FORMATADO = "(11) 97404-1863";
 export function mensagemSuportePadrao(nome: string): string {
-  return `Olá, ${nome}, poderia me auxiliar!`;
+  return `Olá! Me chamo ${nome}, poderia me auxiliar!`;
 }
 
 export const EMAIL_CONTRATOS_REMETENTE = "Foccus Invest <contratos@foccusinvest.com.br>";
