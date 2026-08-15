@@ -129,8 +129,8 @@ export function PainelDashboard({
               tone="gold"
               icon={<IconUsers width={18} height={18} />}
               label="Incentivo de liderança"
-              value={formatMoeda(resumo.incentivoLiderancaAcumulado, moeda)}
-              hint="0,10% ao dia sobre seu capital"
+              value={formatMoeda(resumo.incentivoLiderancaDisponivel, moeda)}
+              hint="Disponível — já desconta saques e reaplicações"
             />
           )}
         </section>
