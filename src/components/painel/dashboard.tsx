@@ -152,6 +152,12 @@ export function PainelDashboard({
             label="Aporte em análise"
             value={formatMoeda(resumo.aportesEmAnalise, moeda)}
           />
+          {usuario.ehLider && (
+            <MiniStat
+              label="Incentivo de liderança (total)"
+              value={formatMoeda(resumo.incentivoLiderancaAcumulado, moeda)}
+            />
+          )}
         </section>
 
         <section className="mt-6 flex flex-col justify-between gap-4 rounded-2xl border border-border bg-surface p-5 sm:flex-row sm:items-center">
