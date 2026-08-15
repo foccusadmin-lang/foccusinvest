@@ -136,6 +136,7 @@ model User {
   tipoPessoa     TipoPessoa?
   statusCadastro StatusCadastro @default(INCOMPLETO)
   senha          String?
+  tourConcluido  Boolean        @default(false)
 
   codigoIndicacao String? @unique
   indicadoPorId   String?

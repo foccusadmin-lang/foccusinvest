@@ -120,8 +120,13 @@ export function AcoesRapidas({
 
   return (
     <>
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Button variant="gold" className="w-full" onClick={() => setAberto("aplicacao")}>
+      <section data-tour="acoes-rapidas" className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Button
+          variant="gold"
+          className="w-full"
+          data-tour="nova-aplicacao"
+          onClick={() => setAberto("aplicacao")}
+        >
           <IconPlus width={16} height={16} /> Nova aplicação
         </Button>
 

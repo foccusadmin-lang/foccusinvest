@@ -99,6 +99,7 @@ export function PainelDashboard({
           Resumo
         </p>
         <section
+          data-tour="resumo"
           className={`grid grid-cols-1 gap-4 sm:grid-cols-3 ${usuario.ehLider ? "lg:grid-cols-4" : ""}`}
         >
           <SummaryCard

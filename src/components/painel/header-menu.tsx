@@ -27,6 +27,7 @@ export function HeaderMenu({
       <Link
         href="/painel/historico"
         aria-label="Histórico"
+        data-tour="historico"
         className="flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted transition hover:text-gold-light"
       >
         <IconClock width={16} height={16} />

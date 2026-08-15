@@ -139,6 +139,19 @@ export const IconLogout = (props: SVGProps<SVGSVGElement>) => (
   </Icon>
 );
 
+export const IconChat = (props: SVGProps<SVGSVGElement>) => (
+  <Icon {...props}>
+    <path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z" />
+  </Icon>
+);
+
+export const IconSparkles = (props: SVGProps<SVGSVGElement>) => (
+  <Icon {...props} fill="currentColor" stroke="none">
+    <path d="M12 2c.4 3.2 1.4 5.4 3 7 1.6 1.6 3.8 2.6 7 3-3.2.4-5.4 1.4-7 3-1.6 1.6-2.6 3.8-3 7-.4-3.2-1.4-5.4-3-7-1.6-1.6-3.8-2.6-7-3 3.2-.4 5.4-1.4 7-3 1.6-1.6 2.6-3.8 3-7Z" />
+    <path d="M19 2c.15 1.1.5 1.9 1 2.4.5.5 1.3.85 2.4 1-1.1.15-1.9.5-2.4 1-.5.5-.85 1.3-1 2.4-.15-1.1-.5-1.9-1-2.4-.5-.5-1.3-.85-2.4-1 1.1-.15 1.9-.5 2.4-1 .5-.5.85-1.3 1-2.4Z" />
+  </Icon>
+);
+
 export const IconIdCard = (props: SVGProps<SVGSVGElement>) => (
   <Icon {...props}>
     <rect x="2" y="5" width="20" height="14" rx="2" />
