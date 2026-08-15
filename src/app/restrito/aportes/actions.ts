@@ -5,6 +5,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { calcularLiberacao } from "@/lib/carteira";
 import { extrairCodigoIndicadorPendente, creditarBonusIndicacaoPorCodigo } from "@/lib/indicacao";
+import { notificarAporteConfirmado } from "@/lib/notificacoes";
 
 export type AporteAcaoState = { error?: string; sucesso?: string } | undefined;
 
@@ -44,6 +45,10 @@ export async function aprovarAporte(id: string) {
   await prisma.logAuditoria.create({
     data: { userId: session.user.id, acao: "aprovar_aporte", detalhes: id },
   });
+
+  // Fora da transação de propósito: e-mail/WhatsApp são best-effort (nunca lançam erro) e não
+  // devem fazer a confirmação do aporte esperar nem, muito menos, reverter se falharem.
+  await notificarAporteConfirmado(aplicacao.userId, aplicacao.valor);
 
   revalidatePath("/restrito/aportes");
   revalidatePath("/restrito/painel");

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { notificarSaquePago } from "@/lib/notificacoes";
 
 async function requireAdmin() {
   const session = await auth();
@@ -103,6 +104,11 @@ export async function marcarSaquePago(saqueId: string) {
   });
 
   await registrarAuditoria(admin.id, "pagar_saque", saqueId);
+
+  // Fora da transação de propósito: e-mail/WhatsApp são best-effort (nunca lançam erro) e só
+  // fazem sentido depois que o Pix foi de fato confirmado como enviado.
+  await notificarSaquePago(saque.userId, saque.tipo, saque.valor);
+
   revalidatePath("/restrito/saques");
   revalidatePath("/restrito/painel");
 }
