@@ -357,7 +357,7 @@ function NovaAplicacaoModal({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-sm rounded-2xl border border-border bg-surface p-6 shadow-2xl"
+        className="max-h-[90vh] w-full max-w-sm overflow-y-auto rounded-2xl border border-border bg-surface p-6 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="text-lg font-semibold text-foreground">Nova aplicação</h3>
