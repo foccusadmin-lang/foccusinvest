@@ -160,6 +160,15 @@ export const IconHeadset = (props: SVGProps<SVGSVGElement>) => (
   </Icon>
 );
 
+export const IconPackage = (props: SVGProps<SVGSVGElement>) => (
+  <Icon {...props}>
+    <path d="M21 8v8a1 1 0 0 1-.5.87l-8 4.5a1 1 0 0 1-1 0l-8-4.5A1 1 0 0 1 3 16V8" />
+    <path d="M21 8a1 1 0 0 0-.5-.87l-8-4.5a1 1 0 0 0-1 0l-8 4.5A1 1 0 0 0 3 8" />
+    <path d="M21 8l-9 5-9-5" />
+    <path d="M12 13v8" />
+  </Icon>
+);
+
 export const IconIdCard = (props: SVGProps<SVGSVGElement>) => (
   <Icon {...props}>
     <rect x="2" y="5" width="20" height="14" rx="2" />

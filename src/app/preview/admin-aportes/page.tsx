@@ -10,6 +10,20 @@ const pendentes: AportePendente[] = [
     valor: 2000,
     criadoEm: new Date(agora - dia),
     user: { name: "Marina Souza Almeida", email: "marina.almeida@exemplo.com" },
+    categoriaBem: null,
+    descricaoBem: null,
+    valorDeclarado: null,
+    dataAgendamento: null,
+  },
+  {
+    id: "ap1b",
+    valor: 350000,
+    criadoEm: new Date(agora - dia),
+    user: { name: "Roberto Farias", email: "roberto.farias@exemplo.com" },
+    categoriaBem: "IMOVEL",
+    descricaoBem: "Apartamento 2 quartos, 60m², Rua das Flores, 123 — bairro Centro",
+    valorDeclarado: 350000,
+    dataAgendamento: new Date(agora + 3 * dia),
   },
 ];
 

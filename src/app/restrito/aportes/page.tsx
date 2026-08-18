@@ -55,10 +55,10 @@ export default async function RestritoAportesPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-foreground">Aportes via Pix</h1>
+      <h1 className="text-2xl font-bold text-foreground">Aportes</h1>
       <p className="mt-1 text-sm text-muted">
-        Confira o comprovante enviado antes de aprovar — o valor só entra na carteira do
-        investidor depois da sua confirmação.
+        Confira o comprovante Pix, ou avalie o bem entregue (imóvel/automóvel/eletrônico) antes
+        de aprovar — o valor só entra na carteira do investidor depois da sua confirmação.
       </p>
 
       <div className="mt-6 rounded-2xl border border-border bg-surface p-5">

@@ -69,6 +69,12 @@ enum OrigemAplicacao {
   DOACAO
 }
 
+enum CategoriaBem {
+  IMOVEL
+  AUTOMOVEL
+  ELETRONICO
+}
+
 enum StatusMigracao {
   PENDENTE
   SEM_DOCUMENTO
@@ -332,6 +338,14 @@ model Aplicacao {
   comprovanteNome String?
   comprovanteTipo String?
   motivoRejeicao  String?
+
+  // Aporte em bens (imóvel/automóvel/eletrônico) — preenchidos só nesse caso. O valor "oficial"
+  // (campo `valor` acima) começa igual a valorDeclarado e só é confirmado/ajustado pelo admin
+  // depois de avaliar o bem entregue (ver aprovarAporte com ajusteBem).
+  categoriaBem    CategoriaBem?
+  descricaoBem    String?
+  valorDeclarado  Float?
+  dataAgendamento DateTime?
 
   aprovadoPorId String?
   aprovadoPor   User?     @relation("AplicacaoAprovadaPor", fields: [aprovadoPorId], references: [id])

@@ -4,11 +4,13 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, LinkButton } from "@/components/ui/button";
 import { MoneyInput } from "@/components/ui/money-input";
-import { IconPlus, IconArrowDown, IconRefresh, IconHeart, IconAlert, IconUsers } from "@/components/icons";
+import { IconPlus, IconArrowDown, IconRefresh, IconHeart, IconAlert, IconUsers, IconPackage } from "@/components/icons";
 import { formatMoeda, formatData } from "@/lib/format";
 import { PIX_CHAVE, PIX_TIPO_CHAVE, PIX_BENEFICIARIO, PIX_CIDADE } from "@/lib/config";
 import { gerarPayloadPix } from "@/lib/pix";
 import { PixQrCode } from "@/components/painel/pix-qrcode";
+import { CARENCIA_MESES_PADRAO_BEM, LABEL_CATEGORIA_BEM } from "@/lib/bens";
+import type { CategoriaBem } from "@prisma/client";
 import {
   criarAplicacao,
   solicitarSaqueCapital,
@@ -17,6 +19,7 @@ import {
   solicitarSaqueEmergencia,
   reaplicar,
   reaplicarPorFonte,
+  solicitarAporteBem,
   type AcaoState,
 } from "@/app/painel/actions";
 import {
@@ -27,6 +30,7 @@ import type { LiberacaoAtiva } from "@/lib/emergencia";
 
 type TipoAcao =
   | "aplicacao"
+  | "aplicacao-bem"
   | "saque-capital"
   | "saque-rendimento"
   | "reaplicar"
@@ -124,7 +128,7 @@ export function AcoesRapidas({
 
   return (
     <>
-      <section data-tour="acoes-rapidas" className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <section data-tour="acoes-rapidas" className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <Button
           variant="gold"
           className="w-full"
@@ -132,6 +136,14 @@ export function AcoesRapidas({
           onClick={() => setAberto("aplicacao")}
         >
           <IconPlus width={16} height={16} /> Nova aplicação
+        </Button>
+
+        <Button
+          variant="outline"
+          className="w-full"
+          onClick={() => setAberto("aplicacao-bem")}
+        >
+          <IconPackage width={16} height={16} /> Aplicação em bens
         </Button>
 
         {saqueCapitalDesativado ? (
@@ -242,6 +254,7 @@ export function AcoesRapidas({
           codigoIndicadorFixo={codigoIndicadorFixo}
         />
       )}
+      {aberto === "aplicacao-bem" && <AporteBemModal onClose={() => setAberto(null)} />}
       {aberto === "saque-emergencia" && liberacaoEmergencial && (
         <SaqueEmergenciaModal
           onClose={() => setAberto(null)}
@@ -277,6 +290,7 @@ export function AcoesRapidas({
       )}
       {aberto &&
         aberto !== "aplicacao" &&
+        aberto !== "aplicacao-bem" &&
         aberto !== "saque-emergencia" &&
         aberto !== "painel-lider" &&
         !(aberto === "reaplicar" && ehLider) &&
@@ -528,6 +542,151 @@ function NovaAplicacaoModal({
                 </Button>
                 <Button type="submit" variant="gold" className="flex-1" disabled={pending}>
                   {pending ? "Enviando..." : "Enviar comprovante"}
+                </Button>
+              </div>
+            </form>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const CATEGORIAS_BEM: CategoriaBem[] = ["IMOVEL", "AUTOMOVEL", "ELETRONICO"];
+
+function AporteBemModal({ onClose }: { onClose: () => void }) {
+  const [state, action, pending] = useActionState(solicitarAporteBem, undefined);
+  const [categoria, setCategoria] = useState<CategoriaBem>("IMOVEL");
+  const [valorTexto, setValorTexto] = useState("");
+  const [descricao, setDescricao] = useState("");
+  const [dataAgendamento, setDataAgendamento] = useState("");
+  const router = useRouter();
+  const processado = useRef(false);
+
+  useEffect(() => {
+    if (state?.sucesso && !processado.current) {
+      processado.current = true;
+      router.refresh();
+      const timeout = setTimeout(onClose, 3200);
+      return () => clearTimeout(timeout);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state]);
+
+  // Mínimo pro input datetime-local: daqui a 1 hora, formatado sem segundos/timezone.
+  const minimoAgendamento = new Date(Date.now() + 60 * 60 * 1000).toISOString().slice(0, 16);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="max-h-[90vh] w-full max-w-sm overflow-y-auto rounded-2xl border border-border bg-surface p-6 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="flex items-center gap-2 text-lg font-semibold text-foreground">
+          <IconPackage width={18} height={18} /> Aplicação em bens
+        </h3>
+
+        {state?.sucesso ? (
+          <p className="mt-6 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-300">
+            {state.sucesso}
+          </p>
+        ) : (
+          <>
+            <p className="mt-1 text-sm text-muted">
+              Aporte um imóvel, automóvel ou eletrônico em vez de dinheiro. Agende a entrega do
+              bem pra avaliação — o valor só entra na sua carteira depois que o admin avaliar e
+              confirmar (podendo ajustar o valor conforme o estado do bem).
+            </p>
+
+            <div className="mt-4 rounded-lg border border-border bg-surface-2 p-3 text-xs text-muted">
+              Carência mínima após a confirmação: <strong className="text-foreground">Imóvel {CARENCIA_MESES_PADRAO_BEM.IMOVEL} meses</strong>,{" "}
+              <strong className="text-foreground">Automóvel {CARENCIA_MESES_PADRAO_BEM.AUTOMOVEL} meses</strong>,{" "}
+              <strong className="text-foreground">Eletrônico {CARENCIA_MESES_PADRAO_BEM.ELETRONICO} meses</strong> — o admin
+              pode ajustar de acordo com o valor aportado. Depois de confirmado, rende e saca
+              igual à PLR.
+            </div>
+
+            <form action={action} className="mt-4 space-y-4">
+              <input type="hidden" name="dataAgendamento" value={dataAgendamento} />
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium text-foreground/90">Categoria</span>
+                <div className="flex gap-2">
+                  {CATEGORIAS_BEM.map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setCategoria(c)}
+                      className={`flex-1 rounded-lg border px-2 py-2 text-xs font-semibold transition ${
+                        categoria === c
+                          ? "border-gold/60 bg-gold/15 text-gold-light"
+                          : "border-border bg-surface-2 text-muted hover:text-foreground"
+                      }`}
+                    >
+                      {LABEL_CATEGORIA_BEM[c]}
+                    </button>
+                  ))}
+                </div>
+                <input type="hidden" name="categoria" value={categoria} />
+              </label>
+
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium text-foreground/90">Valor estimado (R$)</span>
+                <MoneyInput
+                  name="valorDeclarado"
+                  value={valorTexto}
+                  onValueChange={setValorTexto}
+                  placeholder="0,00"
+                  required
+                  className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-foreground outline-none focus:border-gold/60"
+                />
+                <span className="mt-1 block text-xs text-muted">
+                  O admin confirma (ou ajusta) esse valor depois de avaliar o bem.
+                </span>
+              </label>
+
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium text-foreground/90">Descrição do bem</span>
+                <textarea
+                  name="descricaoBem"
+                  value={descricao}
+                  onChange={(e) => setDescricao(e.target.value)}
+                  required
+                  rows={3}
+                  placeholder="Ex: Apartamento 2 quartos, 60m², Rua X, bairro Y — ou Honda Civic 2020, placa ABC1234"
+                  className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground outline-none focus:border-gold/60"
+                />
+              </label>
+
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium text-foreground/90">
+                  Agendar entrega / avaliação
+                </span>
+                <input
+                  type="datetime-local"
+                  value={dataAgendamento}
+                  onChange={(e) => setDataAgendamento(e.target.value)}
+                  min={minimoAgendamento}
+                  required
+                  className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground outline-none focus:border-gold/60"
+                />
+              </label>
+
+              {state?.error && <p className="text-sm text-red-400">{state.error}</p>}
+
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="flex-1 border border-border/60"
+                  onClick={onClose}
+                >
+                  Cancelar
+                </Button>
+                <Button type="submit" variant="gold" className="flex-1" disabled={pending}>
+                  {pending ? "Enviando..." : "Agendar aplicação"}
                 </Button>
               </div>
             </form>

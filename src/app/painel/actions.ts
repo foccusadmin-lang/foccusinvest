@@ -24,6 +24,8 @@ import { janelaSaqueRendimentoAberta, MENSAGEM_JANELA_FECHADA } from "@/lib/jane
 import { valorPorExtenso } from "@/lib/valor-extenso";
 import { enviarEmailContrato } from "@/lib/email";
 import { guardarCodigoIndicadorPendente, creditarBonusIndicacaoPorCodigo } from "@/lib/indicacao";
+import type { CategoriaBem } from "@prisma/client";
+import { CARENCIA_MESES_PADRAO_BEM, calcularLiberacaoBem, LABEL_CATEGORIA_BEM } from "@/lib/bens";
 
 export type AcaoState = { error?: string; sucesso?: string } | undefined;
 
@@ -182,6 +184,73 @@ export async function criarAplicacao(
   revalidatePath("/painel");
   return {
     sucesso: `Comprovante de ${formatMoeda(valor)} enviado! Assim que o admin confirmar o pagamento, o valor entra na sua carteira com carência de 90 dias. O contrato foi enviado para o seu e-mail.`,
+  };
+}
+
+const CATEGORIAS_BEM: CategoriaBem[] = ["IMOVEL", "AUTOMOVEL", "ELETRONICO"];
+
+/** Solicita um aporte em bem (imóvel/automóvel/eletrônico) em vez de Pix — não exige comprovante
+ *  nem gera contrato ainda: o investidor só agenda a entrega/avaliação, e o admin confirma
+ *  depois de avaliar o bem em mãos (ver aprovarAporte com ajusteBem, em restrito/aportes/actions.ts),
+ *  podendo ajustar o valor e a carência de acordo com o estado do bem. */
+export async function solicitarAporteBem(
+  _prevState: AcaoState,
+  formData: FormData
+): Promise<AcaoState> {
+  let userId: string;
+  try {
+    userId = await requireUserId();
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+
+  const categoria = String(formData.get("categoria") ?? "") as CategoriaBem;
+  if (!CATEGORIAS_BEM.includes(categoria)) {
+    return { error: "Selecione uma categoria válida." };
+  }
+
+  const valorDeclarado = parseValor(formData.get("valorDeclarado"));
+  if (!valorDeclarado || valorDeclarado <= 0 || Number.isNaN(valorDeclarado)) {
+    return { error: "Informe um valor estimado válido." };
+  }
+  if (valorDeclarado < VALOR_MINIMO_APLICACAO) {
+    return { error: `O valor mínimo de aplicação é ${formatMoeda(VALOR_MINIMO_APLICACAO)}.` };
+  }
+
+  const descricaoBem = String(formData.get("descricaoBem") ?? "").trim();
+  if (descricaoBem.length < 10) {
+    return { error: "Descreva o bem com mais detalhes (marca/modelo, endereço, estado etc)." };
+  }
+
+  const dataAgendamentoTexto = String(formData.get("dataAgendamento") ?? "").trim();
+  const dataAgendamento = dataAgendamentoTexto ? new Date(dataAgendamentoTexto) : null;
+  if (!dataAgendamento || Number.isNaN(dataAgendamento.getTime())) {
+    return { error: "Escolha uma data e horário para entregar o bem para avaliação." };
+  }
+  if (dataAgendamento.getTime() <= Date.now()) {
+    return { error: "O agendamento precisa ser numa data/horário futuro." };
+  }
+
+  await prisma.aplicacao.create({
+    data: {
+      userId,
+      valor: valorDeclarado,
+      valorDeclarado,
+      moeda: "BRL",
+      origem: "NOVA_APLICACAO",
+      status: "AGUARDANDO_APROVACAO",
+      categoriaBem: categoria,
+      descricaoBem,
+      dataAgendamento,
+      // Provisório — recalculado com o valor definitivo (e possível ajuste do admin) na
+      // confirmação. Precisa de algum valor não-nulo até lá pra satisfazer a coluna obrigatória.
+      liberaEm: calcularLiberacaoBem(CARENCIA_MESES_PADRAO_BEM[categoria]),
+    },
+  });
+
+  revalidatePath("/painel");
+  return {
+    sucesso: `Agendamento confirmado! Leve o ${LABEL_CATEGORIA_BEM[categoria].toLowerCase()} pra avaliação na data marcada. Depois que o admin avaliar e confirmar, o valor entra na sua carteira com a carência mínima de ${CARENCIA_MESES_PADRAO_BEM[categoria]} meses.`,
   };
 }
 
