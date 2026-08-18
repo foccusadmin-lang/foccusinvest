@@ -558,7 +558,6 @@ function AporteBemModal({ onClose }: { onClose: () => void }) {
   const [state, action, pending] = useActionState(solicitarAporteBem, undefined);
   const [categoria, setCategoria] = useState<CategoriaBem>("IMOVEL");
   const [valorTexto, setValorTexto] = useState("");
-  const [descricao, setDescricao] = useState("");
   const [dataAgendamento, setDataAgendamento] = useState("");
   const router = useRouter();
   const processado = useRef(false);
@@ -647,18 +646,122 @@ function AporteBemModal({ onClose }: { onClose: () => void }) {
                 </span>
               </label>
 
-              <label className="block text-sm">
-                <span className="mb-1 block font-medium text-foreground/90">Descrição do bem</span>
-                <textarea
-                  name="descricaoBem"
-                  value={descricao}
-                  onChange={(e) => setDescricao(e.target.value)}
-                  required
-                  rows={3}
-                  placeholder="Ex: Apartamento 2 quartos, 60m², Rua X, bairro Y — ou Honda Civic 2020, placa ABC1234"
-                  className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground outline-none focus:border-gold/60"
-                />
-              </label>
+              {categoria === "IMOVEL" && (
+                <>
+                  <label className="block text-sm">
+                    <span className="mb-1 block font-medium text-foreground/90">
+                      Endereço completo do imóvel
+                    </span>
+                    <textarea
+                      name="enderecoImovel"
+                      required
+                      rows={2}
+                      placeholder="Rua, número, bairro, cidade/UF, CEP"
+                      className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground outline-none focus:border-gold/60"
+                    />
+                  </label>
+                  <label className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
+                    <input type="checkbox" name="escrituraConfirmada" value="1" required className="mt-0.5" />
+                    <span>
+                      Confirmo que este imóvel possui <strong>escritura lavrada em cartório</strong> —
+                      documento obrigatório pra esse tipo de aporte.
+                    </span>
+                  </label>
+                </>
+              )}
+
+              {categoria === "AUTOMOVEL" && (
+                <>
+                  <div className="rounded-lg border border-sky-500/30 bg-sky-500/10 p-3 text-xs text-sky-200">
+                    O valor será avaliado com base na <strong>Tabela FIPE</strong> e no estado atual
+                    do veículo.
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="block text-sm">
+                      <span className="mb-1 block font-medium text-foreground/90">Marca/Modelo</span>
+                      <input
+                        name="marcaModeloVeiculo"
+                        required
+                        type="text"
+                        placeholder="Ex: Honda Civic"
+                        className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground outline-none focus:border-gold/60"
+                      />
+                    </label>
+                    <label className="block text-sm">
+                      <span className="mb-1 block font-medium text-foreground/90">Ano</span>
+                      <input
+                        name="anoVeiculo"
+                        required
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="2020"
+                        className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground outline-none focus:border-gold/60"
+                      />
+                    </label>
+                  </div>
+                  <label className="block text-sm">
+                    <span className="mb-1 block font-medium text-foreground/90">Placa (opcional)</span>
+                    <input
+                      name="placaVeiculo"
+                      type="text"
+                      placeholder="ABC1234"
+                      className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground outline-none focus:border-gold/60"
+                    />
+                  </label>
+                  <label className="block text-sm">
+                    <span className="mb-1 block font-medium text-foreground/90">
+                      Estado atual do veículo
+                    </span>
+                    <textarea
+                      name="estadoVeiculo"
+                      required
+                      rows={2}
+                      placeholder="Km rodados, funilaria, mecânica, avarias..."
+                      className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground outline-none focus:border-gold/60"
+                    />
+                  </label>
+                </>
+              )}
+
+              {categoria === "ELETRONICO" && (
+                <>
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="block text-sm">
+                      <span className="mb-1 block font-medium text-foreground/90">Modelo</span>
+                      <input
+                        name="modeloEletronico"
+                        required
+                        type="text"
+                        placeholder="Ex: iPhone 15 Pro"
+                        className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground outline-none focus:border-gold/60"
+                      />
+                    </label>
+                    <label className="block text-sm">
+                      <span className="mb-1 block font-medium text-foreground/90">Ano</span>
+                      <input
+                        name="anoEletronico"
+                        required
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="2023"
+                        className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground outline-none focus:border-gold/60"
+                      />
+                    </label>
+                  </div>
+                  <label className="block text-sm">
+                    <span className="mb-1 block font-medium text-foreground/90">
+                      Estado atual do aparelho
+                    </span>
+                    <textarea
+                      name="estadoEletronico"
+                      required
+                      rows={2}
+                      placeholder="Funcionamento, riscos, acessórios inclusos..."
+                      className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground outline-none focus:border-gold/60"
+                    />
+                  </label>
+                </>
+              )}
 
               <label className="block text-sm">
                 <span className="mb-1 block font-medium text-foreground/90">

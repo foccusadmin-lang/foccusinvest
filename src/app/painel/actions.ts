@@ -217,9 +217,44 @@ export async function solicitarAporteBem(
     return { error: `O valor mínimo de aplicação é ${formatMoeda(VALOR_MINIMO_APLICACAO)}.` };
   }
 
-  const descricaoBem = String(formData.get("descricaoBem") ?? "").trim();
-  if (descricaoBem.length < 10) {
-    return { error: "Descreva o bem com mais detalhes (marca/modelo, endereço, estado etc)." };
+  // Cada categoria tem exigência própria de avaliação — monta a descrição final aqui (servidor),
+  // não confia só na validação do cliente, já que são regras de elegibilidade do aporte.
+  let descricaoBem: string;
+  if (categoria === "IMOVEL") {
+    const endereco = String(formData.get("enderecoImovel") ?? "").trim();
+    const escrituraConfirmada = String(formData.get("escrituraConfirmada") ?? "") === "1";
+    if (endereco.length < 10) {
+      return { error: "Informe o endereço completo do imóvel." };
+    }
+    if (!escrituraConfirmada) {
+      return {
+        error: "É obrigatório ter escritura lavrada em cartório para aportar um imóvel. Confirme a declaração.",
+      };
+    }
+    descricaoBem = `Endereço: ${endereco}\nEscritura lavrada em cartório: confirmada pelo investidor.`;
+  } else if (categoria === "AUTOMOVEL") {
+    const marcaModelo = String(formData.get("marcaModeloVeiculo") ?? "").trim();
+    const ano = String(formData.get("anoVeiculo") ?? "").trim();
+    const placa = String(formData.get("placaVeiculo") ?? "").trim();
+    const estado = String(formData.get("estadoVeiculo") ?? "").trim();
+    if (!marcaModelo || !ano) {
+      return { error: "Informe a marca/modelo e o ano do veículo." };
+    }
+    if (estado.length < 5) {
+      return { error: "Descreva o estado atual do veículo (funilaria, mecânica, km rodados etc)." };
+    }
+    descricaoBem = `Veículo: ${marcaModelo} ${ano}${placa ? ` — placa ${placa}` : ""}\nEstado atual: ${estado}\nBase de valor: Tabela FIPE + avaliação do estado do veículo.`;
+  } else {
+    const modelo = String(formData.get("modeloEletronico") ?? "").trim();
+    const ano = String(formData.get("anoEletronico") ?? "").trim();
+    const estado = String(formData.get("estadoEletronico") ?? "").trim();
+    if (!modelo || !ano) {
+      return { error: "Informe o modelo e o ano do aparelho." };
+    }
+    if (estado.length < 5) {
+      return { error: "Descreva o estado atual do aparelho (funcionamento, riscos, acessórios etc)." };
+    }
+    descricaoBem = `Aparelho: ${modelo}\nAno: ${ano}\nEstado atual: ${estado}`;
   }
 
   const dataAgendamentoTexto = String(formData.get("dataAgendamento") ?? "").trim();
