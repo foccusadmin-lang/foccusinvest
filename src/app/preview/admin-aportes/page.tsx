@@ -38,6 +38,7 @@ const recentes: AporteRecente[] = [
     aprovadoPor: { name: "Admin", email: "admin@foccusinvest.com.br" },
     temIndicador: true,
     bonusJaCreditado: false,
+    categoriaBem: null,
   },
   {
     id: "ap3",
@@ -49,6 +50,7 @@ const recentes: AporteRecente[] = [
     aprovadoPor: { name: "Admin", email: "admin@foccusinvest.com.br" },
     temIndicador: false,
     bonusJaCreditado: false,
+    categoriaBem: null,
   },
 ];
 

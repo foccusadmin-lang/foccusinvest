@@ -30,6 +30,7 @@ export type AporteRecente = {
   aprovadoPor: { name: string | null; email: string } | null;
   temIndicador: boolean;
   bonusJaCreditado: boolean;
+  categoriaBem: CategoriaBem | null;
 };
 
 function combinaBusca(nome: string | null, email: string, termo: string): boolean {
@@ -159,6 +160,7 @@ export function AportesLista({
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Processado por</th>
                 <th className="px-4 py-3">Data</th>
+                <th className="px-4 py-3">Comprovante</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
@@ -185,6 +187,20 @@ export function AportesLista({
                   </td>
                   <td className="px-4 py-3 text-xs text-muted">
                     {a.aprovadoEm ? formatData(a.aprovadoEm) : "—"}
+                  </td>
+                  <td className="px-4 py-3">
+                    {a.categoriaBem ? (
+                      <span className="text-xs text-muted">—</span>
+                    ) : (
+                      <a
+                        href={`/restrito/aportes/${a.id}/comprovante`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="rounded-lg bg-sky-500/15 px-3 py-1 text-xs font-semibold text-sky-300 hover:bg-sky-500/25"
+                      >
+                        Ver comprovante
+                      </a>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     {a.status === "CONFIRMADA" &&
