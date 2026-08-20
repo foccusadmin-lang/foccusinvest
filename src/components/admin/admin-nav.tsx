@@ -21,6 +21,7 @@ const LINKS = [
   { href: "/restrito/doacoes", label: "Doações" },
   { href: "/restrito/lideranca", label: "Liderança" },
   { href: "/restrito/guia", label: "Guia Foccus" },
+  { href: "/restrito/estrategia", label: "Vitrine de Operação" },
 ];
 
 export function AdminNav() {

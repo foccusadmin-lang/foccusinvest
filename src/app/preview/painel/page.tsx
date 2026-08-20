@@ -34,6 +34,23 @@ export default function PreviewPainelPage() {
         historicoRendimentos: sextas.map((data, i) => ({ data, valor: valores[i] })),
       }}
       janelaSaqueRendimentoAberta={janelaSaqueRendimentoAberta()}
+      vitrineOperacao={{
+        nome: "Estratégia WEM",
+        moedas: "USD, EUR, XAU (Ouro)",
+        ativa: true,
+        esperadoMin: 1.5,
+        esperadoMax: 4.0,
+        acumulado: 4.57,
+        ontem: 0.2,
+        serieComparativo: [
+          "2026-08-02", "2026-08-03", "2026-08-04", "2026-08-05", "2026-08-06",
+          "2026-08-07", "2026-08-10", "2026-08-11", "2026-08-12", "2026-08-13",
+          "2026-08-14", "2026-08-17", "2026-08-18", "2026-08-19", "2026-08-20",
+        ].map((data, i) => ({
+          data,
+          acumulado: [0.2, 0.4, 0.6, 0.9, 1.1, 1.4, 1.7, 2.0, 2.3, 3.4, 3.7, 4.0, 4.3, 4.5, 4.57][i],
+        })),
+      }}
     />
   );
 }

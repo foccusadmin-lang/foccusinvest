@@ -5,6 +5,7 @@ import { AcoesRapidas, type IndicadoDireto } from "./acoes-rapidas";
 import { HeaderMenu } from "./header-menu";
 import { ViewSwitcher } from "@/components/admin/view-switcher";
 import { ConvidarAmigoButton } from "./convidar-amigo-button";
+import { VitrineOperacao, type VitrineOperacaoProps } from "./vitrine-operacao";
 import { formatMoeda, formatData } from "@/lib/format";
 import { IconWallet, IconTrendingUp, IconGift, IconVerified, IconUsers } from "@/components/icons";
 import type { LiberacaoAtiva } from "@/lib/emergencia";
@@ -55,10 +56,12 @@ export function PainelDashboard({
   usuario,
   resumo,
   janelaSaqueRendimentoAberta,
+  vitrineOperacao,
 }: {
   usuario: PainelUsuario;
   resumo: ResumoFinanceiro;
   janelaSaqueRendimentoAberta: boolean;
+  vitrineOperacao?: VitrineOperacaoProps | null;
 }) {
   const moeda = usuario.moeda ?? "BRL";
   const status = statusLabel[usuario.statusCadastro] ?? statusLabel.INCOMPLETO;
@@ -232,6 +235,8 @@ export function PainelDashboard({
           incentivoLiderancaDisponivel={resumo.incentivoLiderancaDisponivel}
           incentivoLiderancaAcumulado={resumo.incentivoLiderancaAcumulado}
         />
+
+        {vitrineOperacao && <VitrineOperacao {...vitrineOperacao} />}
 
         <p className="mb-3 mt-10 text-xs font-semibold uppercase tracking-[0.15em] text-muted">
           Atividade

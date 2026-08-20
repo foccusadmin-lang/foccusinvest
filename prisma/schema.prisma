@@ -505,6 +505,39 @@ model TermoAceite {
   ip       String?
 }
 
+/**
+ * Vitrine de operação exibida no painel do investidor — mostra a estratégia de operação atual
+ * (moedas trabalhadas, resultado acumulado, comparativo ao longo do tempo). É só uma vitrine
+ * informativa/institucional, mantida pelo admin — não tem relação com o capital nem o PLR real
+ * de cada investidor.
+ */
+model EstrategiaOperacao {
+  id           String   @id @default(cuid())
+  nome         String   @default("Estratégia WEM")
+  moedas       String   @default("USD, EUR, XAU (Ouro)")
+  esperadoMin  Float    @default(1.5)
+  esperadoMax  Float    @default(4.0)
+  ativa        Boolean  @default(true)
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  pontos PontoEstrategia[]
+}
+
+/** Variação percentual de um dia específico da estratégia — a soma acumulada desses pontos (em
+ *  ordem cronológica) é o que forma o gráfico "Comparativo" e o "Acumulado" da vitrine. */
+model PontoEstrategia {
+  id           String             @id @default(cuid())
+  estrategiaId String
+  estrategia   EstrategiaOperacao @relation(fields: [estrategiaId], references: [id], onDelete: Cascade)
+  data         DateTime
+  variacaoDia  Float
+  criadoEm     DateTime           @default(now())
+
+  @@unique([estrategiaId, data])
+  @@index([estrategiaId, data])
+}
+
 model ConfiguracaoSistema {
   id                      String            @id @default("default")
   modoSaqueCapital        ModoProcessamento @default(MANUAL)
