@@ -101,7 +101,12 @@ COMO FUNCIONA A PLATAFORMA
 
 12. Segurança e confirmação
     - Toda aprovação de aporte/saque é feita manualmente pelo administrador (ou automaticamente, se o admin
-      configurar o modo automático) — o investidor recebe e-mail e WhatsApp quando a operação é confirmada.`;
+      configurar o modo automático) — o investidor recebe e-mail e WhatsApp quando a operação é confirmada.
+
+13. Tutorial
+    - Ícone de vídeo no topo do painel — mostra vídeos explicativos curtos sobre a plataforma (o que é a
+      Foccus, como fazer um aporte, como instalar o app, etc). Cada vídeo tem botões pra compartilhar
+      direto no WhatsApp ou copiar o link, pra convidar novos usuários.`;
 
 /** Monta o bloco dinâmico com os dados reais da conta logada — sempre concatenado depois de
  *  CONHECIMENTO_PLATAFORMA na system instruction, pra respostas ficarem grounded na conta real

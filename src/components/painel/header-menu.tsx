@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
-import { IconBell, IconLogout, IconSettings, IconClock, IconHeadset } from "@/components/icons";
+import { IconBell, IconLogout, IconSettings, IconClock, IconHeadset, IconVideo } from "@/components/icons";
 import { IndicacaoHeaderButton } from "./indicacao-header-button";
 import { TELEFONE_ATENDIMENTO_ADMIN, mensagemSuportePadrao } from "@/lib/config";
 
@@ -35,6 +35,14 @@ export function HeaderMenu({
       >
         <IconHeadset width={16} height={16} />
       </a>
+      <Link
+        href="/painel/tutorial"
+        aria-label="Tutorial"
+        title="Tutorial"
+        className="flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted transition hover:text-gold-light"
+      >
+        <IconVideo width={16} height={16} />
+      </Link>
       <Link
         href="/painel/historico"
         aria-label="Histórico"

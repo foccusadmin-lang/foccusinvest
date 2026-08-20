@@ -21,6 +21,7 @@ const ITENS: MockupItem[] = [
   { key: "painel-contratos", label: "Meus contratos", grupo: "Investidor", path: "/preview/painel-contratos" },
   { key: "painel-contrato-detalhe", label: "Contrato (detalhe)", grupo: "Investidor", path: "/preview/painel-contrato-detalhe" },
   { key: "painel-doar", label: "Doar para uma entidade", grupo: "Investidor", path: "/preview/painel-doar" },
+  { key: "painel-tutorial", label: "Tutorial", grupo: "Investidor", path: "/preview/painel-tutorial" },
   { key: "painel-configuracoes", label: "Configurações do investidor", grupo: "Investidor", path: "/preview/painel-configuracoes" },
 
   // Administrador

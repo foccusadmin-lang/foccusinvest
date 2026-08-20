@@ -169,6 +169,36 @@ export const IconPackage = (props: SVGProps<SVGSVGElement>) => (
   </Icon>
 );
 
+export const IconVideo = (props: SVGProps<SVGSVGElement>) => (
+  <Icon {...props}>
+    <rect x="2" y="5" width="15" height="14" rx="2" />
+    <path d="m17 10 5-3v10l-5-3" />
+  </Icon>
+);
+
+export const IconShare = (props: SVGProps<SVGSVGElement>) => (
+  <Icon {...props}>
+    <circle cx="18" cy="5" r="3" />
+    <circle cx="6" cy="12" r="3" />
+    <circle cx="18" cy="19" r="3" />
+    <path d="M8.6 10.5 15.4 6.5M8.6 13.5l6.8 4" />
+  </Icon>
+);
+
+export const IconCopy = (props: SVGProps<SVGSVGElement>) => (
+  <Icon {...props}>
+    <rect x="9" y="9" width="13" height="13" rx="2" />
+    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+  </Icon>
+);
+
+export const IconWhatsapp = (props: SVGProps<SVGSVGElement>) => (
+  <Icon {...props}>
+    <path d="M21 11.5a8.5 8.5 0 0 1-12.4 7.5L3 20l1.1-5.4a8.5 8.5 0 1 1 16.9-3.1Z" />
+    <path d="M8.5 9.5c0 3.5 2.5 6 6 6" strokeLinecap="round" />
+  </Icon>
+);
+
 export const IconIdCard = (props: SVGProps<SVGSVGElement>) => (
   <Icon {...props}>
     <rect x="2" y="5" width="20" height="14" rx="2" />
