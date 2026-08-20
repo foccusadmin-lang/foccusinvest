@@ -30,9 +30,9 @@ function Campo({
   );
 }
 
-/** Resumo em destaque de um investidor encontrado na busca — mostra os dados de identificação e
- *  todos os saldos relevantes de uma vez, sem precisar abrir o cadastro completo. O histórico de
- *  transações desse mesmo investidor aparece logo abaixo, na tabela da página. */
+/** Resumo em destaque de um investidor encontrado numa busca por nome/e-mail — mostra os dados
+ *  de identificação e todos os saldos relevantes de uma vez, sem precisar abrir o cadastro
+ *  completo. Reaproveitado em /restrito/historico e /restrito/usuarios. */
 export function DestaqueInvestidor({ investidor }: { investidor: ResumoInvestidor }) {
   return (
     <div className="rounded-2xl border border-gold/40 bg-gradient-to-br from-gold/10 via-surface to-surface p-5">

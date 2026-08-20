@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { formatMoeda, formatData } from "@/lib/format";
 import { getResumoCarteira } from "@/lib/carteira";
 import { BuscaInvestidor } from "./busca-investidor";
-import { DestaqueInvestidor, type ResumoInvestidor } from "./destaque-investidor";
+import { DestaqueInvestidor, type ResumoInvestidor } from "@/components/admin/destaque-investidor";
 
 type Lancamento = {
   id: string;

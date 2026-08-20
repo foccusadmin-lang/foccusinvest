@@ -9,6 +9,7 @@ import { AjusteCarenciaButton } from "./carencia-modal";
 import { LiberarEmergenciaButton, type AplicacaoElegivel, type LiberacaoAtivaResumo } from "./emergencia-modal";
 import { AtualizarDadosButton } from "./atualizar-dados-modal";
 import { ExcluirUsuarioButton } from "./excluir-usuario-button";
+import { DestaqueInvestidor, type ResumoInvestidor } from "@/components/admin/destaque-investidor";
 
 const statusStyle: Record<string, string> = {
   INCOMPLETO: "bg-white/10 text-muted",
@@ -48,8 +49,9 @@ export type LinhaUsuario = {
 export function UsuariosTable({ usuarios }: { usuarios: LinhaUsuario[] }) {
   const [busca, setBusca] = useState("");
 
+  const termo = busca.trim().toLowerCase();
+
   const filtrados = useMemo(() => {
-    const termo = busca.trim().toLowerCase();
     if (!termo) return usuarios;
     return usuarios.filter(
       (u) =>
@@ -57,7 +59,23 @@ export function UsuariosTable({ usuarios }: { usuarios: LinhaUsuario[] }) {
         u.email.toLowerCase().includes(termo) ||
         u.codigo.toLowerCase().includes(termo)
     );
-  }, [usuarios, busca]);
+  }, [usuarios, termo]);
+
+  const investidoresDestacados: ResumoInvestidor[] = useMemo(() => {
+    if (!termo) return [];
+    return filtrados.map((u) => ({
+      id: u.id,
+      nome: u.nome,
+      email: u.email,
+      documento: u.documento,
+      capital: u.capital,
+      carencia: u.capitalCarencia,
+      disponivel: u.capitalDisponivel,
+      rendimentoDisponivel: u.rendimento,
+      bonus: u.bonus,
+      total: u.capital + u.rendimento + u.bonus + u.incentivoLideranca,
+    }));
+  }, [filtrados, termo]);
 
   return (
     <>
@@ -70,6 +88,14 @@ export function UsuariosTable({ usuarios }: { usuarios: LinhaUsuario[] }) {
           className="w-full max-w-md rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground outline-none focus:border-gold/60"
         />
       </div>
+
+      {investidoresDestacados.length > 0 && (
+        <div className="mt-4 space-y-4">
+          {investidoresDestacados.map((inv) => (
+            <DestaqueInvestidor key={inv.id} investidor={inv} />
+          ))}
+        </div>
+      )}
 
       <div className="mt-4 overflow-x-auto rounded-2xl border border-border">
         <table className="w-full min-w-[1080px] text-left text-sm">
