@@ -4,9 +4,9 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, LinkButton } from "@/components/ui/button";
 import { MoneyInput } from "@/components/ui/money-input";
-import { IconPlus, IconArrowDown, IconRefresh, IconHeart, IconAlert, IconUsers, IconPackage } from "@/components/icons";
+import { IconPlus, IconArrowDown, IconRefresh, IconHeart, IconAlert, IconUsers, IconPackage, IconWhatsapp } from "@/components/icons";
 import { formatMoeda, formatData } from "@/lib/format";
-import { PIX_CHAVE, PIX_TIPO_CHAVE, PIX_BENEFICIARIO, PIX_CIDADE } from "@/lib/config";
+import { PIX_CHAVE, PIX_TIPO_CHAVE, PIX_BENEFICIARIO, PIX_CIDADE, LINK_GRUPO_FOCCUS } from "@/lib/config";
 import { gerarPayloadPix } from "@/lib/pix";
 import { PixQrCode } from "@/components/painel/pix-qrcode";
 import { CARENCIA_MESES_PADRAO_BEM, LABEL_CATEGORIA_BEM } from "@/lib/bens";
@@ -211,6 +211,16 @@ export function AcoesRapidas({
           className="w-full justify-start border border-border/60"
         >
           <IconHeart width={16} height={16} /> Doar para uma entidade
+        </LinkButton>
+
+        <LinkButton
+          href={LINK_GRUPO_FOCCUS}
+          target="_blank"
+          rel="noopener noreferrer"
+          variant="ghost"
+          className="w-full justify-start border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10"
+        >
+          <IconWhatsapp width={16} height={16} /> Grupo Foccus
         </LinkButton>
 
         {liberacaoEmergencial ? (

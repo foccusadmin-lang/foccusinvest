@@ -13,4 +13,6 @@ export function mensagemSuportePadrao(nome: string): string {
   return `Olá! Me chamo ${nome}, poderia me auxiliar!`;
 }
 
+export const LINK_GRUPO_FOCCUS = "https://chat.whatsapp.com/KViUSxVFOO19QrHg9nRnix";
+
 export const EMAIL_CONTRATOS_REMETENTE = "Foccus Invest <contratos@foccusinvest.com.br>";
