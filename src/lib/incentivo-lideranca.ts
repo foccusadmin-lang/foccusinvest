@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { formatMoeda } from "@/lib/format";
 import { consumirFIFO, calcularLiberacao, SaldoInsuficienteError, type TxClient } from "@/lib/carteira";
+import { getConfiguracao } from "@/lib/configuracao";
 
 /** Incentivo de liderança fica guardado como CreditoCarteira tipo RENDIMENTO (soma normalmente
  *  em rendimento disponível, saque, reaplicação...), diferenciado só pelo prefixo da origem —
@@ -328,6 +329,78 @@ export async function liberarIncentivoParaTodosLideres(
   }
 
   return { creditados: creditos.length, total };
+}
+
+export const PERCENTUAL_INCENTIVO_AUTOMATICO = 0.1;
+const ORIGEM_INCENTIVO_AUTOMATICO = `${ORIGEM_INCENTIVO_PREFIXO} ${PERCENTUAL_INCENTIVO_AUTOMATICO}% (automático)`;
+
+function hojeBrasiliaStr(dataBase: Date = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(dataBase);
+}
+
+/** Dia da semana e hora em Brasília, sem depender do timezone do servidor (o Vercel roda em
+ *  UTC, mas isso funciona em qualquer timezone). 0 = domingo … 6 = sábado. */
+function agoraBrasilia(): { diaSemana: number; hora: number } {
+  const partes = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Sao_Paulo",
+    weekday: "short",
+    hour: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date());
+  const diasSemana: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  const diaTexto = partes.find((p) => p.type === "weekday")?.value ?? "Sun";
+  const horaTexto = partes.find((p) => p.type === "hour")?.value ?? "0";
+  return { diaSemana: diasSemana[diaTexto] ?? 0, hora: parseInt(horaTexto, 10) };
+}
+
+export type ResultadoLiberacaoAutomatica = ResultadoLiberacao & { pulou?: string };
+
+/**
+ * Libera o incentivo automático de hoje pra todos os líderes SE ainda não tiver sido liberado —
+ * é a mesma lógica do cron (/api/cron/liberar-incentivo-lideranca), mas chamada como fallback de
+ * qualquer página carregada pelo admin depois das 19h. Existe porque um cron do Vercel que falha
+ * silenciosamente (CRON_SECRET não configurado, plano sem cron, etc) não pode ser a ÚNICA forma
+ * do incentivo automático funcionar — mesmo padrão de resiliência já usado pra distribuições
+ * (sincronizarDistribuicoesDoUsuario, que roda toda vez que a carteira é consultada). Sempre
+ * idempotente: nunca credita duas vezes o mesmo dia, então é seguro chamar em toda carga de
+ * página sem custo real na maioria das vezes (só faz a query de checagem).
+ */
+export async function liberarIncentivoAutomaticoSeNecessario(): Promise<ResultadoLiberacaoAutomatica> {
+  const config = await getConfiguracao();
+  if (config.modoIncentivoLideranca !== "AUTOMATICO") {
+    return { creditados: 0, total: 0, pulou: "modo manual" };
+  }
+
+  const { diaSemana, hora } = agoraBrasilia();
+  if (diaSemana === 0 || diaSemana === 6) {
+    return { creditados: 0, total: 0, pulou: "fim de semana" };
+  }
+  if (hora < 19) {
+    return { creditados: 0, total: 0, pulou: "ainda não são 19h em Brasília" };
+  }
+
+  const inicioDoDia = new Date(`${hojeBrasiliaStr()}T00:00:00-03:00`);
+  const jaRodouHoje = await prisma.creditoCarteira.findFirst({
+    where: { origem: { startsWith: ORIGEM_INCENTIVO_AUTOMATICO }, criadoEm: { gte: inicioDoDia } },
+  });
+  if (jaRodouHoje) {
+    return { creditados: 0, total: 0, pulou: "já liberado hoje" };
+  }
+
+  const resultado = await liberarIncentivoParaTodosLideres(
+    PERCENTUAL_INCENTIVO_AUTOMATICO,
+    new Date(),
+    " (automático)"
+  );
+
+  await prisma.logAuditoria.create({
+    data: {
+      acao: "liberar_incentivo_lideranca_automatico",
+      detalhes: `${PERCENTUAL_INCENTIVO_AUTOMATICO}% para ${resultado.creditados} líder(es), total ${resultado.total.toFixed(2)}`,
+    },
+  });
+
+  return resultado;
 }
 
 export type LiderResumo = {
