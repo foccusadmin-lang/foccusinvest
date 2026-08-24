@@ -545,6 +545,7 @@ model ConfiguracaoSistema {
   modoVerificacaoCadastro ModoProcessamento @default(MANUAL)
   modoIncentivoLideranca  ModoProcessamento @default(MANUAL)
   modoBonusIndicacao      ModoProcessamento @default(MANUAL)
+  modoAprovacaoAporte     ModoProcessamento @default(MANUAL)
   updatedAt               DateTime          @updatedAt
 }
 

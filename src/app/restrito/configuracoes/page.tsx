@@ -24,6 +24,7 @@ export default async function RestritoConfiguracoesPage() {
           modoVerificacaoCadastro={configuracao.modoVerificacaoCadastro}
           modoIncentivoLideranca={configuracao.modoIncentivoLideranca}
           modoBonusIndicacao={configuracao.modoBonusIndicacao}
+          modoAprovacaoAporte={configuracao.modoAprovacaoAporte}
         />
       </div>
     </div>

@@ -3,14 +3,15 @@
 import { useTransition } from "react";
 import type { ModoProcessamento } from "@prisma/client";
 import { definirModoSaque } from "./config-actions";
-import { IconWallet, IconVerified, IconUsers, IconGift } from "@/components/icons";
+import { IconWallet, IconVerified, IconUsers, IconGift, IconPlus } from "@/components/icons";
 
 type CampoConfig =
   | "modoSaqueCapital"
   | "modoSaqueRendimento"
   | "modoVerificacaoCadastro"
   | "modoIncentivoLideranca"
-  | "modoBonusIndicacao";
+  | "modoBonusIndicacao"
+  | "modoAprovacaoAporte";
 
 function Toggle({
   label,
@@ -54,12 +55,14 @@ export function ControleSaques({
   modoVerificacaoCadastro,
   modoIncentivoLideranca,
   modoBonusIndicacao,
+  modoAprovacaoAporte,
 }: {
   modoSaqueCapital: ModoProcessamento;
   modoSaqueRendimento: ModoProcessamento;
   modoVerificacaoCadastro: ModoProcessamento;
   modoIncentivoLideranca: ModoProcessamento;
   modoBonusIndicacao: ModoProcessamento;
+  modoAprovacaoAporte: ModoProcessamento;
 }) {
   return (
     <div className="space-y-3">
@@ -72,6 +75,20 @@ export function ControleSaques({
         <Toggle label="Rendimento" campo="modoSaqueRendimento" valor={modoSaqueRendimento} />
         <p className="text-xs text-muted">
           Automático processa o saque na hora, sem revisão manual. Exige cadastro verificado.
+        </p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-6 rounded-2xl border border-sky-500/30 bg-sky-500/10 p-4">
+        <div className="flex items-center gap-2 text-sky-200">
+          <IconPlus width={16} height={16} />
+          <span className="text-sm font-semibold">Aprovação de Aportes</span>
+        </div>
+        <Toggle label="Modo" campo="modoAprovacaoAporte" valor={modoAprovacaoAporte} />
+        <p className="text-xs text-muted">
+          Automático confirma o aporte via Pix na hora que o comprovante é enviado, liberando o
+          valor na carteira do investidor instantaneamente. No manual, continua precisando você
+          conferir o comprovante e clicar em "Aprovar" em Aportes. Aporte em bem (imóvel/
+          automóvel/eletrônico) sempre exige sua avaliação manual, em qualquer modo.
         </p>
       </div>
 

@@ -26,6 +26,7 @@ import { enviarEmailContrato } from "@/lib/email";
 import { guardarCodigoIndicadorPendente, creditarBonusIndicacaoPorCodigo } from "@/lib/indicacao";
 import type { CategoriaBem } from "@prisma/client";
 import { CARENCIA_MESES_PADRAO_BEM, calcularLiberacaoBem, LABEL_CATEGORIA_BEM } from "@/lib/bens";
+import { confirmarAporte } from "@/lib/aportes";
 
 export type AcaoState = { error?: string; sucesso?: string } | undefined;
 
@@ -129,8 +130,8 @@ export async function criarAplicacao(
 
   const bytes = Buffer.from(await comprovante.arrayBuffer());
 
-  await prisma.$transaction(async (tx) => {
-    const aplicacao = await tx.aplicacao.create({
+  const aplicacao = await prisma.$transaction(async (tx) => {
+    const aplicacaoCriada = await tx.aplicacao.create({
       data: {
         userId,
         valor,
@@ -140,7 +141,7 @@ export async function criarAplicacao(
         comprovante: bytes,
         comprovanteNome: comprovante.name,
         comprovanteTipo: comprovante.type || "application/octet-stream",
-        // Guarda o código de indicação até a aprovação — só é lido e limpo em aprovarAporte,
+        // Guarda o código de indicação até a aprovação — só é lido e limpo em confirmarAporte,
         // que credita o bônus. Nunca aparece pro investidor (só é exibido p/ REJEITADA).
         motivoRejeicao: codigoIndicador ? guardarCodigoIndicadorPendente(codigoIndicador) : null,
       },
@@ -149,7 +150,7 @@ export async function criarAplicacao(
     await tx.contrato.create({
       data: {
         userId,
-        aplicacaoId: aplicacao.id,
+        aplicacaoId: aplicacaoCriada.id,
         nome: nomeContrato,
         email: usuario.email,
         cpf: cpfContrato,
@@ -164,6 +165,8 @@ export async function criarAplicacao(
         confirmouLeituraEm: new Date(),
       },
     });
+
+    return aplicacaoCriada;
   });
 
   await enviarEmailContrato({
@@ -180,6 +183,20 @@ export async function criarAplicacao(
     valorExtenso,
     data: new Date(),
   });
+
+  // Modo automático de Aprovação de Aportes: confirma na hora, sem esperar o admin — só vale
+  // pra aporte via Pix (comprovante já em mãos); aporte em bem sempre exige avaliação manual do
+  // admin, em qualquer modo (ver solicitarAporteBem).
+  const config = await getConfiguracao();
+  if (config.modoAprovacaoAporte === "AUTOMATICO") {
+    await confirmarAporte(aplicacao.id, null);
+    revalidatePath("/restrito/aportes");
+    revalidatePath("/restrito/painel");
+    revalidatePath("/painel");
+    return {
+      sucesso: `Aporte de ${formatMoeda(valor)} confirmado automaticamente! O valor já está na sua carteira, com carência de 90 dias. O contrato foi enviado para o seu e-mail.`,
+    };
+  }
 
   revalidatePath("/painel");
   return {

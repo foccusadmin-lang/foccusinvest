@@ -97,6 +97,7 @@ export default async function RestritoPainelPage() {
           modoVerificacaoCadastro={configuracao.modoVerificacaoCadastro}
           modoIncentivoLideranca={configuracao.modoIncentivoLideranca}
           modoBonusIndicacao={configuracao.modoBonusIndicacao}
+          modoAprovacaoAporte={configuracao.modoAprovacaoAporte}
         />
       </div>
 
