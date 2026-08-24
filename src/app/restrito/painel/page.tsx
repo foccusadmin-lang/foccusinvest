@@ -4,7 +4,6 @@ import { prisma } from "@/lib/prisma";
 import { SummaryCard } from "@/components/painel/summary-card";
 import { formatMoeda } from "@/lib/format";
 import { getConfiguracao } from "@/lib/configuracao";
-import { liberarIncentivoAutomaticoSeNecessario } from "@/lib/incentivo-lideranca";
 import { ControleSaques } from "./controle-saques";
 import { AdminActionsGrid } from "@/components/admin/admin-actions-grid";
 import { inicioDoMesBrasilia } from "@/lib/datas";
@@ -20,13 +19,6 @@ export default async function RestritoPainelPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
   if (session.user.perfil !== "ADMIN") redirect("/painel");
-
-  // Fallback do incentivo de liderança automático: se o Vercel Cron não disparou por qualquer
-  // motivo (CRON_SECRET ausente, etc), garante que ainda assim é liberado quando o admin abre
-  // esse painel depois das 19h — nunca deixa quebrar a página se der algum problema.
-  await liberarIncentivoAutomaticoSeNecessario().catch((e) =>
-    console.error("Falha no fallback do incentivo de liderança automático:", e)
-  );
 
   const agora = new Date();
   const inicioMes = inicioDoMesBrasilia();

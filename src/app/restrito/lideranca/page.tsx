@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { listarLideres, liberarIncentivoAutomaticoSeNecessario } from "@/lib/incentivo-lideranca";
+import { listarLideres } from "@/lib/incentivo-lideranca";
 import { PromoverLiderButton } from "./promover-lider-form";
 import { LiderancaLista } from "./lideranca-lista";
 import { LiberarIncentivoTodosButton } from "./liberar-incentivo-form";
@@ -9,13 +9,6 @@ export default async function RestritoLiderancaPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
   if (session.user.perfil !== "ADMIN") redirect("/painel");
-
-  // Fallback do incentivo de liderança automático: se o Vercel Cron não disparou (CRON_SECRET
-  // ausente, etc), garante que ainda assim é liberado quando o admin abre essa página depois das
-  // 19h. Idempotente e best-effort — nunca deixa quebrar a página.
-  await liberarIncentivoAutomaticoSeNecessario().catch((e) =>
-    console.error("Falha no fallback do incentivo de liderança automático:", e)
-  );
 
   const lideres = await listarLideres();
 
