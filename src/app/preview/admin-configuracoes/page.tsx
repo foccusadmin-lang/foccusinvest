@@ -16,6 +16,7 @@ export default function PreviewAdminConfiguracoesPage() {
           modoIncentivoLideranca="MANUAL"
           modoBonusIndicacao="MANUAL"
           modoAprovacaoAporte="MANUAL"
+          valorMaximoAprovacaoAutomatica={5000}
         />
       </div>
     </AdminPreviewShell>

@@ -546,6 +546,9 @@ model ConfiguracaoSistema {
   modoIncentivoLideranca  ModoProcessamento @default(MANUAL)
   modoBonusIndicacao      ModoProcessamento @default(MANUAL)
   modoAprovacaoAporte     ModoProcessamento @default(MANUAL)
+  // Teto de valor pra um aporte via Pix se qualificar pra aprovação automática — acima disso,
+  // mesmo com o modo Automático ligado, cai pra conferência manual do admin.
+  valorMaximoAprovacaoAutomatica Float      @default(5000)
   updatedAt               DateTime          @updatedAt
 }
 

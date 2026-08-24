@@ -1,8 +1,9 @@
 "use client";
 
-import { useTransition } from "react";
+import { useActionState, useState, useTransition } from "react";
 import type { ModoProcessamento } from "@prisma/client";
-import { definirModoSaque } from "./config-actions";
+import { definirModoSaque, definirValorMaximoAprovacaoAutomatica } from "./config-actions";
+import { MoneyInput } from "@/components/ui/money-input";
 import { IconWallet, IconVerified, IconUsers, IconGift, IconPlus } from "@/components/icons";
 
 type CampoConfig =
@@ -49,6 +50,34 @@ function Toggle({
   );
 }
 
+function LimiteAporteInput({ valorAtual }: { valorAtual: number }) {
+  const [state, action, pending] = useActionState(definirValorMaximoAprovacaoAutomatica, undefined);
+  const [texto, setTexto] = useState(
+    valorAtual.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  );
+
+  return (
+    <form action={action} className="flex items-center gap-2">
+      <span className="text-sm text-muted">Teto pra liberar sozinho (R$):</span>
+      <MoneyInput
+        name="valorMaximo"
+        value={texto}
+        onValueChange={setTexto}
+        className="w-28 rounded-lg border border-border bg-surface-2 px-2 py-1 text-sm text-foreground outline-none focus:border-gold/60"
+      />
+      <button
+        type="submit"
+        disabled={pending}
+        className="rounded-lg bg-sky-500/20 px-3 py-1 text-xs font-semibold text-sky-200 hover:bg-sky-500/30 disabled:opacity-50"
+      >
+        {pending ? "Salvando..." : "Salvar"}
+      </button>
+      {state?.error && <span className="text-xs text-red-400">{state.error}</span>}
+      {state?.sucesso && <span className="text-xs text-emerald-400">{state.sucesso}</span>}
+    </form>
+  );
+}
+
 export function ControleSaques({
   modoSaqueCapital,
   modoSaqueRendimento,
@@ -56,6 +85,7 @@ export function ControleSaques({
   modoIncentivoLideranca,
   modoBonusIndicacao,
   modoAprovacaoAporte,
+  valorMaximoAprovacaoAutomatica,
 }: {
   modoSaqueCapital: ModoProcessamento;
   modoSaqueRendimento: ModoProcessamento;
@@ -63,6 +93,7 @@ export function ControleSaques({
   modoIncentivoLideranca: ModoProcessamento;
   modoBonusIndicacao: ModoProcessamento;
   modoAprovacaoAporte: ModoProcessamento;
+  valorMaximoAprovacaoAutomatica: number;
 }) {
   return (
     <div className="space-y-3">
@@ -84,11 +115,15 @@ export function ControleSaques({
           <span className="text-sm font-semibold">Aprovação de Aportes</span>
         </div>
         <Toggle label="Modo" campo="modoAprovacaoAporte" valor={modoAprovacaoAporte} />
-        <p className="text-xs text-muted">
+        {modoAprovacaoAporte === "AUTOMATICO" && (
+          <LimiteAporteInput valorAtual={valorMaximoAprovacaoAutomatica} />
+        )}
+        <p className="w-full text-xs text-muted">
           Automático confirma o aporte via Pix na hora que o comprovante é enviado, liberando o
-          valor na carteira do investidor instantaneamente. No manual, continua precisando você
-          conferir o comprovante e clicar em "Aprovar" em Aportes. Aporte em bem (imóvel/
-          automóvel/eletrônico) sempre exige sua avaliação manual, em qualquer modo.
+          valor na carteira do investidor instantaneamente — mas só até o teto configurado acima;
+          acima disso, mesmo no automático, cai pra sua conferência manual em Aportes. No manual,
+          todo aporte depende de você conferir o comprovante e clicar em "Aprovar". Aporte em bem
+          (imóvel/automóvel/eletrônico) sempre exige sua avaliação manual, em qualquer modo.
         </p>
       </div>
 

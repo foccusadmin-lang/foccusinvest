@@ -184,17 +184,31 @@ export async function criarAplicacao(
     data: new Date(),
   });
 
-  // Modo automático de Aprovação de Aportes: confirma na hora, sem esperar o admin — só vale
-  // pra aporte via Pix (comprovante já em mãos); aporte em bem sempre exige avaliação manual do
-  // admin, em qualquer modo (ver solicitarAporteBem).
+  // Modo automático de Aprovação de Aportes: confirma na hora, sem esperar o admin — mas só se
+  // o valor solicitado estiver dentro do teto configurado E a solicitação for a que acabou de
+  // ser criada agora mesmo (nunca uma data retroativa/manipulada — nesse fluxo `criadoEm` é
+  // sempre gerado pelo servidor, então isso é uma checagem de segurança redundante, não um
+  // cenário que aconteça hoje, mas protege caso o fluxo mude no futuro). Fora desses critérios,
+  // "desconforme" cai pra conferência manual do admin, mesmo com o modo automático ligado. Aporte
+  // em bem sempre exige avaliação manual, em qualquer modo (ver solicitarAporteBem).
   const config = await getConfiguracao();
-  if (config.modoAprovacaoAporte === "AUTOMATICO") {
+  const dentroDoTeto = valor <= config.valorMaximoAprovacaoAutomatica;
+  const dataConfere = Math.abs(Date.now() - aplicacao.criadoEm.getTime()) < 5 * 60 * 1000;
+
+  if (config.modoAprovacaoAporte === "AUTOMATICO" && dentroDoTeto && dataConfere) {
     await confirmarAporte(aplicacao.id, null);
     revalidatePath("/restrito/aportes");
     revalidatePath("/restrito/painel");
     revalidatePath("/painel");
     return {
       sucesso: `Aporte de ${formatMoeda(valor)} confirmado automaticamente! O valor já está na sua carteira, com carência de 90 dias. O contrato foi enviado para o seu e-mail.`,
+    };
+  }
+
+  if (config.modoAprovacaoAporte === "AUTOMATICO" && !dentroDoTeto) {
+    revalidatePath("/painel");
+    return {
+      sucesso: `Comprovante de ${formatMoeda(valor)} enviado! Como o valor passa do limite de aprovação automática (${formatMoeda(config.valorMaximoAprovacaoAutomatica)}), esse aporte vai passar pela conferência do admin antes de entrar na sua carteira. O contrato foi enviado para o seu e-mail.`,
     };
   }
 

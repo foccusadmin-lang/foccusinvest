@@ -19,6 +19,7 @@ export default function PreviewAdminPainelPage() {
           modoIncentivoLideranca="MANUAL"
           modoBonusIndicacao="MANUAL"
           modoAprovacaoAporte="MANUAL"
+          valorMaximoAprovacaoAutomatica={5000}
         />
       </div>
 
