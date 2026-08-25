@@ -7,7 +7,6 @@ import { confirmarAporte, type AjusteBem } from "@/lib/aportes";
 import { creditarBonusIndicacaoPorCodigo, creditarBonusIndicacaoPorAporte } from "@/lib/indicacao";
 
 export type AporteAcaoState = { error?: string; sucesso?: string } | undefined;
-export type { AjusteBem };
 
 export async function aprovarAporte(id: string, ajusteBem?: AjusteBem) {
   const session = await auth();
