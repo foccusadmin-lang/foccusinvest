@@ -13,10 +13,10 @@ export async function enviarEmailContrato(dados: ContratoDocumentoProps): Promis
     return;
   }
 
-  const { renderToStaticMarkup } = await import("react-dom/server");
-  const html = renderToStaticMarkup(<ContratoDocumento {...dados} />);
-
   try {
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const html = renderToStaticMarkup(<ContratoDocumento {...dados} />);
+
     const resend = new Resend(apiKey);
     await resend.emails.send({
       from: EMAIL_CONTRATOS_REMETENTE,
@@ -25,6 +25,8 @@ export async function enviarEmailContrato(dados: ContratoDocumentoProps): Promis
       html,
     });
   } catch (e) {
+    // Cobre tanto falha no envio quanto falha ao renderizar o documento — nenhuma das duas
+    // pode derrubar o fluxo de aplicação (aporte e contrato já foram gravados no banco).
     console.error("Falha ao enviar e-mail de contrato:", e);
   }
 }

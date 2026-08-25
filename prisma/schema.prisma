@@ -337,7 +337,14 @@ model Aplicacao {
   comprovante     Bytes?
   comprovanteNome String?
   comprovanteTipo String?
+  comprovanteHash String?
   motivoRejeicao  String?
+
+  // Preenchido quando esse aporte bate com outro já existente do mesmo investidor (mesmo valor
+  // + mesmo comprovante, via comprovanteHash) — guarda o id do aporte original. Nesse caso o
+  // aporte nunca é confirmado automaticamente, mesmo com o modo automático ligado: fica retido
+  // pra conferência manual do admin (ver criarAplicacao, painel/actions.ts).
+  aporteDuplicadoDeId String?
 
   // Aporte em bens (imóvel/automóvel/eletrônico) — preenchidos só nesse caso. O valor "oficial"
   // (campo `valor` acima) começa igual a valorDeclarado e só é confirmado/ajustado pelo admin
@@ -356,6 +363,8 @@ model Aplicacao {
 
   contrato               Contrato?
   liberacoesEmergenciais LiberacaoEmergencial[]
+
+  @@index([userId, valor, comprovanteHash])
 }
 
 /**

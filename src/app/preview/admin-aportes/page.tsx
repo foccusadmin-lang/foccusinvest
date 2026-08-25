@@ -14,6 +14,7 @@ const pendentes: AportePendente[] = [
     descricaoBem: null,
     valorDeclarado: null,
     dataAgendamento: null,
+    aporteDuplicadoDeId: null,
   },
   {
     id: "ap1b",
@@ -24,6 +25,7 @@ const pendentes: AportePendente[] = [
     descricaoBem: "Apartamento 2 quartos, 60m², Rua das Flores, 123 — bairro Centro",
     valorDeclarado: 350000,
     dataAgendamento: new Date(agora + 3 * dia),
+    aporteDuplicadoDeId: null,
   },
 ];
 

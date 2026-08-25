@@ -1,5 +1,6 @@
 "use server";
 
+import { createHash } from "crypto";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -129,6 +130,15 @@ export async function criarAplicacao(
   const valorExtenso = valorPorExtenso(valor);
 
   const bytes = Buffer.from(await comprovante.arrayBuffer());
+  const comprovanteHash = createHash("sha256").update(bytes).digest("hex");
+
+  // Mesmo investidor, mesmo valor, mesmo arquivo de comprovante (por hash) — indício forte de
+  // reenvio duplicado (acidental ou tentativa de usar o mesmo Pix duas vezes). Ignora tentativas
+  // já rejeitadas: se o admin rejeitou a anterior, reenviar o mesmo comprovante é um fluxo válido.
+  const duplicado = await prisma.aplicacao.findFirst({
+    where: { userId, valor, comprovanteHash, status: { not: "REJEITADA" } },
+    select: { id: true },
+  });
 
   const aplicacao = await prisma.$transaction(async (tx) => {
     const aplicacaoCriada = await tx.aplicacao.create({
@@ -141,6 +151,8 @@ export async function criarAplicacao(
         comprovante: bytes,
         comprovanteNome: comprovante.name,
         comprovanteTipo: comprovante.type || "application/octet-stream",
+        comprovanteHash,
+        aporteDuplicadoDeId: duplicado?.id ?? null,
         // Guarda o código de indicação até a aprovação — só é lido e limpo em confirmarAporte,
         // que credita o bônus. Nunca aparece pro investidor (só é exibido p/ REJEITADA).
         motivoRejeicao: codigoIndicador ? guardarCodigoIndicadorPendente(codigoIndicador) : null,
@@ -188,12 +200,21 @@ export async function criarAplicacao(
   // o valor solicitado estiver dentro do teto configurado E a solicitação for a que acabou de
   // ser criada agora mesmo (nunca uma data retroativa/manipulada — nesse fluxo `criadoEm` é
   // sempre gerado pelo servidor, então isso é uma checagem de segurança redundante, não um
-  // cenário que aconteça hoje, mas protege caso o fluxo mude no futuro). Fora desses critérios,
-  // "desconforme" cai pra conferência manual do admin, mesmo com o modo automático ligado. Aporte
-  // em bem sempre exige avaliação manual, em qualquer modo (ver solicitarAporteBem).
+  // cenário que aconteça hoje, mas protege caso o fluxo mude no futuro) E não for um reenvio
+  // duplicado do mesmo comprovante. Fora desses critérios, "desconforme" cai pra conferência
+  // manual do admin, mesmo com o modo automático ligado. Aporte em bem sempre exige avaliação
+  // manual, em qualquer modo (ver solicitarAporteBem).
   const config = await getConfiguracao();
   const dentroDoTeto = valor <= config.valorMaximoAprovacaoAutomatica;
   const dataConfere = Math.abs(Date.now() - aplicacao.criadoEm.getTime()) < 5 * 60 * 1000;
+
+  if (duplicado) {
+    revalidatePath("/restrito/aportes");
+    revalidatePath("/painel");
+    return {
+      sucesso: `Esse aporte já foi feito anteriormente. Por motivo de segurança, essa tentativa foi bloqueada automaticamente e vai ficar sujeita à conferência do administrador antes de qualquer liberação.`,
+    };
+  }
 
   if (config.modoAprovacaoAporte === "AUTOMATICO" && dentroDoTeto && dataConfere) {
     await confirmarAporte(aplicacao.id, null);

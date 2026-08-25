@@ -18,6 +18,7 @@ export type AportePendente = {
   descricaoBem: string | null;
   valorDeclarado: number | null;
   dataAgendamento: Date | null;
+  aporteDuplicadoDeId: string | null;
 };
 
 export type AporteRecente = {
@@ -120,7 +121,17 @@ export function AportesLista({
                 className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-5 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div>
-                  <p className="font-semibold text-foreground">{a.user.name ?? a.user.email}</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-semibold text-foreground">{a.user.name ?? a.user.email}</p>
+                    {a.aporteDuplicadoDeId && (
+                      <span
+                        title={`Mesmo valor e mesmo comprovante do aporte ${a.aporteDuplicadoDeId}`}
+                        className="rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-semibold text-red-300"
+                      >
+                        ‼️ Possível duplicado
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-muted">{a.user.email}</p>
                   <p className="mt-1 text-lg font-bold text-gold-light">{formatMoeda(a.valor)}</p>
                   <p className="text-xs text-muted">Enviado em {formatData(a.criadoEm)}</p>
