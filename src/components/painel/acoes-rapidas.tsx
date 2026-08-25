@@ -348,7 +348,7 @@ function NovaAplicacaoModal({
   const processado = useRef(false);
 
   useEffect(() => {
-    if (state?.sucesso && !processado.current) {
+    if ((state?.sucesso || state?.aviso) && !processado.current) {
       processado.current = true;
       router.refresh();
       const timeout = setTimeout(onClose, 2200);
@@ -386,7 +386,11 @@ function NovaAplicacaoModal({
       >
         <h3 className="text-lg font-semibold text-foreground">Nova aplicação</h3>
 
-        {state?.sucesso ? (
+        {state?.aviso ? (
+          <p className="mt-6 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">
+            {state.aviso}
+          </p>
+        ) : state?.sucesso ? (
           <p className="mt-6 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-300">
             {state.sucesso}
           </p>

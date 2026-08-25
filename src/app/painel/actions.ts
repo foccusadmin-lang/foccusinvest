@@ -29,7 +29,10 @@ import type { CategoriaBem } from "@prisma/client";
 import { CARENCIA_MESES_PADRAO_BEM, calcularLiberacaoBem, LABEL_CATEGORIA_BEM } from "@/lib/bens";
 import { confirmarAporte } from "@/lib/aportes";
 
-export type AcaoState = { error?: string; sucesso?: string } | undefined;
+// `aviso` é como `sucesso` (a operação foi registrada, não é um erro), mas pra casos que merecem
+// destaque visual de alerta em vez do verde de sucesso normal — hoje só o bloqueio de aporte
+// duplicado (ver criarAplicacao).
+export type AcaoState = { error?: string; sucesso?: string; aviso?: string } | undefined;
 
 function parseValor(raw: FormDataEntryValue | null): number {
   const texto = String(raw ?? "").trim().replace(/\./g, "").replace(",", ".");
@@ -212,7 +215,7 @@ export async function criarAplicacao(
     revalidatePath("/restrito/aportes");
     revalidatePath("/painel");
     return {
-      sucesso: `Esse aporte já foi feito anteriormente. Por motivo de segurança, essa tentativa foi bloqueada automaticamente e vai ficar sujeita à conferência do administrador antes de qualquer liberação.`,
+      aviso: `Esse aporte já foi feito anteriormente. Por motivo de segurança, essa tentativa foi bloqueada automaticamente e vai ficar sujeita à conferência do administrador antes de qualquer liberação.`,
     };
   }
 
