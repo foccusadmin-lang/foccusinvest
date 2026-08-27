@@ -29,6 +29,29 @@ To learn more about Next.js, take a look at the following resources:
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
+## Marketplace regional de serviços (Foccus Serviços)
+
+Módulo à parte, em `/marketplace`, reaproveitando o mesmo login (Google/NextAuth) e banco
+Postgres/Prisma do app principal — não usa Supabase Auth/Storage. Fase 1 (MVP inicial): escolha
+de papel (cliente/prestador), banco/roles, dashboards básicos e dados demo. Busca por
+localização, mapa, categorias administráveis e solicitações/avaliações completas chegam nas
+próximas fases.
+
+Variáveis de ambiente (todas opcionais — usam Jandira/SP/BR como padrão se não definidas):
+
+```
+NEXT_PUBLIC_APP_CITY=Jandira
+NEXT_PUBLIC_APP_STATE=SP
+NEXT_PUBLIC_APP_COUNTRY=BR
+```
+
+Para popular categorias/profissões e alguns prestadores fictícios de Jandira (dados claramente
+marcados com `[DEMO]`):
+
+```bash
+npm run db:seed:marketplace
+```
+
 ## Deploy on Vercel
 
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.

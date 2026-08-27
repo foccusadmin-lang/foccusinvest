@@ -178,6 +178,13 @@ model User {
   mensagensGuia MensagemGuia[]
   faqsGuiaCriadas FaqGuia[]
 
+  // Marketplace regional de serviços (Foccus Serviços) — mesmo login, papel à parte do
+  // `perfil` de investidor. Null até a pessoa escolher "Sou cliente"/"Sou prestador".
+  papelMarketplace        PapelMarketplace?
+  perfilPrestador         PerfilPrestador?
+  solicitacoesComoCliente SolicitacaoServico[]  @relation("SolicitacaoCliente")
+  avaliacoesFeitas        AvaliacaoServico[]    @relation("AvaliacaoCliente")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -639,4 +646,147 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+// ---------------------------------------------------------------------------
+// Marketplace regional de serviços (Foccus Serviços) — MVP restrito a Jandira-SP.
+// Reaproveita o User/login já existente (Google via NextAuth); `papelMarketplace` decide se a
+// pessoa usa o app como cliente ou prestador, sem depender do `perfil` de investidor (que
+// continua controlando só o painel de investimentos). Administração usa o `perfil` ADMIN já
+// existente — não há um terceiro papel de admin aqui.
+// ---------------------------------------------------------------------------
+
+enum PapelMarketplace {
+  CLIENTE
+  PRESTADOR
+}
+
+enum StatusSolicitacaoServico {
+  PENDENTE
+  ACEITA
+  RECUSADA
+  EM_ANDAMENTO
+  CONCLUIDA
+  CANCELADA
+}
+
+/**
+ * Categoria de serviço (ex: Casa, Beleza, Cuidados) — cadastrada pelo admin, nunca fixa no
+ * código, pra permitir adicionar novas profissões sem alterar o app (ver seção 20 do spec).
+ */
+model CategoriaServico {
+  id        String   @id @default(cuid())
+  nome      String
+  slug      String   @unique
+  icone     String?
+  descricao String?
+  ativa     Boolean  @default(true)
+  criadoEm  DateTime @default(now())
+
+  servicos Servico[]
+}
+
+/** Profissão/serviço oferecido no marketplace (ex: Babá, Eletricista), dentro de uma categoria. */
+model Servico {
+  id          String           @id @default(cuid())
+  categoriaId String
+  categoria   CategoriaServico @relation(fields: [categoriaId], references: [id], onDelete: Cascade)
+  nome        String
+  slug        String           @unique
+  descricao   String?
+  ativo       Boolean          @default(true)
+  criadoEm    DateTime         @default(now())
+
+  prestadores  PrestadorServico[]
+  solicitacoes SolicitacaoServico[]
+}
+
+/**
+ * Perfil profissional de um prestador — 1:1 com User (papelMarketplace: PRESTADOR). Guarda
+ * localização e raio de atendimento pra validar a regra regional (nunca mostrar prestador fora
+ * da área permitida) e pro cálculo de distância/match das fases seguintes.
+ */
+model PerfilPrestador {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  nomeProfissional String
+  descricao        String?
+  telefone         String?
+  fotoUrl          String?
+
+  cidade            String
+  estado            String
+  bairro            String?
+  endereco          String?
+  latitude          Float?
+  longitude         Float?
+  raioAtendimentoKm Float   @default(5)
+
+  precoDe Float?
+  precoAte Float?
+
+  // Aprovação/selo do admin (seção 41) — não bloqueia o uso, só o selo "verificado".
+  verificado Boolean @default(false)
+  // Perfil só aparece nas buscas quando o prestador conclui o cadastro básico e ativa.
+  ativo      Boolean @default(false)
+
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  servicos              PrestadorServico[]
+  solicitacoesRecebidas SolicitacaoServico[]
+  avaliacoesRecebidas   AvaliacaoServico[]
+}
+
+/** Relaciona um prestador com os serviços que ele oferece — um prestador pode ter mais de um. */
+model PrestadorServico {
+  id          String          @id @default(cuid())
+  prestadorId String
+  prestador   PerfilPrestador @relation(fields: [prestadorId], references: [id], onDelete: Cascade)
+  servicoId   String
+  servico     Servico         @relation(fields: [servicoId], references: [id], onDelete: Cascade)
+  criadoEm    DateTime        @default(now())
+
+  @@unique([prestadorId, servicoId])
+}
+
+/** Solicitação de serviço feita por um cliente a um prestador específico. */
+model SolicitacaoServico {
+  id          String          @id @default(cuid())
+  clienteId   String
+  cliente     User            @relation("SolicitacaoCliente", fields: [clienteId], references: [id], onDelete: Cascade)
+  prestadorId String
+  prestador   PerfilPrestador @relation(fields: [prestadorId], references: [id], onDelete: Cascade)
+  servicoId   String
+  servico     Servico         @relation(fields: [servicoId], references: [id])
+
+  descricao String?
+  endereco  String?
+  bairro    String?
+  cidade    String
+  latitude  Float?
+  longitude Float?
+
+  status       StatusSolicitacaoServico @default(PENDENTE)
+  criadoEm     DateTime                 @default(now())
+  atualizadoEm DateTime                 @updatedAt
+
+  avaliacao AvaliacaoServico?
+}
+
+/** Avaliação do cliente sobre o prestador, feita após uma solicitação concluída. */
+model AvaliacaoServico {
+  id            String             @id @default(cuid())
+  clienteId     String
+  cliente       User               @relation("AvaliacaoCliente", fields: [clienteId], references: [id], onDelete: Cascade)
+  prestadorId   String
+  prestador     PerfilPrestador    @relation(fields: [prestadorId], references: [id], onDelete: Cascade)
+  solicitacaoId String             @unique
+  solicitacao   SolicitacaoServico @relation(fields: [solicitacaoId], references: [id], onDelete: Cascade)
+
+  nota       Int
+  comentario String?
+  criadoEm   DateTime @default(now())
 }
