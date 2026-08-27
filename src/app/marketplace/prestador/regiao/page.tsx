@@ -67,13 +67,15 @@ export default async function PrestadorRegiaoPage({
               selecionadasIniciais={user.perfilPrestador.regioesAtendidas.map((r) => r.regiaoId)}
             />
           </div>
-          <SugerirBairroForm voltarPara="/marketplace/prestador/regiao" />
         </div>
 
         <Button type="submit" variant="gold" className="w-full">
           Continuar
         </Button>
       </form>
+
+      {/* Fora do form principal — <form> não pode ficar aninhado dentro de outro <form> */}
+      <SugerirBairroForm voltarPara="/marketplace/prestador/regiao" />
     </div>
   );
 }
