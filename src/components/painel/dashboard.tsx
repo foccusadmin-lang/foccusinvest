@@ -42,6 +42,7 @@ export type PainelUsuario = {
   modoBonusIndicacao?: "MANUAL" | "AUTOMATICO";
   ehLider?: boolean;
   indicadosDiretos?: IndicadoDireto[];
+  aplicacaoBensAtiva?: boolean;
 };
 
 const statusLabel: Record<string, { label: string; className: string }> = {
@@ -215,6 +216,7 @@ export function PainelDashboard({
           Ações rápidas
         </p>
         <AcoesRapidas
+          primeiroNome={usuario.primeiroNome}
           saldoParaReaplicar={resumo.distribuicoesDisponiveis + resumo.bonusIndicacao}
           bonusDisponivel={resumo.bonusIndicacao}
           janelaSaqueRendimentoAberta={janelaSaqueRendimentoAberta}
@@ -234,6 +236,7 @@ export function PainelDashboard({
           indicadosDiretos={usuario.indicadosDiretos ?? []}
           incentivoLiderancaDisponivel={resumo.incentivoLiderancaDisponivel}
           incentivoLiderancaAcumulado={resumo.incentivoLiderancaAcumulado}
+          aplicacaoBensAtiva={usuario.aplicacaoBensAtiva ?? true}
         />
 
         {vitrineOperacao && <VitrineOperacao {...vitrineOperacao} />}

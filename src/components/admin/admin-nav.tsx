@@ -4,8 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { Logo } from "@/components/logo";
-import { IconLogout } from "@/components/icons";
+import { IconLogout, IconHeadset } from "@/components/icons";
 import { ViewSwitcher } from "./view-switcher";
+import { TELEFONE_ATENDIMENTO_ADMIN } from "@/lib/config";
 
 const LINKS = [
   { href: "/restrito/painel", label: "Painel" },
@@ -52,10 +53,20 @@ export function AdminNav() {
               </Link>
             );
           })}
+          <a
+            href={`https://wa.me/${TELEFONE_ATENDIMENTO_ADMIN}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Suporte ADM"
+            title="Suporte ADM"
+            className="ml-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-muted transition hover:text-gold-light"
+          >
+            <IconHeadset width={16} height={16} />
+          </a>
           <button
             aria-label="Sair"
             onClick={() => signOut({ callbackUrl: "/" })}
-            className="ml-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-muted transition hover:text-red-300"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-muted transition hover:text-red-300"
           >
             <IconLogout width={16} height={16} />
           </button>

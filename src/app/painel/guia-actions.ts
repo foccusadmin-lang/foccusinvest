@@ -153,3 +153,13 @@ export async function marcarTourConcluido(): Promise<void> {
   await prisma.user.update({ where: { id: session.user.id }, data: { tourConcluido: true } });
   revalidatePath("/painel");
 }
+
+/** Marca que o investidor já viu o modal de convite pro Grupo Foccus — chamado tanto ao clicar
+ *  em "Acessar grupo" quanto ao fechar a janela (ver GrupoFoccusModal). Uma vez marcado, o modal
+ *  nunca mais aparece pra essa conta, em nenhum dispositivo. */
+export async function marcarGrupoFoccusVisto(): Promise<void> {
+  const session = await auth();
+  if (!session?.user?.id) return;
+  await prisma.user.update({ where: { id: session.user.id }, data: { viuGrupoFoccus: true } });
+  revalidatePath("/painel");
+}

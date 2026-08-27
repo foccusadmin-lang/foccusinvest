@@ -4,9 +4,17 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, LinkButton } from "@/components/ui/button";
 import { MoneyInput } from "@/components/ui/money-input";
-import { IconPlus, IconArrowDown, IconRefresh, IconHeart, IconAlert, IconUsers, IconPackage, IconWhatsapp } from "@/components/icons";
+import { IconPlus, IconArrowDown, IconRefresh, IconHeart, IconAlert, IconUsers, IconPackage, IconWhatsapp, IconHeadset } from "@/components/icons";
 import { formatMoeda, formatData } from "@/lib/format";
-import { PIX_CHAVE, PIX_TIPO_CHAVE, PIX_BENEFICIARIO, PIX_CIDADE, LINK_GRUPO_FOCCUS } from "@/lib/config";
+import {
+  PIX_CHAVE,
+  PIX_TIPO_CHAVE,
+  PIX_BENEFICIARIO,
+  PIX_CIDADE,
+  LINK_GRUPO_FOCCUS,
+  TELEFONE_ATENDIMENTO_ADMIN,
+  mensagemSuportePadrao,
+} from "@/lib/config";
 import { gerarPayloadPix } from "@/lib/pix";
 import { PixQrCode } from "@/components/painel/pix-qrcode";
 import { CARENCIA_MESES_PADRAO_BEM, LABEL_CATEGORIA_BEM } from "@/lib/bens";
@@ -31,6 +39,7 @@ import type { LiberacaoAtiva } from "@/lib/emergencia";
 type TipoAcao =
   | "aplicacao"
   | "aplicacao-bem"
+  | "aplicacao-bem-bloqueada"
   | "saque-capital"
   | "saque-rendimento"
   | "reaplicar"
@@ -78,6 +87,7 @@ const CONFIG: Record<TipoAcaoSimples, AcaoConfig> = {
 const MINIMO_REAPLICACAO = 100;
 
 export function AcoesRapidas({
+  primeiroNome,
   saldoParaReaplicar,
   janelaSaqueRendimentoAberta,
   verificado,
@@ -97,7 +107,9 @@ export function AcoesRapidas({
   incentivoLiderancaDisponivel,
   incentivoLiderancaAcumulado,
   bonusDisponivel,
+  aplicacaoBensAtiva,
 }: {
+  primeiroNome: string;
   saldoParaReaplicar: number;
   janelaSaqueRendimentoAberta: boolean;
   verificado: boolean;
@@ -117,6 +129,7 @@ export function AcoesRapidas({
   incentivoLiderancaDisponivel: number;
   incentivoLiderancaAcumulado: number;
   bonusDisponivel: number;
+  aplicacaoBensAtiva: boolean;
 }) {
   const [aberto, setAberto] = useState<TipoAcao | null>(null);
   const reaplicarDesativado = saldoParaReaplicar < MINIMO_REAPLICACAO;
@@ -136,14 +149,6 @@ export function AcoesRapidas({
           onClick={() => setAberto("aplicacao")}
         >
           <IconPlus width={16} height={16} /> Nova aplicação
-        </Button>
-
-        <Button
-          variant="outline"
-          className="w-full"
-          onClick={() => setAberto("aplicacao-bem")}
-        >
-          <IconPackage width={16} height={16} /> Aplicação em bens
         </Button>
 
         {saqueCapitalDesativado ? (
@@ -194,6 +199,16 @@ export function AcoesRapidas({
             <IconRefresh width={16} height={16} /> Reaplicar
           </Button>
         )}
+
+        <Button
+          variant="outline"
+          className="w-full"
+          onClick={() =>
+            setAberto(aplicacaoBensAtiva ? "aplicacao-bem" : "aplicacao-bem-bloqueada")
+          }
+        >
+          <IconPackage width={16} height={16} /> Aplicação em bens
+        </Button>
       </section>
 
       <p className="mt-2 text-center text-xs text-muted sm:text-left">
@@ -221,6 +236,16 @@ export function AcoesRapidas({
           className="w-full justify-start border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10"
         >
           <IconWhatsapp width={16} height={16} /> Grupo Foccus
+        </LinkButton>
+
+        <LinkButton
+          href={`https://wa.me/${TELEFONE_ATENDIMENTO_ADMIN}?text=${encodeURIComponent(mensagemSuportePadrao(primeiroNome))}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          variant="ghost"
+          className="w-full justify-start border border-border/60"
+        >
+          <IconHeadset width={16} height={16} /> Suporte ADM
         </LinkButton>
 
         {liberacaoEmergencial ? (
@@ -265,6 +290,9 @@ export function AcoesRapidas({
         />
       )}
       {aberto === "aplicacao-bem" && <AporteBemModal onClose={() => setAberto(null)} />}
+      {aberto === "aplicacao-bem-bloqueada" && (
+        <AplicacaoBemBloqueadaModal onClose={() => setAberto(null)} />
+      )}
       {aberto === "saque-emergencia" && liberacaoEmergencial && (
         <SaqueEmergenciaModal
           onClose={() => setAberto(null)}
@@ -301,6 +329,7 @@ export function AcoesRapidas({
       {aberto &&
         aberto !== "aplicacao" &&
         aberto !== "aplicacao-bem" &&
+        aberto !== "aplicacao-bem-bloqueada" &&
         aberto !== "saque-emergencia" &&
         aberto !== "painel-lider" &&
         !(aberto === "reaplicar" && ehLider) &&
@@ -561,6 +590,32 @@ function NovaAplicacaoModal({
             </form>
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+function AplicacaoBemBloqueadaModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-sm rounded-2xl border border-border bg-surface p-6 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="text-lg font-semibold text-foreground">Aplicação em bens</h3>
+        <p className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">
+          Essa opção está temporariamente indisponível. Entre em contato com o administrador
+          para liberar o acesso à Aplicação em bens.
+        </p>
+        <button
+          onClick={onClose}
+          className="mt-4 w-full rounded-lg bg-white/10 px-3 py-2 text-sm font-semibold text-foreground hover:bg-white/15"
+        >
+          Entendi
+        </button>
       </div>
     </div>
   );

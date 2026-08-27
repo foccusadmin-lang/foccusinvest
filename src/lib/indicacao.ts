@@ -37,6 +37,14 @@ export async function creditarBonusIndicacaoPorCodigo(
   const codigo = codigoIndicador.trim().toUpperCase();
   if (!codigo) return { error: "Informe um código de indicação." };
 
+  const aporteBem = await tx.aplicacao.findUnique({
+    where: { id: aplicacaoId },
+    select: { categoriaBem: true },
+  });
+  if (aporteBem?.categoriaBem) {
+    return { error: "Aporte em bens não gera bônus de indicação — o valor não está na operação." };
+  }
+
   const indicador = await tx.user.findUnique({ where: { codigoIndicacao: codigo } });
   if (!indicador) return { error: "Código de indicação não encontrado." };
   if (indicador.id === aportanteUserId) {
@@ -53,6 +61,9 @@ export async function creditarBonusIndicacaoPorCodigo(
       userId: aportanteUserId,
       origem: "NOVA_APLICACAO",
       status: { in: ["CONFIRMADA", "SAQUE_SOLICITADO", "RETIRADA"] },
+      // Aporte em bens não conta pra essa contagem — não gera bônus, então não pode "ocupar" a
+      // posição de primeiro aporte e bloquear o bônus do primeiro aporte em dinheiro de verdade.
+      categoriaBem: null,
     },
     orderBy: { criadoEm: "asc" },
   });
@@ -94,6 +105,12 @@ export async function creditarBonusIndicacaoPorAporte(
   params: { aplicacaoId: string; aportanteUserId: string; valorAporte: number }
 ): Promise<ResultadoIndicacao & { pulou?: boolean }> {
   const { aplicacaoId, aportanteUserId, valorAporte } = params;
+
+  const aporteBem = await tx.aplicacao.findUnique({
+    where: { id: aplicacaoId },
+    select: { categoriaBem: true },
+  });
+  if (aporteBem?.categoriaBem) return { pulou: true };
 
   const aportante = await tx.user.findUnique({ where: { id: aportanteUserId } });
   if (!aportante?.indicadoPorId) return { pulou: true };

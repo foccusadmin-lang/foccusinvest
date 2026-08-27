@@ -26,6 +26,7 @@ export default async function RestritoConfiguracoesPage() {
           modoBonusIndicacao={configuracao.modoBonusIndicacao}
           modoAprovacaoAporte={configuracao.modoAprovacaoAporte}
           valorMaximoAprovacaoAutomatica={configuracao.valorMaximoAprovacaoAutomatica}
+          aplicacaoBensAtiva={configuracao.aplicacaoBensAtiva}
         />
       </div>
     </div>

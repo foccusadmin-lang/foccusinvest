@@ -740,6 +740,9 @@ export async function listarAportesElegiveisIndicacao(): Promise<AporteElegivelI
       userId: session.user.id,
       origem: "NOVA_APLICACAO",
       status: { in: ["CONFIRMADA", "SAQUE_SOLICITADO", "RETIRADA"] },
+      // Aporte em bens não gera bônus de indicação (o valor não está na operação) — não faz
+      // sentido oferecer a opção de lançar código sobre ele.
+      categoriaBem: null,
     },
     orderBy: { criadoEm: "asc" },
     select: { id: true, valor: true, criadoEm: true },
