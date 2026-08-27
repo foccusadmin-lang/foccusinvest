@@ -2,9 +2,13 @@
 
 import { useActionState, useState, useTransition } from "react";
 import type { ModoProcessamento } from "@prisma/client";
-import { definirModoSaque, definirValorMaximoAprovacaoAutomatica } from "./config-actions";
+import {
+  definirModoSaque,
+  definirValorMaximoAprovacaoAutomatica,
+  definirAplicacaoBensAtiva,
+} from "./config-actions";
 import { MoneyInput } from "@/components/ui/money-input";
-import { IconWallet, IconVerified, IconUsers, IconGift, IconPlus } from "@/components/icons";
+import { IconWallet, IconVerified, IconUsers, IconGift, IconPlus, IconPackage } from "@/components/icons";
 
 type CampoConfig =
   | "modoSaqueCapital"
@@ -78,6 +82,36 @@ function LimiteAporteInput({ valorAtual }: { valorAtual: number }) {
   );
 }
 
+function ToggleAplicacaoBens({ ativa }: { ativa: boolean }) {
+  const [isPending, startTransition] = useTransition();
+
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-sm text-muted">Modo:</span>
+      <div className="flex rounded-lg border border-border bg-surface-2 p-0.5">
+        <button
+          disabled={isPending}
+          onClick={() => startTransition(() => definirAplicacaoBensAtiva(true))}
+          className={`rounded-md px-3 py-1 text-xs font-semibold transition disabled:opacity-50 ${
+            ativa ? "bg-gold text-black" : "text-muted hover:text-foreground"
+          }`}
+        >
+          Ativado
+        </button>
+        <button
+          disabled={isPending}
+          onClick={() => startTransition(() => definirAplicacaoBensAtiva(false))}
+          className={`rounded-md px-3 py-1 text-xs font-semibold transition disabled:opacity-50 ${
+            !ativa ? "bg-gold text-black" : "text-muted hover:text-foreground"
+          }`}
+        >
+          Desativado
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function ControleSaques({
   modoSaqueCapital,
   modoSaqueRendimento,
@@ -86,6 +120,7 @@ export function ControleSaques({
   modoBonusIndicacao,
   modoAprovacaoAporte,
   valorMaximoAprovacaoAutomatica,
+  aplicacaoBensAtiva,
 }: {
   modoSaqueCapital: ModoProcessamento;
   modoSaqueRendimento: ModoProcessamento;
@@ -94,6 +129,7 @@ export function ControleSaques({
   modoBonusIndicacao: ModoProcessamento;
   modoAprovacaoAporte: ModoProcessamento;
   valorMaximoAprovacaoAutomatica: number;
+  aplicacaoBensAtiva: boolean;
 }) {
   return (
     <div className="space-y-3">
@@ -124,6 +160,19 @@ export function ControleSaques({
           acima disso, mesmo no automático, cai pra sua conferência manual em Aportes. No manual,
           todo aporte depende de você conferir o comprovante e clicar em "Aprovar". Aporte em bem
           (imóvel/automóvel/eletrônico) sempre exige sua avaliação manual, em qualquer modo.
+        </p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-6 rounded-2xl border border-fuchsia-500/30 bg-fuchsia-500/10 p-4">
+        <div className="flex items-center gap-2 text-fuchsia-200">
+          <IconPackage width={16} height={16} />
+          <span className="text-sm font-semibold">Aplicação em Bens</span>
+        </div>
+        <ToggleAplicacaoBens ativa={aplicacaoBensAtiva} />
+        <p className="w-full text-xs text-muted">
+          Desativado esconde o formulário: o botão continua visível pro investidor, mas ao
+          clicar aparece um aviso pedindo pra entrar em contato com o administrador. Não afeta
+          aportes em bens já enviados ou em avaliação.
         </p>
       </div>
 

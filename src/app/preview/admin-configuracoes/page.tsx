@@ -17,6 +17,7 @@ export default function PreviewAdminConfiguracoesPage() {
           modoBonusIndicacao="MANUAL"
           modoAprovacaoAporte="MANUAL"
           valorMaximoAprovacaoAutomatica={5000}
+          aplicacaoBensAtiva={true}
         />
       </div>
     </AdminPreviewShell>

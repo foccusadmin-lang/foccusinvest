@@ -63,3 +63,29 @@ export async function definirValorMaximoAprovacaoAutomatica(
   revalidatePath("/restrito/configuracoes");
   return { sucesso: "Limite atualizado." };
 }
+
+/** Liga/desliga o botão de Aplicação em bens (imóvel/automóvel/eletrônico) pro investidor —
+ *  não mexe em aportes em bens já em andamento, só bloqueia novas solicitações enquanto
+ *  desativado (ver AcoesRapidas, no painel do investidor). */
+export async function definirAplicacaoBensAtiva(ativa: boolean) {
+  const session = await auth();
+  if (session?.user?.perfil !== "ADMIN") throw new Error("Acesso negado.");
+
+  await prisma.configuracaoSistema.upsert({
+    where: { id: "default" },
+    create: { id: "default", aplicacaoBensAtiva: ativa },
+    update: { aplicacaoBensAtiva: ativa },
+  });
+
+  await prisma.logAuditoria.create({
+    data: {
+      userId: session.user.id,
+      acao: "definir_aplicacao_bens_ativa",
+      detalhes: String(ativa),
+    },
+  });
+
+  revalidatePath("/restrito/painel");
+  revalidatePath("/restrito/configuracoes");
+  revalidatePath("/painel");
+}

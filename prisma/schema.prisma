@@ -558,6 +558,10 @@ model ConfiguracaoSistema {
   // Teto de valor pra um aporte via Pix se qualificar pra aprovação automática — acima disso,
   // mesmo com o modo Automático ligado, cai pra conferência manual do admin.
   valorMaximoAprovacaoAutomatica Float      @default(5000)
+  // Liga/desliga o botão de Aplicação em bens (imóvel/automóvel/eletrônico) pro investidor. Com
+  // false, o botão continua visível mas, ao clicar, mostra um aviso pra falar com o admin em
+  // vez de abrir o formulário — não afeta aportes em bens já em andamento.
+  aplicacaoBensAtiva      Boolean           @default(true)
   updatedAt               DateTime          @updatedAt
 }
 

@@ -80,6 +80,7 @@ export default async function PainelPage() {
         modoBonusIndicacao: configuracao.modoBonusIndicacao,
         ehLider,
         indicadosDiretos,
+        aplicacaoBensAtiva: configuracao.aplicacaoBensAtiva,
       }}
       resumo={resumo}
       janelaSaqueRendimentoAberta={janelaSaqueRendimentoAberta()}
