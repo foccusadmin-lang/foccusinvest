@@ -40,6 +40,10 @@ Postgres/Prisma do app principal — não usa Supabase Auth/Storage.
   onde atende (pode ser mais de um bairro) em `/marketplace/prestador/regiao`; cliente busca por
   serviço + bairro em `/marketplace/cliente/buscar`, com "não encontrei meu bairro" enviando uma
   sugestão pra aprovação do admin. Não depende de Google Maps — é 100% seleção manual por bairro.
+- **Busca ao vivo**: em `/marketplace/cliente/buscar`, digitar o serviço (ex.: "mecânico") e o
+  bairro (ex.: "Jardim Silveira") e escolher nas sugestões já mostra os prestadores na sequência,
+  sem botão "Pesquisar" — a busca roda direto no Postgres via Server Action, sem nenhuma API
+  externa (sem custo de Google Maps/Places).
 
 Mapa, geolocalização automática, categorias administráveis pelo painel e o fluxo completo de
 solicitação/avaliação pela UI chegam nas próximas fases.

@@ -95,6 +95,15 @@ const CATEGORIAS: CategoriaSeed[] = [
       { nome: "Reforço escolar", slug: "reforco-escolar" },
     ],
   },
+  {
+    nome: "Veículos",
+    slug: "veiculos",
+    icone: "🚗",
+    servicos: [
+      { nome: "Mecânico", slug: "mecanico" },
+      { nome: "Motorista", slug: "motorista" },
+    ],
+  },
 ];
 
 // Lista inicial de bairros de Jandira-SP — NÃO é definitiva (spec "Parte 2", seção 4). Serve só
@@ -176,6 +185,17 @@ const PRESTADORES_DEMO: PrestadorSeed[] = [
     raioAtendimentoKm: 10,
     precoDe: 90,
     verificado: false,
+  },
+  {
+    nome: "[DEMO] Roberto Lima",
+    email: "demo-roberto-lima@foccusservicos.demo",
+    servicoSlug: "mecanico",
+    regiaoPrincipal: "Jardim Silveira",
+    atende: ["Jardim Silveira", "Centro", "Vila Eunice"],
+    descricao: "Mecânico, manutenção geral e revisão de veículos.",
+    raioAtendimentoKm: 8,
+    precoDe: 150,
+    verificado: true,
   },
 ];
 
