@@ -216,6 +216,7 @@ export function PainelDashboard({
           Ações rápidas
         </p>
         <AcoesRapidas
+          primeiroNome={usuario.primeiroNome}
           saldoParaReaplicar={resumo.distribuicoesDisponiveis + resumo.bonusIndicacao}
           bonusDisponivel={resumo.bonusIndicacao}
           janelaSaqueRendimentoAberta={janelaSaqueRendimentoAberta}

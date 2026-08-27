@@ -2,6 +2,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { ChatGuia } from "@/components/painel/chat-guia";
 import { TourGuiado } from "@/components/painel/tour-guiado";
+import { GrupoFoccusModal } from "@/components/painel/grupo-foccus-modal";
 
 /** Layout compartilhado por todas as páginas de /painel — só acrescenta o Guia Foccus (chat) e
  *  o tour guiado por cima do que cada página já renderiza. Não faz nenhum redirect próprio:
@@ -14,6 +15,7 @@ export default async function PainelLayout({ children }: { children: React.React
   let primeiroNome = "investidor(a)";
   let novato = true;
   let tourAtivo = false;
+  let grupoFoccusModalAtivo = false;
 
   if (session?.user?.id) {
     const user = await prisma.user.findUnique({
@@ -37,6 +39,7 @@ export default async function PainelLayout({ children }: { children: React.React
       });
       novato = aportesAnteriores === 0;
       tourAtivo = !user.tourConcluido;
+      grupoFoccusModalAtivo = !user.viuGrupoFoccus;
     }
   }
 
@@ -47,6 +50,7 @@ export default async function PainelLayout({ children }: { children: React.React
         <>
           <ChatGuia primeiroNome={primeiroNome} novato={novato} />
           <TourGuiado ativoInicial={tourAtivo} />
+          <GrupoFoccusModal ativoInicial={grupoFoccusModalAtivo} />
         </>
       )}
     </>

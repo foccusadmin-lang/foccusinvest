@@ -143,6 +143,9 @@ model User {
   statusCadastro StatusCadastro @default(INCOMPLETO)
   senha          String?
   tourConcluido  Boolean        @default(false)
+  // Modal de convite pro Grupo Foccus (WhatsApp) — mostrado uma única vez; marcado como visto
+  // tanto ao clicar em "Acessar grupo" quanto ao fechar a janela (ver GrupoFoccusModal).
+  viuGrupoFoccus Boolean        @default(false)
 
   codigoIndicacao String? @unique
   indicadoPorId   String?
