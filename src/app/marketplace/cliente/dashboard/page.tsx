@@ -1,6 +1,8 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { LinkButton } from "@/components/ui/button";
 import { MARKETPLACE_REGIAO_LABEL } from "@/lib/marketplace/config";
 
 export default async function ClienteDashboardPage() {
@@ -34,17 +36,15 @@ export default async function ClienteDashboardPage() {
 
       <div className="rounded-xl border border-border bg-surface p-5">
         <p className="text-sm font-medium text-foreground">O que você precisa?</p>
-        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-          <div className="flex-1 rounded-lg border border-border bg-surface-2 px-4 py-3 text-sm text-muted">
-            🔎 Digite um serviço (em breve)
-          </div>
-          <div className="flex-1 rounded-lg border border-border bg-surface-2 px-4 py-3 text-sm text-muted">
-            📍 Onde? — {MARKETPLACE_REGIAO_LABEL}
-          </div>
-        </div>
+        <p className="mt-1 text-sm text-muted">
+          Escolha um serviço e um bairro pra ver quem atende sua região.
+        </p>
+        <LinkButton href="/marketplace/cliente/buscar" variant="gold" className="mt-4 w-full">
+          🔎 Buscar serviço
+        </LinkButton>
         <p className="mt-3 text-xs text-muted">
-          A busca por serviço e bairro chega numa próxima etapa, junto com o mapa e o filtro por
-          distância.
+          Mapa e filtro por distância chegam numa próxima etapa — por enquanto, a busca é por
+          bairro.
         </p>
       </div>
 
@@ -75,7 +75,12 @@ export default async function ClienteDashboardPage() {
           Prestadores perto de você
         </h2>
         <div className="mt-3 rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted">
-          A busca de prestadores por região chega na próxima fase — mapa, distância e filtros.
+          Escolha um serviço e um bairro em{" "}
+          <Link href="/marketplace/cliente/buscar" className="text-sky-300 hover:underline">
+            Buscar serviço
+          </Link>{" "}
+          pra ver quem atende sua região. Mapa, distância e localização automática chegam numa
+          próxima etapa.
         </div>
       </div>
 

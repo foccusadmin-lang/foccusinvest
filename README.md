@@ -32,10 +32,17 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 ## Marketplace regional de serviços (Foccus Serviços)
 
 Módulo à parte, em `/marketplace`, reaproveitando o mesmo login (Google/NextAuth) e banco
-Postgres/Prisma do app principal — não usa Supabase Auth/Storage. Fase 1 (MVP inicial): escolha
-de papel (cliente/prestador), banco/roles, dashboards básicos e dados demo. Busca por
-localização, mapa, categorias administráveis e solicitações/avaliações completas chegam nas
-próximas fases.
+Postgres/Prisma do app principal — não usa Supabase Auth/Storage.
+
+- **Fase 1**: escolha de papel (cliente/prestador), banco/roles, dashboards básicos e dados demo.
+- **Sistema de regiões e bairros**: bairros vêm do banco (`Regiao`), nunca fixos no código —
+  admin cadastra/edita/desativa em `/marketplace/admin/regioes`; prestador escolhe onde mora e
+  onde atende (pode ser mais de um bairro) em `/marketplace/prestador/regiao`; cliente busca por
+  serviço + bairro em `/marketplace/cliente/buscar`, com "não encontrei meu bairro" enviando uma
+  sugestão pra aprovação do admin. Não depende de Google Maps — é 100% seleção manual por bairro.
+
+Mapa, geolocalização automática, categorias administráveis pelo painel e o fluxo completo de
+solicitação/avaliação pela UI chegam nas próximas fases.
 
 Variáveis de ambiente (todas opcionais — usam Jandira/SP/BR como padrão se não definidas):
 

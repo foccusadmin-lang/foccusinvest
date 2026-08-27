@@ -11,7 +11,7 @@ const CAMPOS_PERFIL_PRESTADOR = [
   "descricao",
   "telefone",
   "fotoUrl",
-  "bairro",
+  "regiaoPrincipalId",
   "endereco",
   "precoDe",
 ] as const;

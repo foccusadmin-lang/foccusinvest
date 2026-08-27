@@ -2,11 +2,13 @@ import "dotenv/config";
 import { PrismaClient, type PapelMarketplace } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { MARKETPLACE_CITY, MARKETPLACE_STATE } from "../src/lib/marketplace/config";
+import { slugificarRegiao } from "../src/lib/marketplace/regioes";
 
 /**
  * Seed inicial do marketplace regional de serviços (Foccus Serviços) — categorias/profissões
- * (spec seção 10) e alguns prestadores fictícios de Jandira pra dar pra testar a busca e os
- * dashboards antes de existir um cadastro real (spec seção 48). Roda com:
+ * (spec seção 10), bairros iniciais de Jandira (spec "Parte 2", seção 4) e alguns prestadores
+ * fictícios pra dar pra testar a busca por região e os dashboards antes de existir cadastro
+ * real (spec seção 48). Roda com:
  *
  *   npx tsx prisma/seed-marketplace.ts
  *
@@ -95,11 +97,30 @@ const CATEGORIAS: CategoriaSeed[] = [
   },
 ];
 
+// Lista inicial de bairros de Jandira-SP — NÃO é definitiva (spec "Parte 2", seção 4). Serve só
+// pra sair do zero; o admin adiciona, corrige e desativa bairros pelo painel
+// (/marketplace/admin/regioes) sem precisar tocar em código.
+const BAIRROS_INICIAIS_JANDIRA = [
+  "Centro",
+  "Novo Horizonte",
+  "Jardim Silveira",
+  "Vila Eunice",
+  "Jardim Brotinho",
+  "Jardim Alvorada",
+  "Jardim Bandeirantes",
+  "Represa",
+  "Cidade Nova",
+  "Vila São Luiz",
+];
+
 type PrestadorSeed = {
   nome: string;
   email: string;
   servicoSlug: string;
-  bairro: string;
+  // Onde mora (spec seção 26) — pode ser diferente de onde atende.
+  regiaoPrincipal: string;
+  // Onde atende — pode incluir bairros além de onde mora.
+  atende: string[];
   descricao: string;
   raioAtendimentoKm: number;
   precoDe: number;
@@ -113,7 +134,8 @@ const PRESTADORES_DEMO: PrestadorSeed[] = [
     nome: "[DEMO] Ana Souza",
     email: "demo-ana-souza@foccusservicos.demo",
     servicoSlug: "baba",
-    bairro: "Novo Horizonte",
+    regiaoPrincipal: "Novo Horizonte",
+    atende: ["Novo Horizonte", "Centro", "Jardim Silveira"],
     descricao: "Babá experiente, referências de famílias da região.",
     raioAtendimentoKm: 5,
     precoDe: 80,
@@ -123,17 +145,22 @@ const PRESTADORES_DEMO: PrestadorSeed[] = [
     nome: "[DEMO] Carlos Oliveira",
     email: "demo-carlos-oliveira@foccusservicos.demo",
     servicoSlug: "eletricista",
-    bairro: "Centro",
+    regiaoPrincipal: "Centro",
+    atende: ["Centro", "Novo Horizonte", "Jardim Silveira", "Vila Eunice"],
     descricao: "Eletricista, instalações e manutenção residencial.",
     raioAtendimentoKm: 8,
     precoDe: 100,
     verificado: true,
   },
   {
+    // Mora em Jardim Silveira mas também atende Novo Horizonte — cobre de propósito o caso da
+    // spec (seção 9): o cliente que procura em Novo Horizonte precisa achar esse prestador
+    // mesmo ele não morando lá.
     nome: "[DEMO] Maria Santos",
     email: "demo-maria-santos@foccusservicos.demo",
     servicoSlug: "diarista",
-    bairro: "Jardim Silveira",
+    regiaoPrincipal: "Jardim Silveira",
+    atende: ["Jardim Silveira", "Vila Eunice", "Novo Horizonte", "Centro"],
     descricao: "Diarista, limpeza residencial completa.",
     raioAtendimentoKm: 5,
     precoDe: 120,
@@ -143,7 +170,8 @@ const PRESTADORES_DEMO: PrestadorSeed[] = [
     nome: "[DEMO] João Pereira",
     email: "demo-joao-pereira@foccusservicos.demo",
     servicoSlug: "encanador",
-    bairro: "Jardim Alvorada",
+    regiaoPrincipal: "Jardim Alvorada",
+    atende: ["Jardim Alvorada", "Centro", "Vila Eunice", "Jardim Brotinho"],
     descricao: "Encanador, reparos e instalações hidráulicas.",
     raioAtendimentoKm: 10,
     precoDe: 90,
@@ -183,13 +211,43 @@ async function seedCategorias() {
   return servicoIdPorSlug;
 }
 
-async function seedPrestadoresDemo(servicoIdPorSlug: Map<string, string>) {
+async function seedRegioes() {
+  const regiaoIdPorNome = new Map<string, string>();
+
+  for (const nome of BAIRROS_INICIAIS_JANDIRA) {
+    const slug = slugificarRegiao(nome);
+    const regiao = await prisma.regiao.upsert({
+      where: { cidade_slug: { cidade: MARKETPLACE_CITY, slug } },
+      update: { nome },
+      create: {
+        nome,
+        slug,
+        cidade: MARKETPLACE_CITY,
+        estado: MARKETPLACE_STATE,
+      },
+    });
+    regiaoIdPorNome.set(nome, regiao.id);
+  }
+
+  console.log(`✓ ${regiaoIdPorNome.size} bairros em ${MARKETPLACE_CITY}-${MARKETPLACE_STATE}.`);
+  return regiaoIdPorNome;
+}
+
+async function seedPrestadoresDemo(
+  servicoIdPorSlug: Map<string, string>,
+  regiaoIdPorNome: Map<string, string>
+) {
   const papelPrestador: PapelMarketplace = "PRESTADOR";
 
   for (const dados of PRESTADORES_DEMO) {
     const servicoId = servicoIdPorSlug.get(dados.servicoSlug);
     if (!servicoId) {
       console.warn(`⚠ Serviço "${dados.servicoSlug}" não encontrado — pulando ${dados.nome}.`);
+      continue;
+    }
+    const regiaoPrincipalId = regiaoIdPorNome.get(dados.regiaoPrincipal);
+    if (!regiaoPrincipalId) {
+      console.warn(`⚠ Bairro "${dados.regiaoPrincipal}" não encontrado — pulando ${dados.nome}.`);
       continue;
     }
 
@@ -203,31 +261,22 @@ async function seedPrestadoresDemo(servicoIdPorSlug: Map<string, string>) {
       },
     });
 
+    const dadosPerfil = {
+      nomeProfissional: dados.nome,
+      descricao: dados.descricao,
+      regiaoPrincipalId,
+      cidade: MARKETPLACE_CITY,
+      estado: MARKETPLACE_STATE,
+      raioAtendimentoKm: dados.raioAtendimentoKm,
+      precoDe: dados.precoDe,
+      verificado: dados.verificado,
+      ativo: true,
+    };
+
     const perfil = await prisma.perfilPrestador.upsert({
       where: { userId: user.id },
-      update: {
-        nomeProfissional: dados.nome,
-        descricao: dados.descricao,
-        bairro: dados.bairro,
-        cidade: MARKETPLACE_CITY,
-        estado: MARKETPLACE_STATE,
-        raioAtendimentoKm: dados.raioAtendimentoKm,
-        precoDe: dados.precoDe,
-        verificado: dados.verificado,
-        ativo: true,
-      },
-      create: {
-        userId: user.id,
-        nomeProfissional: dados.nome,
-        descricao: dados.descricao,
-        bairro: dados.bairro,
-        cidade: MARKETPLACE_CITY,
-        estado: MARKETPLACE_STATE,
-        raioAtendimentoKm: dados.raioAtendimentoKm,
-        precoDe: dados.precoDe,
-        verificado: dados.verificado,
-        ativo: true,
-      },
+      update: dadosPerfil,
+      create: { userId: user.id, ...dadosPerfil },
     });
 
     await prisma.prestadorServico.upsert({
@@ -235,6 +284,19 @@ async function seedPrestadoresDemo(servicoIdPorSlug: Map<string, string>) {
       update: {},
       create: { prestadorId: perfil.id, servicoId },
     });
+
+    for (const nomeBairro of dados.atende) {
+      const regiaoId = regiaoIdPorNome.get(nomeBairro);
+      if (!regiaoId) {
+        console.warn(`⚠ Bairro "${nomeBairro}" não encontrado — pulando pra ${dados.nome}.`);
+        continue;
+      }
+      await prisma.prestadorRegiao.upsert({
+        where: { prestadorId_regiaoId: { prestadorId: perfil.id, regiaoId } },
+        update: {},
+        create: { prestadorId: perfil.id, regiaoId },
+      });
+    }
   }
 
   console.log(`✓ ${PRESTADORES_DEMO.length} prestadores demo em ${MARKETPLACE_CITY}-${MARKETPLACE_STATE}.`);
@@ -242,7 +304,8 @@ async function seedPrestadoresDemo(servicoIdPorSlug: Map<string, string>) {
 
 async function main() {
   const servicoIdPorSlug = await seedCategorias();
-  await seedPrestadoresDemo(servicoIdPorSlug);
+  const regiaoIdPorNome = await seedRegioes();
+  await seedPrestadoresDemo(servicoIdPorSlug, regiaoIdPorNome);
 }
 
 main()

@@ -175,15 +175,17 @@ model User {
   liberacoesEmergenciaisCriadas    LiberacaoEmergencial[] @relation("LiberacaoEmergencialCriadaPor")
   liberacoesEmergenciaisCanceladas LiberacaoEmergencial[] @relation("LiberacaoEmergencialCanceladaPor")
 
-  mensagensGuia MensagemGuia[]
+  mensagensGuia   MensagemGuia[]
   faqsGuiaCriadas FaqGuia[]
 
   // Marketplace regional de serviços (Foccus Serviços) — mesmo login, papel à parte do
   // `perfil` de investidor. Null até a pessoa escolher "Sou cliente"/"Sou prestador".
-  papelMarketplace        PapelMarketplace?
-  perfilPrestador         PerfilPrestador?
-  solicitacoesComoCliente SolicitacaoServico[]  @relation("SolicitacaoCliente")
-  avaliacoesFeitas        AvaliacaoServico[]    @relation("AvaliacaoCliente")
+  papelMarketplace         PapelMarketplace?
+  perfilPrestador          PerfilPrestador?
+  solicitacoesComoCliente  SolicitacaoServico[] @relation("SolicitacaoCliente")
+  avaliacoesFeitas         AvaliacaoServico[]   @relation("AvaliacaoCliente")
+  sugestoesRegiaoEnviadas  SugestaoRegiao[]     @relation("SugestaoRegiaoEnviadaPor")
+  sugestoesRegiaoRevisadas SugestaoRegiao[]     @relation("SugestaoRegiaoRevisadaPor")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -540,8 +542,10 @@ model EstrategiaOperacao {
   pontos PontoEstrategia[]
 }
 
-/** Variação percentual de um dia específico da estratégia — a soma acumulada desses pontos (em
- *  ordem cronológica) é o que forma o gráfico "Comparativo" e o "Acumulado" da vitrine. */
+/**
+ * Variação percentual de um dia específico da estratégia — a soma acumulada desses pontos (em
+ * ordem cronológica) é o que forma o gráfico "Comparativo" e o "Acumulado" da vitrine.
+ */
 model PontoEstrategia {
   id           String             @id @default(cuid())
   estrategiaId String
@@ -555,17 +559,17 @@ model PontoEstrategia {
 }
 
 model ConfiguracaoSistema {
-  id                      String            @id @default("default")
-  modoSaqueCapital        ModoProcessamento @default(MANUAL)
-  modoSaqueRendimento     ModoProcessamento @default(MANUAL)
-  modoVerificacaoCadastro ModoProcessamento @default(MANUAL)
-  modoIncentivoLideranca  ModoProcessamento @default(MANUAL)
-  modoBonusIndicacao      ModoProcessamento @default(MANUAL)
-  modoAprovacaoAporte     ModoProcessamento @default(MANUAL)
+  id                             String            @id @default("default")
+  modoSaqueCapital               ModoProcessamento @default(MANUAL)
+  modoSaqueRendimento            ModoProcessamento @default(MANUAL)
+  modoVerificacaoCadastro        ModoProcessamento @default(MANUAL)
+  modoIncentivoLideranca         ModoProcessamento @default(MANUAL)
+  modoBonusIndicacao             ModoProcessamento @default(MANUAL)
+  modoAprovacaoAporte            ModoProcessamento @default(MANUAL)
   // Teto de valor pra um aporte via Pix se qualificar pra aprovação automática — acima disso,
   // mesmo com o modo Automático ligado, cai pra conferência manual do admin.
-  valorMaximoAprovacaoAutomatica Float      @default(5000)
-  updatedAt               DateTime          @updatedAt
+  valorMaximoAprovacaoAutomatica Float             @default(5000)
+  updatedAt                      DateTime          @updatedAt
 }
 
 model LogAuditoria {
@@ -583,9 +587,11 @@ enum PapelMensagemGuia {
   MODEL
 }
 
-/** Histórico persistido de cada mensagem trocada com o Guia Foccus (assistente Gemini) — dá
- *  continuidade ao chat entre sessões e é a base pra identificar dúvidas recorrentes (mesmo
- *  tópico perguntado várias vezes) e pro admin acompanhar as perguntas mais frequentes. */
+/**
+ * Histórico persistido de cada mensagem trocada com o Guia Foccus (assistente Gemini) — dá
+ * continuidade ao chat entre sessões e é a base pra identificar dúvidas recorrentes (mesmo
+ * tópico perguntado várias vezes) e pro admin acompanhar as perguntas mais frequentes.
+ */
 model MensagemGuia {
   id       String            @id @default(cuid())
   userId   String
@@ -599,17 +605,19 @@ model MensagemGuia {
   @@index([topico])
 }
 
-/** FAQ curada pelo admin — respostas fixas por tópico que o admin revisa a partir das perguntas
- *  mais frequentes (ver /restrito/guia) e que entram no contexto do Gemini, pra padronizar a
- *  resposta de dúvidas recorrentes em vez de depender só do que o modelo geraria sozinho. */
+/**
+ * FAQ curada pelo admin — respostas fixas por tópico que o admin revisa a partir das perguntas
+ * mais frequentes (ver /restrito/guia) e que entram no contexto do Gemini, pra padronizar a
+ * resposta de dúvidas recorrentes em vez de depender só do que o modelo geraria sozinho.
+ */
 model FaqGuia {
-  id          String   @id @default(cuid())
-  topico      String
-  pergunta    String
-  resposta    String
-  criadoPorId String
-  criadoPor   User     @relation(fields: [criadoPorId], references: [id])
-  criadoEm    DateTime @default(now())
+  id           String   @id @default(cuid())
+  topico       String
+  pergunta     String
+  resposta     String
+  criadoPorId  String
+  criadoPor    User     @relation(fields: [criadoPorId], references: [id])
+  criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
 }
 
@@ -686,7 +694,9 @@ model CategoriaServico {
   servicos Servico[]
 }
 
-/** Profissão/serviço oferecido no marketplace (ex: Babá, Eletricista), dentro de uma categoria. */
+/**
+ * Profissão/serviço oferecido no marketplace (ex: Babá, Eletricista), dentro de uma categoria.
+ */
 model Servico {
   id          String           @id @default(cuid())
   categoriaId String
@@ -718,13 +728,18 @@ model PerfilPrestador {
 
   cidade            String
   estado            String
-  bairro            String?
   endereco          String?
   latitude          Float?
   longitude         Float?
   raioAtendimentoKm Float   @default(5)
 
-  precoDe Float?
+  // Bairro onde o prestador mora — distinto de onde ele ATENDE (regioesAtendidas, abaixo). O
+  // cliente encontra o prestador pela região que ele atende, não só pela que ele mora (spec
+  // "Parte 2", seção 26).
+  regiaoPrincipalId String?
+  regiaoPrincipal   Regiao? @relation("PrestadorRegiaoPrincipal", fields: [regiaoPrincipalId], references: [id])
+
+  precoDe  Float?
   precoAte Float?
 
   // Aprovação/selo do admin (seção 41) — não bloqueia o uso, só o selo "verificado".
@@ -736,11 +751,14 @@ model PerfilPrestador {
   atualizadoEm DateTime @updatedAt
 
   servicos              PrestadorServico[]
+  regioesAtendidas      PrestadorRegiao[]
   solicitacoesRecebidas SolicitacaoServico[]
   avaliacoesRecebidas   AvaliacaoServico[]
 }
 
-/** Relaciona um prestador com os serviços que ele oferece — um prestador pode ter mais de um. */
+/**
+ * Relaciona um prestador com os serviços que ele oferece — um prestador pode ter mais de um.
+ */
 model PrestadorServico {
   id          String          @id @default(cuid())
   prestadorId String
@@ -752,7 +770,9 @@ model PrestadorServico {
   @@unique([prestadorId, servicoId])
 }
 
-/** Solicitação de serviço feita por um cliente a um prestador específico. */
+/**
+ * Solicitação de serviço feita por um cliente a um prestador específico.
+ */
 model SolicitacaoServico {
   id          String          @id @default(cuid())
   clienteId   String
@@ -761,10 +781,11 @@ model SolicitacaoServico {
   prestador   PerfilPrestador @relation(fields: [prestadorId], references: [id], onDelete: Cascade)
   servicoId   String
   servico     Servico         @relation(fields: [servicoId], references: [id])
+  regiaoId    String
+  regiao      Regiao          @relation(fields: [regiaoId], references: [id])
 
   descricao String?
   endereco  String?
-  bairro    String?
   cidade    String
   latitude  Float?
   longitude Float?
@@ -776,7 +797,9 @@ model SolicitacaoServico {
   avaliacao AvaliacaoServico?
 }
 
-/** Avaliação do cliente sobre o prestador, feita após uma solicitação concluída. */
+/**
+ * Avaliação do cliente sobre o prestador, feita após uma solicitação concluída.
+ */
 model AvaliacaoServico {
   id            String             @id @default(cuid())
   clienteId     String
@@ -789,4 +812,78 @@ model AvaliacaoServico {
   nota       Int
   comentario String?
   criadoEm   DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Sistema de regiões e bairros ("Parte 2") — bairros são DADOS, nunca fixos no código. Cidade
+// vem embutida em cada região (em vez de uma tabela `cities` à parte) porque hoje só Jandira
+// está ativa; adicionar outra cidade no futuro é só cadastrar regiões com outra `cidade`, sem
+// mudar esse schema (spec seção 27/28). Não depende do Google Maps — Maps é aprimoramento
+// futuro, não pré-requisito do MVP (seção 29).
+// ---------------------------------------------------------------------------
+
+enum StatusSugestaoRegiao {
+  PENDENTE
+  APROVADA
+  REJEITADA
+}
+
+/**
+ * Bairro/região dentro de uma cidade atendida. Único por (cidade, slug) — "Novo Horizonte" e
+ * "novo horizonte" caem no mesmo slug e não podem duplicar (spec seção 17).
+ */
+model Regiao {
+  id           String   @id @default(cuid())
+  nome         String
+  slug         String
+  cidade       String
+  estado       String
+  pais         String   @default("BR")
+  ativo        Boolean  @default(true)
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  prestadoresQueMoram   PerfilPrestador[]    @relation("PrestadorRegiaoPrincipal")
+  prestadoresQueAtendem PrestadorRegiao[]
+  solicitacoes          SolicitacaoServico[]
+
+  @@unique([cidade, slug])
+}
+
+/**
+ * Bairros que um prestador atende — pode ser mais de um, e não precisa incluir o bairro onde
+ * ele mora (PerfilPrestador.regiaoPrincipal). Base do match cliente↔prestador por região.
+ */
+model PrestadorRegiao {
+  id          String          @id @default(cuid())
+  prestadorId String
+  prestador   PerfilPrestador @relation(fields: [prestadorId], references: [id], onDelete: Cascade)
+  regiaoId    String
+  regiao      Regiao          @relation(fields: [regiaoId], references: [id], onDelete: Cascade)
+  criadoEm    DateTime        @default(now())
+
+  @@unique([prestadorId, regiaoId])
+}
+
+/**
+ * Bairro sugerido por um cliente/prestador que não achou o seu na lista ("Não encontrei meu
+ * bairro" — seção 11/12). NUNCA vira região oficial automaticamente; fica pendente até o admin
+ * aprovar (cria a Regiao de verdade) ou rejeitar.
+ */
+model SugestaoRegiao {
+  id     String @id @default(cuid())
+  nome   String
+  cidade String
+  estado String
+
+  enviadoPorId String
+  enviadoPor   User   @relation("SugestaoRegiaoEnviadaPor", fields: [enviadoPorId], references: [id], onDelete: Cascade)
+
+  status StatusSugestaoRegiao @default(PENDENTE)
+
+  revisadoPorId String?
+  revisadoPor   User?     @relation("SugestaoRegiaoRevisadaPor", fields: [revisadoPorId], references: [id])
+  revisadoEm    DateTime?
+
+  criadoEm DateTime @default(now())
 }

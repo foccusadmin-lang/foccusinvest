@@ -1,3 +1,5 @@
+import { normalizarTexto } from "./texto";
+
 /**
  * Configuração regional do marketplace (Foccus Serviços) — MVP restrito a uma única cidade.
  * Lida de env pra poder trocar de cidade num deploy futuro sem alterar código (ver seção 21 do
@@ -20,11 +22,5 @@ export const MARKETPLACE_FORA_DA_REGIAO_MSG = `Este aplicativo está disponível
  */
 export function cidadeAtendida(cidade: string | null | undefined): boolean {
   if (!cidade) return false;
-  const normalizar = (valor: string) =>
-    valor
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .trim()
-      .toLowerCase();
-  return normalizar(cidade) === normalizar(MARKETPLACE_CITY);
+  return normalizarTexto(cidade) === normalizarTexto(MARKETPLACE_CITY);
 }

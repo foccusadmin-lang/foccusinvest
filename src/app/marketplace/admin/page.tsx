@@ -2,7 +2,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { LinkButton } from "@/components/ui/button";
 import { IconShield } from "@/components/icons";
-import { MARKETPLACE_REGIAO_LABEL } from "@/lib/marketplace/config";
+import { MARKETPLACE_CITY, MARKETPLACE_REGIAO_LABEL } from "@/lib/marketplace/config";
 
 export default async function MarketplaceAdminPage() {
   const session = await auth();
@@ -42,6 +42,9 @@ export default async function MarketplaceAdminPage() {
     totalSolicitacoes,
     solicitacoesPendentes,
     avaliacoes,
+    totalRegioes,
+    regioesAtivas,
+    sugestoesPendentes,
   ] = await Promise.all([
     prisma.user.count({ where: { papelMarketplace: "CLIENTE" } }),
     prisma.user.count({ where: { papelMarketplace: "PRESTADOR" } }),
@@ -52,6 +55,9 @@ export default async function MarketplaceAdminPage() {
     prisma.solicitacaoServico.count(),
     prisma.solicitacaoServico.count({ where: { status: "PENDENTE" } }),
     prisma.avaliacaoServico.aggregate({ _avg: { nota: true }, _count: true }),
+    prisma.regiao.count({ where: { cidade: MARKETPLACE_CITY } }),
+    prisma.regiao.count({ where: { cidade: MARKETPLACE_CITY, ativo: true } }),
+    prisma.sugestaoRegiao.count({ where: { status: "PENDENTE" } }),
   ]);
 
   return (
@@ -68,6 +74,11 @@ export default async function MarketplaceAdminPage() {
           valor={totalPrestadores}
           detalhe={`${prestadoresAtivos} ativos · ${prestadoresVerificados} verificados`}
         />
+        <Card
+          titulo="Bairros"
+          valor={totalRegioes}
+          detalhe={`${regioesAtivas} ativos${sugestoesPendentes > 0 ? ` · ${sugestoesPendentes} sugestões pendentes` : ""}`}
+        />
         <Card titulo="Categorias" valor={totalCategorias} />
         <Card titulo="Serviços" valor={totalServicos} />
         <Card
@@ -80,6 +91,12 @@ export default async function MarketplaceAdminPage() {
           valor={avaliacoes._count}
           detalhe={avaliacoes._avg.nota ? `média ⭐ ${avaliacoes._avg.nota.toFixed(1)}` : undefined}
         />
+      </div>
+
+      <div>
+        <LinkButton href="/marketplace/admin/regioes" variant="outline">
+          📍 Gerenciar bairros/regiões
+        </LinkButton>
       </div>
 
       <div className="rounded-xl border border-dashed border-border p-6 text-sm text-muted">
