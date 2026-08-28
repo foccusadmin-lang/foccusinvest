@@ -62,7 +62,12 @@ export async function lancarDistribuicao(
 
   revalidatePath("/restrito/distribuicoes");
   revalidatePath("/restrito/painel");
-  return { sucesso: "Distribuição lançada. O pagamento será diluído automaticamente ao longo do período." };
+  revalidatePath("/restrito/estrategia");
+  revalidatePath("/painel");
+  return {
+    sucesso:
+      "Distribuição lançada. O pagamento será diluído automaticamente ao longo do período, e a variação já entrou na Vitrine de Operação (Estratégia WEM) na data de início.",
+  };
 }
 
 /**

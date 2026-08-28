@@ -73,6 +73,28 @@ export async function criarDistribuicao(params: {
         valorTotalCota: u.capital * (percentual / 100),
       })),
     });
+
+    // Lança automaticamente a variação do dia na Vitrine de Operação (Estratégia WEM), com a
+    // mesma data de início e o mesmo percentual da distribuição — o admin não precisa mais
+    // lançar de novo em Vitrine de Operação. Se já existir um ponto nessa data, substitui (igual
+    // ao lançamento manual). Não bloqueia a distribuição se ainda não houver estratégia ativa
+    // cadastrada — só não lança o ponto.
+    const estrategiaAtiva = await tx.estrategiaOperacao.findFirst({
+      where: { ativa: true },
+      orderBy: { criadoEm: "desc" },
+    });
+    if (estrategiaAtiva) {
+      // Reconstrói a data ao meio-dia em Brasília (mesma convenção do lançamento manual em
+      // Vitrine de Operação) — evita que o dia "escorregue" pro dia anterior por causa do
+      // fuso horário, já que `periodoInicio` chega como meia-noite UTC.
+      const dataTexto = periodoInicio.toISOString().slice(0, 10);
+      const dataPonto = new Date(`${dataTexto}T12:00:00-03:00`);
+      await tx.pontoEstrategia.upsert({
+        where: { estrategiaId_data: { estrategiaId: estrategiaAtiva.id, data: dataPonto } },
+        create: { estrategiaId: estrategiaAtiva.id, data: dataPonto, variacaoDia: percentual },
+        update: { variacaoDia: percentual },
+      });
+    }
   });
 }
 

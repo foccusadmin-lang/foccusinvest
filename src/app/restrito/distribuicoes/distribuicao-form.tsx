@@ -45,7 +45,9 @@ export function DistribuicaoForm() {
         <span className="mt-1 block text-xs text-muted">
           Cada investidor recebe esse percentual sobre o próprio capital (ex: 3% = R$30 para
           quem tem R$1.000). O sistema só dilui o pagamento em fatias diárias ao longo do
-          período — o percentual não muda depois de lançado.
+          período — o percentual não muda depois de lançado. Esse mesmo percentual e a data de
+          início também entram automaticamente como a variação do dia na Vitrine de Operação
+          (Estratégia WEM) — não precisa lançar de novo lá.
         </span>
       </label>
 
