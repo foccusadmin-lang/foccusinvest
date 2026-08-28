@@ -291,7 +291,7 @@ export function AcoesRapidas({
       )}
       {aberto === "aplicacao-bem" && <AporteBemModal onClose={() => setAberto(null)} />}
       {aberto === "aplicacao-bem-bloqueada" && (
-        <AplicacaoBemBloqueadaModal onClose={() => setAberto(null)} />
+        <AplicacaoBemBloqueadaModal onClose={() => setAberto(null)} primeiroNome={primeiroNome} />
       )}
       {aberto === "saque-emergencia" && liberacaoEmergencial && (
         <SaqueEmergenciaModal
@@ -595,7 +595,15 @@ function NovaAplicacaoModal({
   );
 }
 
-function AplicacaoBemBloqueadaModal({ onClose }: { onClose: () => void }) {
+function AplicacaoBemBloqueadaModal({
+  onClose,
+  primeiroNome,
+}: {
+  onClose: () => void;
+  primeiroNome: string;
+}) {
+  const mensagem = `Olá! Me chamo ${primeiroNome}, gostaria de liberar o acesso à Aplicação em bens.`;
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
@@ -610,9 +618,17 @@ function AplicacaoBemBloqueadaModal({ onClose }: { onClose: () => void }) {
           Essa opção está temporariamente indisponível. Entre em contato com o administrador
           para liberar o acesso à Aplicação em bens.
         </p>
+        <a
+          href={`https://wa.me/${TELEFONE_ATENDIMENTO_ADMIN}?text=${encodeURIComponent(mensagem)}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-500 px-3 py-2 text-sm font-semibold text-black hover:brightness-110"
+        >
+          <IconHeadset width={16} height={16} /> Suporte ADM
+        </a>
         <button
           onClick={onClose}
-          className="mt-4 w-full rounded-lg bg-white/10 px-3 py-2 text-sm font-semibold text-foreground hover:bg-white/15"
+          className="mt-2 w-full rounded-lg bg-white/10 px-3 py-2 text-sm font-semibold text-foreground hover:bg-white/15"
         >
           Entendi
         </button>
