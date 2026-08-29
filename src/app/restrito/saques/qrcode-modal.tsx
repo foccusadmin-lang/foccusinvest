@@ -121,10 +121,21 @@ export function FilaQrCodeModal({
           {dados.status === "SOLICITADO" && (
             <button
               disabled={isPending}
-              onClick={() => confirmarEAvancar(() => aprovarSaque(dados.saqueId))}
-              className="w-full rounded-lg bg-sky-500 px-3 py-2.5 text-sm font-semibold text-black hover:brightness-110 disabled:opacity-50"
+              onClick={() =>
+                confirmarEAvancar(async () => {
+                  // Aprovar (debita/reserva o saldo) e já confirmar como pago em sequência —
+                  // só chega aqui depois que o admin já mandou o Pix de verdade no banco.
+                  await aprovarSaque(dados.saqueId);
+                  await marcarSaquePago(dados.saqueId);
+                })
+              }
+              className="w-full rounded-lg bg-emerald-500 px-3 py-2.5 text-sm font-semibold text-black hover:brightness-110 disabled:opacity-50"
             >
-              {isPending ? "Aprovando..." : proximo ? "Aprovar e ir para o próximo Pix" : "Aprovar"}
+              {isPending
+                ? "Confirmando..."
+                : proximo
+                  ? "Já paguei — aprovar e marcar como pago, ir para o próximo"
+                  : "Já paguei — aprovar e marcar como pago"}
             </button>
           )}
           {dados.status === "AGUARDANDO_PAGAMENTO" && (
