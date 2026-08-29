@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import type { StatusSaque, TipoSaque } from "@prisma/client";
 import { formatMoeda, formatData } from "@/lib/format";
 import { SaqueActions } from "./saque-actions";
-import { AmpliarQrCodeButton } from "./qrcode-modal";
+import { AmpliarQrCodeButton, FilaQrCodeModal, type DadosQrCodeModal } from "./qrcode-modal";
 import { LABEL_TIPO_CHAVE_PIX, type TipoChavePixForm } from "@/lib/pix-chave";
 import { calcularTotaisSaque } from "@/lib/saques-totais";
 
@@ -67,6 +67,21 @@ function sextaDeStr(data: Date | null): string {
   return data.toISOString().slice(0, 10);
 }
 
+function paraDadosQr(s: SaqueLinha): DadosQrCodeModal | null {
+  if (!s.pixTxid || !s.pixPayload || !s.chavePixNormalizada || !s.chavePixTipo) return null;
+  return {
+    saqueId: s.id,
+    investidorNome: s.investidorNome ?? s.user.name ?? s.user.email,
+    valor: s.valor,
+    moeda: s.moeda,
+    chavePixNormalizada: s.chavePixNormalizada,
+    chavePixTipo: s.chavePixTipo,
+    pixTxid: s.pixTxid,
+    pixPayload: s.pixPayload,
+    status: s.status,
+  };
+}
+
 export function SaquesTable({
   pendentes,
   historico,
@@ -79,6 +94,8 @@ export function SaquesTable({
   const [filtroStatus, setFiltroStatus] = useState<"" | StatusSaque>("");
   const [filtroData, setFiltroData] = useState("");
   const [filtroSexta, setFiltroSexta] = useState("");
+  const [qrFilaOrigem, setQrFilaOrigem] = useState<"pendentes" | "historico" | null>(null);
+  const [qrAbertoId, setQrAbertoId] = useState<string | null>(null);
 
   const todos = useMemo(() => [...pendentes, ...historico], [pendentes, historico]);
 
@@ -123,6 +140,21 @@ export function SaquesTable({
   ]);
 
   const totais = useMemo(() => calcularTotaisSaque(pendentesFiltrados), [pendentesFiltrados]);
+
+  const filaPendentesComQr = useMemo(
+    () => pendentesFiltrados.map(paraDadosQr).filter((d): d is DadosQrCodeModal => d !== null),
+    [pendentesFiltrados]
+  );
+  const filaHistoricoComQr = useMemo(
+    () => historicoFiltrados.map(paraDadosQr).filter((d): d is DadosQrCodeModal => d !== null),
+    [historicoFiltrados]
+  );
+  const filaQrAtiva = qrFilaOrigem === "historico" ? filaHistoricoComQr : filaPendentesComQr;
+
+  function abrirQr(origem: "pendentes" | "historico", id: string) {
+    setQrFilaOrigem(origem);
+    setQrAbertoId(id);
+  }
 
   return (
     <>
@@ -230,11 +262,27 @@ export function SaquesTable({
       )}
 
       <div className="mt-4">
-        <Tabela titulo="Pendentes" saques={pendentesFiltrados} vazio="Nenhuma solicitação pendente." />
+        <Tabela
+          titulo="Pendentes"
+          saques={pendentesFiltrados}
+          vazio="Nenhuma solicitação pendente."
+          onAbrirQr={(id) => abrirQr("pendentes", id)}
+        />
       </div>
       <div className="mt-8">
-        <Tabela titulo="Histórico" saques={historicoFiltrados} vazio="Nenhum saque encontrado." />
+        <Tabela
+          titulo="Histórico"
+          saques={historicoFiltrados}
+          vazio="Nenhum saque encontrado."
+          onAbrirQr={(id) => abrirQr("historico", id)}
+        />
       </div>
+
+      <FilaQrCodeModal
+        fila={filaQrAtiva}
+        aberto={qrAbertoId}
+        onMudarAberto={setQrAbertoId}
+      />
     </>
   );
 }
@@ -252,10 +300,12 @@ function Tabela({
   titulo,
   saques,
   vazio,
+  onAbrirQr,
 }: {
   titulo: string;
   saques: SaqueLinha[];
   vazio: string;
+  onAbrirQr: (id: string) => void;
 }) {
   return (
     <div>
@@ -348,18 +398,7 @@ function Tabela({
                   <td className="px-4 py-3">
                     <div className="flex flex-col items-start gap-2">
                       {s.pixTxid && s.pixPayload && s.chavePixNormalizada && s.chavePixTipo && (
-                        <AmpliarQrCodeButton
-                          dados={{
-                            saqueId: s.id,
-                            investidorNome: s.investidorNome ?? s.user.name ?? s.user.email,
-                            valor: s.valor,
-                            moeda: s.moeda,
-                            chavePixNormalizada: s.chavePixNormalizada,
-                            chavePixTipo: s.chavePixTipo,
-                            pixTxid: s.pixTxid,
-                            pixPayload: s.pixPayload,
-                          }}
-                        />
+                        <AmpliarQrCodeButton onAbrir={() => onAbrirQr(s.id)} />
                       )}
                       <SaqueActions saqueId={s.id} status={s.status} />
                     </div>

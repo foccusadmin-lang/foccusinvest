@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { formatMoeda, formatData } from "@/lib/format";
+import { useState, useTransition } from "react";
+import type { StatusSaque } from "@prisma/client";
+import { formatMoeda } from "@/lib/format";
 import { LABEL_TIPO_CHAVE_PIX, type TipoChavePixForm } from "@/lib/pix-chave";
+import { aprovarSaque, marcarSaquePago } from "./actions";
 
 export type DadosQrCodeModal = {
   saqueId: string;
@@ -13,26 +15,42 @@ export type DadosQrCodeModal = {
   chavePixTipo: TipoChavePixForm;
   pixTxid: string;
   pixPayload: string;
+  status: StatusSaque;
 };
 
-export function AmpliarQrCodeButton({ dados }: { dados: DadosQrCodeModal }) {
-  const [aberto, setAberto] = useState(false);
-
+export function AmpliarQrCodeButton({ onAbrir }: { onAbrir: () => void }) {
   return (
-    <>
-      <button
-        onClick={() => setAberto(true)}
-        className="rounded-lg bg-gold/15 px-3 py-1 text-xs font-semibold text-gold-light hover:bg-gold/25"
-      >
-        Ampliar QR Code
-      </button>
-      {aberto && <QrCodeModal dados={dados} onClose={() => setAberto(false)} />}
-    </>
+    <button
+      onClick={onAbrir}
+      className="rounded-lg bg-gold/15 px-3 py-1 text-xs font-semibold text-gold-light hover:bg-gold/25"
+    >
+      Ampliar QR Code
+    </button>
   );
 }
 
-function QrCodeModal({ dados, onClose }: { dados: DadosQrCodeModal; onClose: () => void }) {
+/** Modal do QR Code com fila: abre no item clicado e, depois de Aprovar/Marcar como pago, avança
+ *  sozinho pro próximo pendente com QR Code — sem precisar fechar e reabrir a cada um. `fila` é a
+ *  lista completa (na ordem exibida na tabela); `aberto` é o id do item atualmente mostrado. */
+export function FilaQrCodeModal({
+  fila,
+  aberto,
+  onMudarAberto,
+}: {
+  fila: DadosQrCodeModal[];
+  aberto: string | null;
+  onMudarAberto: (id: string | null) => void;
+}) {
   const [copiado, setCopiado] = useState(false);
+  const [isPending, startTransition] = useTransition();
+  const [erro, setErro] = useState<string | null>(null);
+
+  if (!aberto) return null;
+  const indice = fila.findIndex((d) => d.saqueId === aberto);
+  const dados = fila[indice];
+  if (!dados) return null;
+  const proximo = fila[indice + 1] ?? null;
+  const restantes = fila.length - indice - 1;
 
   function copiarPayload() {
     navigator.clipboard.writeText(dados.pixPayload).then(() => {
@@ -41,15 +59,32 @@ function QrCodeModal({ dados, onClose }: { dados: DadosQrCodeModal; onClose: () 
     });
   }
 
+  function confirmarEAvancar(acao: () => Promise<void>) {
+    setErro(null);
+    startTransition(async () => {
+      try {
+        await acao();
+        onMudarAberto(proximo?.saqueId ?? null);
+      } catch (e) {
+        setErro((e as Error).message || "Não foi possível concluir. Tente novamente.");
+      }
+    });
+  }
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
-      onClick={onClose}
+      onClick={() => onMudarAberto(null)}
     >
       <div
         className="max-h-[92vh] w-full max-w-sm overflow-y-auto rounded-2xl border border-border bg-surface p-6 text-center shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
+        {restantes > 0 && (
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
+            Mais {restantes} na fila depois desta
+          </p>
+        )}
         <h3 className="text-lg font-semibold text-foreground">{dados.investidorNome}</h3>
         <p className="mt-1 text-2xl font-bold text-gold-light">{formatMoeda(dados.valor, dados.moeda as "BRL")}</p>
 
@@ -77,11 +112,35 @@ function QrCodeModal({ dados, onClose }: { dados: DadosQrCodeModal; onClose: () 
 
         <p className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-left text-xs text-amber-200">
           Confira no aplicativo do banco o nome do favorecido, a chave Pix e o valor antes de
-          confirmar o pagamento. Escanear o QR Code não significa que o saque foi pago — marque
-          como pago só depois de confirmar o envio no banco.
+          confirmar o pagamento. Escanear o QR Code não significa que o saque foi pago.
         </p>
 
+        {erro && <p className="mt-3 text-xs text-red-400">{erro}</p>}
+
         <div className="mt-4 flex flex-col gap-2">
+          {dados.status === "SOLICITADO" && (
+            <button
+              disabled={isPending}
+              onClick={() => confirmarEAvancar(() => aprovarSaque(dados.saqueId))}
+              className="w-full rounded-lg bg-sky-500 px-3 py-2.5 text-sm font-semibold text-black hover:brightness-110 disabled:opacity-50"
+            >
+              {isPending ? "Aprovando..." : proximo ? "Aprovar e ir para o próximo Pix" : "Aprovar"}
+            </button>
+          )}
+          {dados.status === "AGUARDANDO_PAGAMENTO" && (
+            <button
+              disabled={isPending}
+              onClick={() => confirmarEAvancar(() => marcarSaquePago(dados.saqueId))}
+              className="w-full rounded-lg bg-emerald-500 px-3 py-2.5 text-sm font-semibold text-black hover:brightness-110 disabled:opacity-50"
+            >
+              {isPending
+                ? "Confirmando..."
+                : proximo
+                  ? "Já paguei — marcar como pago e ir para o próximo"
+                  : "Já paguei — marcar como pago"}
+            </button>
+          )}
+
           <button
             onClick={copiarPayload}
             className="w-full rounded-lg bg-gold/20 px-3 py-2 text-xs font-semibold text-gold-light hover:bg-gold/30"
@@ -95,7 +154,7 @@ function QrCodeModal({ dados, onClose }: { dados: DadosQrCodeModal; onClose: () 
             Baixar QR Code (PNG)
           </a>
           <button
-            onClick={onClose}
+            onClick={() => onMudarAberto(null)}
             className="w-full rounded-lg bg-white/10 px-3 py-2 text-xs font-semibold text-foreground hover:bg-white/15"
           >
             Fechar
