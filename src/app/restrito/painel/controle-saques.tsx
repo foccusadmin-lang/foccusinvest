@@ -6,9 +6,18 @@ import {
   definirModoSaque,
   definirValorMaximoAprovacaoAutomatica,
   definirAplicacaoBensAtiva,
+  definirConfigPixSaque,
 } from "./config-actions";
 import { MoneyInput } from "@/components/ui/money-input";
-import { IconWallet, IconVerified, IconUsers, IconGift, IconPlus, IconPackage } from "@/components/icons";
+import {
+  IconWallet,
+  IconVerified,
+  IconUsers,
+  IconGift,
+  IconPlus,
+  IconPackage,
+  IconArrowDown,
+} from "@/components/icons";
 
 type CampoConfig =
   | "modoSaqueCapital"
@@ -112,6 +121,68 @@ function ToggleAplicacaoBens({ ativa }: { ativa: boolean }) {
   );
 }
 
+function ConfigPixSaque({
+  cidadeAtual,
+  pagaMesmaSextaAtual,
+}: {
+  cidadeAtual: string;
+  pagaMesmaSextaAtual: boolean;
+}) {
+  const [state, action, pending] = useActionState(definirConfigPixSaque, undefined);
+  const [cidade, setCidade] = useState(cidadeAtual);
+  const [pagaMesmaSexta, setPagaMesmaSexta] = useState(pagaMesmaSextaAtual);
+
+  return (
+    <form action={action} className="flex flex-wrap items-center gap-3">
+      <label className="flex items-center gap-2 text-sm text-muted">
+        Cidade no QR Code:
+        <input
+          name="cidadePagamentoPix"
+          value={cidade}
+          onChange={(e) => setCidade(e.target.value.toUpperCase())}
+          maxLength={15}
+          className="w-28 rounded-lg border border-border bg-surface-2 px-2 py-1 text-sm text-foreground outline-none focus:border-gold/60"
+        />
+      </label>
+
+      <input type="hidden" name="saquePagaMesmaSexta" value={pagaMesmaSexta ? "1" : "0"} />
+      <div className="flex items-center gap-2 text-sm text-muted">
+        Se pedido cair numa sexta:
+        <div className="flex rounded-lg border border-border bg-surface-2 p-0.5">
+          <button
+            type="button"
+            onClick={() => setPagaMesmaSexta(true)}
+            className={`rounded-md px-3 py-1 text-xs font-semibold transition ${
+              pagaMesmaSexta ? "bg-gold text-black" : "text-muted hover:text-foreground"
+            }`}
+          >
+            Paga na mesma sexta
+          </button>
+          <button
+            type="button"
+            onClick={() => setPagaMesmaSexta(false)}
+            className={`rounded-md px-3 py-1 text-xs font-semibold transition ${
+              !pagaMesmaSexta ? "bg-gold text-black" : "text-muted hover:text-foreground"
+            }`}
+          >
+            Paga na sexta seguinte
+          </button>
+        </div>
+      </div>
+
+      <button
+        type="submit"
+        disabled={pending}
+        className="rounded-lg bg-sky-500/20 px-3 py-1 text-xs font-semibold text-sky-200 hover:bg-sky-500/30 disabled:opacity-50"
+      >
+        {pending ? "Salvando..." : "Salvar"}
+      </button>
+      {state?.error && <span className="text-xs text-red-400">{state.error}</span>}
+      {state?.sucesso && <span className="text-xs text-emerald-400">{state.sucesso}</span>}
+    </form>
+  );
+}
+
 export function ControleSaques({
   modoSaqueCapital,
   modoSaqueRendimento,
@@ -121,6 +192,8 @@ export function ControleSaques({
   modoAprovacaoAporte,
   valorMaximoAprovacaoAutomatica,
   aplicacaoBensAtiva,
+  cidadePagamentoPix,
+  saquePagaMesmaSexta,
 }: {
   modoSaqueCapital: ModoProcessamento;
   modoSaqueRendimento: ModoProcessamento;
@@ -130,6 +203,8 @@ export function ControleSaques({
   modoAprovacaoAporte: ModoProcessamento;
   valorMaximoAprovacaoAutomatica: number;
   aplicacaoBensAtiva: boolean;
+  cidadePagamentoPix: string;
+  saquePagaMesmaSexta: boolean;
 }) {
   return (
     <div className="space-y-3">
@@ -142,6 +217,20 @@ export function ControleSaques({
         <Toggle label="Rendimento" campo="modoSaqueRendimento" valor={modoSaqueRendimento} />
         <p className="text-xs text-muted">
           Automático processa o saque na hora, sem revisão manual. Exige cadastro verificado.
+        </p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-6 rounded-2xl border border-violet-500/30 bg-violet-500/10 p-4">
+        <div className="flex items-center gap-2 text-violet-200">
+          <IconArrowDown width={16} height={16} />
+          <span className="text-sm font-semibold">Pagamento Pix dos Saques</span>
+        </div>
+        <ConfigPixSaque cidadeAtual={cidadePagamentoPix} pagaMesmaSextaAtual={saquePagaMesmaSexta} />
+        <p className="w-full text-xs text-muted">
+          Cidade usada no campo "Cidade" do QR Code Pix gerado em cada solicitação. A regra da
+          sexta-feira só se aplica quando o pedido é feito numa sexta: decide se o pagamento
+          fica programado pra ela mesma ou pra sexta seguinte (nos outros dias, sempre é a
+          próxima sexta-feira).
         </p>
       </div>
 

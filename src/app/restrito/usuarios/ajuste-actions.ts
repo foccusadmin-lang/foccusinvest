@@ -16,6 +16,7 @@ import {
   zerarIncentivoLideranca,
   reservarIncentivoLiderancaParaSaque,
 } from "@/lib/incentivo-lideranca";
+import { prepararDadosSaquePix, obterSnapshotInvestidor } from "@/lib/saque-pix";
 
 export type AjusteSaldoState = { error?: string; sucesso?: string } | undefined;
 
@@ -167,7 +168,8 @@ async function realizarSaqueAssistido(
   userId: string,
   tipo: "CAPITAL" | "RENDIMENTO" | "BONUS" | "INCENTIVO_LIDERANCA",
   valor: number,
-  chavePix: string
+  chavePixTexto: string,
+  chavePixTipo: string
 ): Promise<string | null> {
   const config = await getConfiguracao();
   const automatico =
@@ -179,20 +181,48 @@ async function realizarSaqueAssistido(
   // saque próprio pra isso — a distinção fica no crédito de origem, não no saque em si.
   const tipoSaque = tipo === "INCENTIVO_LIDERANCA" ? "RENDIMENTO" : tipo;
 
+  const { nome: investidorNome, email: investidorEmail } = await obterSnapshotInvestidor(userId);
+  const preparo = await prepararDadosSaquePix({
+    investidorNome,
+    investidorEmail,
+    valor,
+    chavePixTexto,
+    chavePixTipo,
+  });
+  if (!preparo.ok) return preparo.error;
+  const dados = preparo.dados;
+
   try {
     await prisma.$transaction(async (tx) => {
       const saque = await tx.solicitacaoSaque.create({
-        data: { userId, tipo: tipoSaque, valor, moeda: "BRL", motivoEmergencia: chavePix },
+        data: {
+          userId,
+          tipo: tipoSaque,
+          valor: dados.valorFinal,
+          moeda: "BRL",
+          investidorNome: dados.investidorNome,
+          investidorEmail: dados.investidorEmail,
+          chavePixOriginal: dados.chavePixOriginal,
+          chavePixNormalizada: dados.chavePixNormalizada,
+          chavePixTipo: dados.chavePixTipo,
+          pixPayload: dados.pixPayload,
+          pixQrCodePng: dados.pixQrCodePng,
+          pixTxid: dados.pixTxid,
+          dataProgramadaPagamento: dados.dataProgramadaPagamento,
+        },
       });
 
       if (tipo === "CAPITAL") {
-        await reservarCapitalParaSaqueAdmin(tx, userId, valor, saque.id);
+        await reservarCapitalParaSaqueAdmin(tx, userId, dados.valorFinal, saque.id);
       } else if (tipo === "INCENTIVO_LIDERANCA") {
-        await reservarIncentivoLiderancaParaSaque(tx, userId, valor, saque.id);
+        await reservarIncentivoLiderancaParaSaque(tx, userId, dados.valorFinal, saque.id);
       } else {
-        await reservarCreditosParaSaque(tx, userId, valor, tipo, saque.id);
+        await reservarCreditosParaSaque(tx, userId, dados.valorFinal, tipo, saque.id);
       }
 
+      // Modo automático só antecipa a reserva/débito — nunca marca como PAGO sozinho: o
+      // pagamento via Pix continua exigindo confirmação manual do admin no app do banco (ver
+      // restrito/saques/actions.ts), mesmo nesse saque assistido feito pelo próprio admin.
       if (automatico) {
         if (tipo === "CAPITAL") {
           await tx.aplicacao.updateMany({
@@ -207,7 +237,7 @@ async function realizarSaqueAssistido(
         }
         await tx.solicitacaoSaque.update({
           where: { id: saque.id },
-          data: { status: "PAGO", processadoEm: new Date() },
+          data: { status: "AGUARDANDO_PAGAMENTO" },
         });
       }
     });
@@ -246,7 +276,9 @@ export async function ajustarSaldoUsuario(
 
   if (operacao === "SAQUE") {
     const chavePix = String(formData.get("chavePix") ?? "").trim();
+    const chavePixTipo = String(formData.get("chavePixTipo") ?? "").trim();
     if (!chavePix) return { error: "Informe a chave Pix pra onde o valor vai ser enviado." };
+    if (!chavePixTipo) return { error: "Selecione o tipo da chave Pix." };
 
     const valoresSaque = new Map<string, number>();
     for (const tipo of tipos) {
@@ -266,7 +298,8 @@ export async function ajustarSaldoUsuario(
         userId,
         tipo as "CAPITAL" | "RENDIMENTO" | "BONUS" | "INCENTIVO_LIDERANCA",
         valor,
-        chavePix
+        chavePix,
+        chavePixTipo
       );
       if (erro) return { error: erro };
     }

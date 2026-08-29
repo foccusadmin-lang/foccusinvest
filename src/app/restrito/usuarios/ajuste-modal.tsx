@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { formatMoeda } from "@/lib/format";
 import { MoneyInput } from "@/components/ui/money-input";
 import { ajustarSaldoUsuario } from "./ajuste-actions";
+import { LABEL_TIPO_CHAVE_PIX, type TipoChavePixForm } from "@/lib/pix-chave";
 
 type Usuario = {
   id: string;
@@ -47,6 +48,7 @@ function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () 
   const [tipos, setTipos] = useState<string[]>([]);
   const [valores, setValores] = useState<Record<string, string>>({});
   const [chavePix, setChavePix] = useState("");
+  const [chavePixTipo, setChavePixTipo] = useState<TipoChavePixForm | "">("");
   const router = useRouter();
   const processado = useRef(false);
 
@@ -256,20 +258,41 @@ function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () 
             </div>
 
             {operacao === "SAQUE" && (
-              <label className="block text-sm">
-                <span className="mb-1 block font-medium text-foreground/90">
-                  Chave Pix (pra onde o valor vai)
-                </span>
-                <input
-                  name="chavePix"
-                  type="text"
-                  value={chavePix}
-                  onChange={(e) => setChavePix(e.target.value)}
-                  placeholder="CPF, e-mail, telefone ou chave aleatória"
-                  required
-                  className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-foreground outline-none focus:border-amber-400/60"
-                />
-              </label>
+              <>
+                <label className="block text-sm">
+                  <span className="mb-1 block font-medium text-foreground/90">Tipo da chave Pix</span>
+                  <select
+                    name="chavePixTipo"
+                    value={chavePixTipo}
+                    onChange={(e) => setChavePixTipo(e.target.value as TipoChavePixForm)}
+                    required
+                    className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-foreground outline-none focus:border-amber-400/60"
+                  >
+                    <option value="" disabled>
+                      Selecione...
+                    </option>
+                    {(Object.keys(LABEL_TIPO_CHAVE_PIX) as TipoChavePixForm[]).map((t) => (
+                      <option key={t} value={t}>
+                        {LABEL_TIPO_CHAVE_PIX[t]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block text-sm">
+                  <span className="mb-1 block font-medium text-foreground/90">
+                    Chave Pix (pra onde o valor vai)
+                  </span>
+                  <input
+                    name="chavePix"
+                    type="text"
+                    value={chavePix}
+                    onChange={(e) => setChavePix(e.target.value)}
+                    placeholder="Valor da chave escolhida acima"
+                    required
+                    className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-foreground outline-none focus:border-amber-400/60"
+                  />
+                </label>
+              </>
             )}
 
             {state?.error && <p className="text-sm text-red-400">{state.error}</p>}
@@ -284,7 +307,11 @@ function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () 
               </button>
               <button
                 type="submit"
-                disabled={pending || tipos.length === 0 || (operacao === "SAQUE" && !chavePix.trim())}
+                disabled={
+                  pending ||
+                  tipos.length === 0 ||
+                  (operacao === "SAQUE" && (!chavePix.trim() || !chavePixTipo))
+                }
                 className={`flex-1 rounded-xl py-3 text-sm font-semibold disabled:opacity-50 ${
                   operacao === "APAGAR"
                     ? "bg-red-500/80 text-white hover:bg-red-500"

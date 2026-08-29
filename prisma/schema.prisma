@@ -104,10 +104,20 @@ enum TipoSaque {
 
 enum StatusSaque {
   SOLICITADO
-  APROVADO
+  AGUARDANDO_PAGAMENTO
   PAGO
   RECUSADO
   CANCELADO
+}
+
+/** Tipo da chave Pix informada pelo investidor no saque — escolhido explicitamente por ele no
+ *  formulário (não adivinhado a partir do valor), pra nunca gerar QR Code com chave ambígua. */
+enum TipoChavePix {
+  TELEFONE
+  CPF
+  CNPJ
+  EMAIL
+  ALEATORIA
 }
 
 enum ModoProcessamento {
@@ -163,6 +173,7 @@ model User {
   aplicacoesAprovadas  Aplicacao[]                @relation("AplicacaoAprovadaPor")
   creditos             CreditoCarteira[]
   solicitacoesSaque    SolicitacaoSaque[]
+  saquesProcessados    SolicitacaoSaque[]         @relation("SaqueProcessadoPor")
   distribuicoesCriadas DistribuicaoMensal[]
   participacoes        DistribuicaoParticipante[]
   migracoesCriadas     MigracaoSaldo[]            @relation("MigracaoCriador")
@@ -432,6 +443,38 @@ model SolicitacaoSaque {
   taxaAntecipacao              Float?
   solicitacaoSaqueRendimentoId String?
 
+  // Snapshot do investidor no momento da solicitação (nome/e-mail podem mudar depois no
+  // cadastro; isso preserva exatamente quem pediu, pro comprovante/QR Code e pra auditoria).
+  investidorNome  String?
+  investidorEmail String?
+
+  // Chave Pix informada pelo investidor — original (como digitado) e normalizada (padrão que
+  // entra no QR Code/payload), nunca alteráveis depois de geradas: pra corrigir, cancela essa
+  // solicitação (RECUSADO/CANCELADO) e abre uma nova.
+  chavePixOriginal    String?
+  chavePixNormalizada String?
+  chavePixTipo        TipoChavePix?
+
+  // Pix Copia e Cola (BR Code/EMV) + PNG do QR Code gerado a partir dele + TXID único —
+  // gerados uma única vez, na criação da solicitação, e nunca recalculados depois.
+  pixPayload String?
+  pixQrCodePng Bytes?
+  pixTxid      String? @unique
+
+  // Sexta-feira programada pra esse pagamento (calculada na criação, regra configurável — ver
+  // ConfiguracaoSistema.saquePagaMesmaSexta) e quando de fato foi pago.
+  dataProgramadaPagamento DateTime?
+  pagoEm                  DateTime?
+
+  // Chave de idempotência enviada pelo formulário — bloqueia duplicidade por clique repetido/
+  // reenvio de rede (ver criarSolicitacaoSaquePix, em lib/saque-pix.ts).
+  idempotencyKey String? @unique
+
+  // Quem aprovou/recusou/marcou como pago por último — o histórico detalhado de cada ação (com
+  // timestamp e IP) já fica em LogAuditoria; este campo é só o atalho pra exibir na tela.
+  processadoPorId String?
+  processadoPor   User?   @relation("SaqueProcessadoPor", fields: [processadoPorId], references: [id])
+
   aplicacoes           Aplicacao[]
   creditos             CreditoCarteira[]
   liberacaoEmergencial LiberacaoEmergencial?
@@ -565,6 +608,11 @@ model ConfiguracaoSistema {
   // false, o botão continua visível mas, ao clicar, mostra um aviso pra falar com o admin em
   // vez de abrir o formulário — não afeta aportes em bens já em andamento.
   aplicacaoBensAtiva      Boolean           @default(true)
+  // Cidade usada no campo "Merchant City" do QR Code Pix gerado pros saques dos investidores.
+  cidadePagamentoPix String  @default("JANDIRA")
+  // Se a solicitação de saque cair numa sexta-feira, decide se a data programada de pagamento
+  // é aquela mesma sexta (true) ou a sexta seguinte (false).
+  saquePagaMesmaSexta Boolean @default(true)
   updatedAt               DateTime          @updatedAt
 }
 

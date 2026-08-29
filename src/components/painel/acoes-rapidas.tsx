@@ -18,6 +18,7 @@ import {
 import { gerarPayloadPix } from "@/lib/pix";
 import { PixQrCode } from "@/components/painel/pix-qrcode";
 import { CARENCIA_MESES_PADRAO_BEM, LABEL_CATEGORIA_BEM } from "@/lib/bens";
+import { LABEL_TIPO_CHAVE_PIX, type TipoChavePixForm } from "@/lib/pix-chave";
 import type { CategoriaBem } from "@prisma/client";
 import {
   criarAplicacao,
@@ -1085,6 +1086,10 @@ function AcaoModal({
   const cfg = CONFIG[tipo];
   const [state, action, pending] = useActionState(cfg.action, undefined);
   const [valorTexto, setValorTexto] = useState("");
+  const [tipoChave, setTipoChave] = useState<TipoChavePixForm | "">("");
+  // Uma única chave por abertura do formulário — impede que clique duplo ou reenvio de rede
+  // criem duas solicitações pro mesmo pedido (ver painel/actions.ts).
+  const [idempotencyKey] = useState(() => crypto.randomUUID());
   const router = useRouter();
   const processado = useRef(false);
 
@@ -1180,6 +1185,7 @@ function AcaoModal({
           </p>
         ) : (
           <form action={action} className="mt-6 space-y-4">
+            <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
             <label className="block text-sm">
               <span className="mb-1 block font-medium text-foreground/90">Valor (R$)</span>
               <div className="flex gap-2">
@@ -1203,16 +1209,53 @@ function AcaoModal({
             </label>
 
             {(tipo === "saque-capital" || tipo === "saque-rendimento") && (
-              <label className="block text-sm">
-                <span className="mb-1 block font-medium text-foreground/90">Chave Pix</span>
-                <input
-                  name="chavePix"
-                  type="text"
-                  placeholder="CPF, e-mail, telefone ou chave aleatória"
-                  required
-                  className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-foreground outline-none focus:border-gold/60"
-                />
-              </label>
+              <>
+                <label className="block text-sm">
+                  <span className="mb-1 block font-medium text-foreground/90">Tipo da chave Pix</span>
+                  <select
+                    name="chavePixTipo"
+                    value={tipoChave}
+                    onChange={(e) => setTipoChave(e.target.value as TipoChavePixForm)}
+                    required
+                    className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-foreground outline-none focus:border-gold/60"
+                  >
+                    <option value="" disabled>
+                      Selecione...
+                    </option>
+                    {(Object.keys(LABEL_TIPO_CHAVE_PIX) as TipoChavePixForm[]).map((t) => (
+                      <option key={t} value={t}>
+                        {LABEL_TIPO_CHAVE_PIX[t]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block text-sm">
+                  <span className="mb-1 block font-medium text-foreground/90">Chave Pix</span>
+                  <input
+                    name="chavePix"
+                    type="text"
+                    placeholder={
+                      tipoChave === "TELEFONE"
+                        ? "(11) 98529-9785"
+                        : tipoChave === "CPF"
+                          ? "000.000.000-00"
+                          : tipoChave === "CNPJ"
+                            ? "00.000.000/0000-00"
+                            : tipoChave === "EMAIL"
+                              ? "nome@exemplo.com"
+                              : tipoChave === "ALEATORIA"
+                                ? "123e4567-e89b-12d3-a456-426614174000"
+                                : "Escolha o tipo da chave primeiro"
+                    }
+                    required
+                    className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-foreground outline-none focus:border-gold/60"
+                  />
+                  <span className="mt-1 block text-xs text-muted">
+                    Confira com atenção — depois que o QR Code é gerado, pra corrigir a chave é
+                    preciso cancelar esse pedido e abrir um novo.
+                  </span>
+                </label>
+              </>
             )}
 
             {state?.error && <p className="text-sm text-red-400">{state.error}</p>}
@@ -1553,6 +1596,8 @@ function SaqueRendimentoLiderModal({
   const [state, action, pending] = useActionState(solicitarSaqueRendimentoPorFonte, undefined);
   const router = useRouter();
   const processado = useRef(false);
+  const [tipoChave, setTipoChave] = useState<TipoChavePixForm | "">("");
+  const [idempotencyKey] = useState(() => crypto.randomUUID());
 
   const disponivelPorFonte: Record<FonteSaque, number> = {
     PLR: plrDisponivel,
@@ -1622,6 +1667,7 @@ function SaqueRendimentoLiderModal({
           </p>
         ) : (
           <form action={action} className="mt-4 space-y-3">
+            <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
             {(Object.keys(FONTE_SAQUE_INFO) as FonteSaque[])
               .filter((fonte) => disponivelPorFonte[fonte] > 0)
               .map((fonte) => {
@@ -1682,14 +1728,37 @@ function SaqueRendimentoLiderModal({
               })}
 
             <label className="block text-sm">
+              <span className="mb-1 block font-medium text-foreground/90">Tipo da chave Pix</span>
+              <select
+                name="chavePixTipo"
+                value={tipoChave}
+                onChange={(e) => setTipoChave(e.target.value as TipoChavePixForm)}
+                required
+                className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-foreground outline-none focus:border-gold/60"
+              >
+                <option value="" disabled>
+                  Selecione...
+                </option>
+                {(Object.keys(LABEL_TIPO_CHAVE_PIX) as TipoChavePixForm[]).map((t) => (
+                  <option key={t} value={t}>
+                    {LABEL_TIPO_CHAVE_PIX[t]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-sm">
               <span className="mb-1 block font-medium text-foreground/90">Chave Pix</span>
               <input
                 name="chavePix"
                 type="text"
-                placeholder="CPF, e-mail, telefone ou chave aleatória"
+                placeholder="Valor da chave escolhida acima"
                 required
                 className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-foreground outline-none focus:border-gold/60"
               />
+              <span className="mt-1 block text-xs text-muted">
+                Confira com atenção — depois que o QR Code é gerado, pra corrigir a chave é
+                preciso cancelar esse pedido e abrir um novo.
+              </span>
             </label>
 
             <div className="rounded-lg border border-gold/30 bg-gold/10 p-3 text-center">

@@ -59,7 +59,7 @@ export async function getResumoCarteira(userId: string): Promise<ResumoFinanceir
     prisma.aplicacao.findMany({ where: { userId }, omit: { comprovante: true } }),
     prisma.creditoCarteira.findMany({ where: { userId } }),
     prisma.solicitacaoSaque.findMany({
-      where: { userId, status: { in: ["SOLICITADO", "APROVADO"] } },
+      where: { userId, status: { in: ["SOLICITADO", "AGUARDANDO_PAGAMENTO"] } },
     }),
   ]);
 
@@ -123,7 +123,7 @@ export async function getResumoCarteira(userId: string): Promise<ResumoFinanceir
     .reduce((acc, s) => acc + s.valor, 0);
 
   const saquesPendentes = saquesAtivos
-    .filter((s) => s.status === "APROVADO")
+    .filter((s) => s.status === "AGUARDANDO_PAGAMENTO")
     .reduce((acc, s) => acc + s.valor, 0);
 
   const proximaLote = aplicacoes

@@ -18,6 +18,8 @@ export default function PreviewAdminConfiguracoesPage() {
           modoAprovacaoAporte="MANUAL"
           valorMaximoAprovacaoAutomatica={5000}
           aplicacaoBensAtiva={true}
+          cidadePagamentoPix="JANDIRA"
+          saquePagaMesmaSexta={true}
         />
       </div>
     </AdminPreviewShell>

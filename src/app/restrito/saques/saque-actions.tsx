@@ -24,7 +24,7 @@ export function SaqueActions({ saqueId, status }: { saqueId: string; status: Sta
           Aprovar
         </button>
       )}
-      {status === "APROVADO" && (
+      {status === "AGUARDANDO_PAGAMENTO" && (
         <button
           disabled={isPending}
           onClick={() => startTransition(() => marcarSaquePago(saqueId))}
@@ -33,7 +33,7 @@ export function SaqueActions({ saqueId, status }: { saqueId: string; status: Sta
           Marcar como pago
         </button>
       )}
-      {(status === "SOLICITADO" || status === "APROVADO") && (
+      {(status === "SOLICITADO" || status === "AGUARDANDO_PAGAMENTO") && (
         <button
           disabled={isPending}
           onClick={recusar}

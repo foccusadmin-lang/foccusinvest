@@ -89,3 +89,38 @@ export async function definirAplicacaoBensAtiva(ativa: boolean) {
   revalidatePath("/restrito/configuracoes");
   revalidatePath("/painel");
 }
+
+export type ConfigPixSaqueState = { error?: string; sucesso?: string } | undefined;
+
+/** Cidade usada no QR Code Pix gerado pros saques (campo "Merchant City" do BR Code) e a regra
+ *  de "paga na mesma sexta ou na seguinte" quando o saque é solicitado numa sexta-feira. */
+export async function definirConfigPixSaque(
+  _prevState: ConfigPixSaqueState,
+  formData: FormData
+): Promise<ConfigPixSaqueState> {
+  const session = await auth();
+  if (session?.user?.perfil !== "ADMIN") return { error: "Acesso negado." };
+
+  const cidade = String(formData.get("cidadePagamentoPix") ?? "").trim();
+  if (!cidade) return { error: "Informe a cidade." };
+
+  const saquePagaMesmaSexta = formData.get("saquePagaMesmaSexta") === "1";
+
+  await prisma.configuracaoSistema.upsert({
+    where: { id: "default" },
+    create: { id: "default", cidadePagamentoPix: cidade, saquePagaMesmaSexta },
+    update: { cidadePagamentoPix: cidade, saquePagaMesmaSexta },
+  });
+
+  await prisma.logAuditoria.create({
+    data: {
+      userId: session.user.id,
+      acao: "definir_config_pix_saque",
+      detalhes: `cidade=${cidade} | pagaMesmaSexta=${saquePagaMesmaSexta}`,
+    },
+  });
+
+  revalidatePath("/restrito/painel");
+  revalidatePath("/restrito/configuracoes");
+  return { sucesso: "Configuração de pagamento Pix atualizada." };
+}

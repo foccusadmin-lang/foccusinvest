@@ -40,7 +40,7 @@ export default async function RestritoPainelPage() {
       where: { status: { in: ["CONFIRMADA", "SAQUE_SOLICITADO"] } },
       omit: { comprovante: true },
     }),
-    prisma.solicitacaoSaque.findMany({ where: { status: { in: ["SOLICITADO", "APROVADO"] } } }),
+    prisma.solicitacaoSaque.findMany({ where: { status: { in: ["SOLICITADO", "AGUARDANDO_PAGAMENTO"] } } }),
     prisma.aplicacao.count({ where: { status: "AGUARDANDO_APROVACAO" } }),
     prisma.creditoCarteira.aggregate({ where: { tipo: "RENDIMENTO" }, _sum: { valor: true } }),
     prisma.creditoCarteira.groupBy({
@@ -100,6 +100,8 @@ export default async function RestritoPainelPage() {
           modoAprovacaoAporte={configuracao.modoAprovacaoAporte}
           valorMaximoAprovacaoAutomatica={configuracao.valorMaximoAprovacaoAutomatica}
           aplicacaoBensAtiva={configuracao.aplicacaoBensAtiva}
+          cidadePagamentoPix={configuracao.cidadePagamentoPix}
+          saquePagaMesmaSexta={configuracao.saquePagaMesmaSexta}
         />
       </div>
 

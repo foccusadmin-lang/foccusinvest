@@ -26,7 +26,7 @@ export async function aprovarSaque(saqueId: string) {
   await prisma.$transaction(async (tx) => {
     const saque = await tx.solicitacaoSaque.update({
       where: { id: saqueId },
-      data: { status: "APROVADO" },
+      data: { status: "AGUARDANDO_PAGAMENTO", processadoPorId: admin.id },
     });
 
     if (saque.tipo === "CAPITAL") {
@@ -61,7 +61,12 @@ export async function recusarSaque(saqueId: string, justificativa: string) {
   await prisma.$transaction(async (tx) => {
     const saque = await tx.solicitacaoSaque.update({
       where: { id: saqueId },
-      data: { status: "RECUSADO", justificativaRecusa: justificativa, processadoEm: new Date() },
+      data: {
+        status: "RECUSADO",
+        justificativaRecusa: justificativa,
+        processadoEm: new Date(),
+        processadoPorId: admin.id,
+      },
     });
 
     if (saque.tipo === "CAPITAL") {
@@ -89,18 +94,18 @@ export async function recusarSaque(saqueId: string, justificativa: string) {
 }
 
 /** Só confirma que o Pix foi enviado — o débito da carteira já aconteceu em aprovarSaque.
- *  Exige que o saque já esteja APROVADO (nunca confia só no botão estar desabilitado na tela). */
+ *  Exige que o saque já esteja AGUARDANDO_PAGAMENTO (nunca confia só no botão estar desabilitado na tela). */
 export async function marcarSaquePago(saqueId: string) {
   const admin = await requireAdmin();
 
   const saque = await prisma.solicitacaoSaque.findUnique({ where: { id: saqueId } });
-  if (!saque || saque.status !== "APROVADO") {
+  if (!saque || saque.status !== "AGUARDANDO_PAGAMENTO") {
     throw new Error("Esse saque precisa estar aprovado (e debitado da carteira) antes de marcar como pago.");
   }
 
   await prisma.solicitacaoSaque.update({
     where: { id: saqueId },
-    data: { status: "PAGO", processadoEm: new Date() },
+    data: { status: "PAGO", processadoEm: new Date(), pagoEm: new Date(), processadoPorId: admin.id },
   });
 
   await registrarAuditoria(admin.id, "pagar_saque", saqueId);

@@ -4,7 +4,7 @@ import { createHash } from "crypto";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { formatMoeda } from "@/lib/format";
+import { formatMoeda, formatData } from "@/lib/format";
 import {
   calcularLiberacao,
   reservarCapitalParaSaque,
@@ -28,6 +28,7 @@ import { guardarCodigoIndicadorPendente, creditarBonusIndicacaoPorCodigo } from 
 import type { CategoriaBem } from "@prisma/client";
 import { CARENCIA_MESES_PADRAO_BEM, calcularLiberacaoBem, LABEL_CATEGORIA_BEM } from "@/lib/bens";
 import { confirmarAporte } from "@/lib/aportes";
+import { prepararDadosSaquePix, obterSnapshotInvestidor } from "@/lib/saque-pix";
 
 // `aviso` é como `sucesso` (a operação foi registrada, não é um erro), mas pra casos que merecem
 // destaque visual de alerta em vez do verde de sucesso normal — hoje só o bloqueio de aporte
@@ -68,6 +69,16 @@ async function requireVerifiedUserId(): Promise<string> {
   }
   return session.user.id;
 }
+
+/** Erro de violação de índice único do Prisma (P2002) — usado pra detectar quando duas
+ *  submissões com a MESMA chave de idempotência colidem na criação (corrida entre abas/cliques
+ *  repetidos): trata como sucesso idempotente, não como erro real. */
+function ehErroDeIdempotenciaDuplicada(e: unknown): boolean {
+  return typeof e === "object" && e !== null && "code" in e && (e as { code?: string }).code === "P2002";
+}
+
+const MENSAGEM_PEDIDO_JA_ENVIADO =
+  "Esse pedido já tinha sido enviado — não foi duplicado. Confira o status em Histórico.";
 
 const VALOR_MINIMO_APLICACAO = 50;
 const VALOR_MINIMO_REAPLICACAO = 100;
@@ -360,10 +371,31 @@ export async function solicitarSaqueCapital(
     return { error: "Informe um valor válido." };
   }
 
-  const chavePix = String(formData.get("chavePix") ?? "").trim();
-  if (!chavePix) {
+  const chavePixTexto = String(formData.get("chavePix") ?? "").trim();
+  const chavePixTipo = String(formData.get("chavePixTipo") ?? "").trim();
+  if (!chavePixTexto) {
     return { error: "Informe a chave Pix para receber o saque." };
   }
+
+  // Chave de idempotência gerada uma vez no navegador (por abertura do formulário) — impede que
+  // clique duplo/reenvio de rede criem duas solicitações pro mesmo pedido.
+  const idempotencyKey = String(formData.get("idempotencyKey") ?? "").trim() || null;
+  if (idempotencyKey) {
+    const existente = await prisma.solicitacaoSaque.findUnique({ where: { idempotencyKey } });
+    if (existente) return { sucesso: MENSAGEM_PEDIDO_JA_ENVIADO };
+  }
+
+  const { nome: investidorNome, email: investidorEmail } = await obterSnapshotInvestidor(userId);
+
+  const preparo = await prepararDadosSaquePix({
+    investidorNome,
+    investidorEmail,
+    valor,
+    chavePixTexto,
+    chavePixTipo,
+  });
+  if (!preparo.ok) return { error: preparo.error };
+  const dados = preparo.dados;
 
   const config = await getConfiguracao();
   const automatico = config.modoSaqueCapital === "AUTOMATICO";
@@ -371,12 +403,28 @@ export async function solicitarSaqueCapital(
   try {
     await prisma.$transaction(async (tx) => {
       const saque = await tx.solicitacaoSaque.create({
-        // Reaproveita motivoEmergencia (só usado em saques emergenciais) pra guardar a
-        // chave Pix nos saques normais, sem precisar de coluna nova no banco.
-        data: { userId, tipo: "CAPITAL", valor, moeda: "BRL", motivoEmergencia: chavePix },
+        data: {
+          userId,
+          tipo: "CAPITAL",
+          valor: dados.valorFinal,
+          moeda: "BRL",
+          investidorNome: dados.investidorNome,
+          investidorEmail: dados.investidorEmail,
+          chavePixOriginal: dados.chavePixOriginal,
+          chavePixNormalizada: dados.chavePixNormalizada,
+          chavePixTipo: dados.chavePixTipo,
+          pixPayload: dados.pixPayload,
+          pixQrCodePng: dados.pixQrCodePng,
+          pixTxid: dados.pixTxid,
+          dataProgramadaPagamento: dados.dataProgramadaPagamento,
+          idempotencyKey,
+        },
       });
-      await reservarCapitalParaSaque(tx, userId, valor, saque.id);
+      await reservarCapitalParaSaque(tx, userId, dados.valorFinal, saque.id);
 
+      // Modo automático só antecipa a reserva/débito (igual já fazia) — nunca marca como PAGO
+      // sozinho: o pagamento via Pix continua exigindo confirmação manual do admin no app do
+      // banco (ver restrito/saques/actions.ts).
       if (automatico) {
         await tx.aplicacao.updateMany({
           where: { solicitacaoSaqueId: saque.id },
@@ -384,22 +432,20 @@ export async function solicitarSaqueCapital(
         });
         await tx.solicitacaoSaque.update({
           where: { id: saque.id },
-          data: { status: "PAGO", processadoEm: new Date() },
+          data: { status: "AGUARDANDO_PAGAMENTO" },
         });
       }
     });
   } catch (e) {
-    if (e instanceof SaldoInsuficienteError) {
-      return { error: e.message };
-    }
+    if (e instanceof SaldoInsuficienteError) return { error: e.message };
+    if (idempotencyKey && ehErroDeIdempotenciaDuplicada(e)) return { sucesso: MENSAGEM_PEDIDO_JA_ENVIADO };
     throw e;
   }
 
   revalidatePath("/painel");
+  revalidatePath("/restrito/saques");
   return {
-    sucesso: automatico
-      ? `Saque de ${formatMoeda(valor)} processado automaticamente.`
-      : `Saque de ${formatMoeda(valor)} solicitado. Aguarde aprovação.`,
+    sucesso: `Saque de ${formatMoeda(dados.valorFinal)} solicitado. Pagamento via Pix programado para ${formatData(dados.dataProgramadaPagamento)}, após conferência do administrador.`,
   };
 }
 
@@ -423,10 +469,29 @@ export async function solicitarSaqueRendimento(
     return { error: "Informe um valor válido." };
   }
 
-  const chavePix = String(formData.get("chavePix") ?? "").trim();
-  if (!chavePix) {
+  const chavePixTexto = String(formData.get("chavePix") ?? "").trim();
+  const chavePixTipo = String(formData.get("chavePixTipo") ?? "").trim();
+  if (!chavePixTexto) {
     return { error: "Informe a chave Pix para receber o saque." };
   }
+
+  const idempotencyKey = String(formData.get("idempotencyKey") ?? "").trim() || null;
+  if (idempotencyKey) {
+    const existente = await prisma.solicitacaoSaque.findUnique({ where: { idempotencyKey } });
+    if (existente) return { sucesso: MENSAGEM_PEDIDO_JA_ENVIADO };
+  }
+
+  const { nome: investidorNome, email: investidorEmail } = await obterSnapshotInvestidor(userId);
+
+  const preparo = await prepararDadosSaquePix({
+    investidorNome,
+    investidorEmail,
+    valor,
+    chavePixTexto,
+    chavePixTipo,
+  });
+  if (!preparo.ok) return { error: preparo.error };
+  const dados = preparo.dados;
 
   const config = await getConfiguracao();
   const automatico = config.modoSaqueRendimento === "AUTOMATICO";
@@ -434,11 +499,24 @@ export async function solicitarSaqueRendimento(
   try {
     await prisma.$transaction(async (tx) => {
       const saque = await tx.solicitacaoSaque.create({
-        // Reaproveita motivoEmergencia (só usado em saques emergenciais) pra guardar a
-        // chave Pix nos saques normais, sem precisar de coluna nova no banco.
-        data: { userId, tipo: "RENDIMENTO", valor, moeda: "BRL", motivoEmergencia: chavePix },
+        data: {
+          userId,
+          tipo: "RENDIMENTO",
+          valor: dados.valorFinal,
+          moeda: "BRL",
+          investidorNome: dados.investidorNome,
+          investidorEmail: dados.investidorEmail,
+          chavePixOriginal: dados.chavePixOriginal,
+          chavePixNormalizada: dados.chavePixNormalizada,
+          chavePixTipo: dados.chavePixTipo,
+          pixPayload: dados.pixPayload,
+          pixQrCodePng: dados.pixQrCodePng,
+          pixTxid: dados.pixTxid,
+          dataProgramadaPagamento: dados.dataProgramadaPagamento,
+          idempotencyKey,
+        },
       });
-      await reservarCreditosParaSaque(tx, userId, valor, "RENDIMENTO", saque.id);
+      await reservarCreditosParaSaque(tx, userId, dados.valorFinal, "RENDIMENTO", saque.id);
 
       if (automatico) {
         await tx.creditoCarteira.updateMany({
@@ -447,22 +525,20 @@ export async function solicitarSaqueRendimento(
         });
         await tx.solicitacaoSaque.update({
           where: { id: saque.id },
-          data: { status: "PAGO", processadoEm: new Date() },
+          data: { status: "AGUARDANDO_PAGAMENTO" },
         });
       }
     });
   } catch (e) {
-    if (e instanceof SaldoInsuficienteError) {
-      return { error: e.message };
-    }
+    if (e instanceof SaldoInsuficienteError) return { error: e.message };
+    if (idempotencyKey && ehErroDeIdempotenciaDuplicada(e)) return { sucesso: MENSAGEM_PEDIDO_JA_ENVIADO };
     throw e;
   }
 
   revalidatePath("/painel");
+  revalidatePath("/restrito/saques");
   return {
-    sucesso: automatico
-      ? `Saque de rendimentos de ${formatMoeda(valor)} processado automaticamente.`
-      : `Saque de rendimentos de ${formatMoeda(valor)} solicitado. Aguarde aprovação.`,
+    sucesso: `Saque de rendimentos de ${formatMoeda(dados.valorFinal)} solicitado. Pagamento via Pix programado para ${formatData(dados.dataProgramadaPagamento)}, após conferência do administrador.`,
   };
 }
 
@@ -487,9 +563,16 @@ export async function solicitarSaqueRendimentoPorFonte(
   const usuario = await prisma.user.findUnique({ where: { id: userId }, select: { perfil: true } });
   const ehLider = usuario?.perfil === "LIDER";
 
-  const chavePix = String(formData.get("chavePix") ?? "").trim();
-  if (!chavePix) {
+  const chavePixTexto = String(formData.get("chavePix") ?? "").trim();
+  const chavePixTipo = String(formData.get("chavePixTipo") ?? "").trim();
+  if (!chavePixTexto) {
     return { error: "Informe a chave Pix para receber o saque." };
+  }
+
+  const idempotencyKey = String(formData.get("idempotencyKey") ?? "").trim() || null;
+  if (idempotencyKey) {
+    const existente = await prisma.solicitacaoSaque.findUnique({ where: { idempotencyKey } });
+    if (existente) return { sucesso: MENSAGEM_PEDIDO_JA_ENVIADO };
   }
 
   const fontes = formData.getAll("fontes").map(String) as FonteSaqueRendimento[];
@@ -517,13 +600,40 @@ export async function solicitarSaqueRendimentoPorFonte(
     return { error: "Informe um valor válido." };
   }
 
+  const { nome: investidorNome, email: investidorEmail } = await obterSnapshotInvestidor(userId);
+
+  const preparo = await prepararDadosSaquePix({
+    investidorNome,
+    investidorEmail,
+    valor: total,
+    chavePixTexto,
+    chavePixTipo,
+  });
+  if (!preparo.ok) return { error: preparo.error };
+  const dados = preparo.dados;
+
   const config = await getConfiguracao();
   const automatico = config.modoSaqueRendimento === "AUTOMATICO";
 
   try {
     await prisma.$transaction(async (tx) => {
       const saque = await tx.solicitacaoSaque.create({
-        data: { userId, tipo: "RENDIMENTO", valor: total, moeda: "BRL", motivoEmergencia: chavePix },
+        data: {
+          userId,
+          tipo: "RENDIMENTO",
+          valor: dados.valorFinal,
+          moeda: "BRL",
+          investidorNome: dados.investidorNome,
+          investidorEmail: dados.investidorEmail,
+          chavePixOriginal: dados.chavePixOriginal,
+          chavePixNormalizada: dados.chavePixNormalizada,
+          chavePixTipo: dados.chavePixTipo,
+          pixPayload: dados.pixPayload,
+          pixQrCodePng: dados.pixQrCodePng,
+          pixTxid: dados.pixTxid,
+          dataProgramadaPagamento: dados.dataProgramadaPagamento,
+          idempotencyKey,
+        },
       });
       await reservarSaqueRendimentoPorFonte(tx, userId, itens, saque.id);
 
@@ -534,23 +644,21 @@ export async function solicitarSaqueRendimentoPorFonte(
         });
         await tx.solicitacaoSaque.update({
           where: { id: saque.id },
-          data: { status: "PAGO", processadoEm: new Date() },
+          data: { status: "AGUARDANDO_PAGAMENTO" },
         });
       }
     });
   } catch (e) {
-    if (e instanceof SaldoInsuficienteError) {
-      return { error: e.message };
-    }
+    if (e instanceof SaldoInsuficienteError) return { error: e.message };
+    if (idempotencyKey && ehErroDeIdempotenciaDuplicada(e)) return { sucesso: MENSAGEM_PEDIDO_JA_ENVIADO };
     throw e;
   }
 
   revalidatePath("/painel");
+  revalidatePath("/restrito/saques");
   revalidatePath("/painel/historico");
   return {
-    sucesso: automatico
-      ? `Saque de rendimentos de ${formatMoeda(total)} processado automaticamente.`
-      : `Saque de rendimentos de ${formatMoeda(total)} solicitado. Aguarde aprovação.`,
+    sucesso: `Saque de rendimentos de ${formatMoeda(dados.valorFinal)} solicitado. Pagamento via Pix programado para ${formatData(dados.dataProgramadaPagamento)}, após conferência do administrador.`,
   };
 }
 

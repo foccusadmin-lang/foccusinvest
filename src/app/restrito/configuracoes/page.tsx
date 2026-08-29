@@ -27,6 +27,8 @@ export default async function RestritoConfiguracoesPage() {
           modoAprovacaoAporte={configuracao.modoAprovacaoAporte}
           valorMaximoAprovacaoAutomatica={configuracao.valorMaximoAprovacaoAutomatica}
           aplicacaoBensAtiva={configuracao.aplicacaoBensAtiva}
+          cidadePagamentoPix={configuracao.cidadePagamentoPix}
+          saquePagaMesmaSexta={configuracao.saquePagaMesmaSexta}
         />
       </div>
     </div>

@@ -21,6 +21,8 @@ export default function PreviewAdminPainelPage() {
           modoAprovacaoAporte="MANUAL"
           valorMaximoAprovacaoAutomatica={5000}
           aplicacaoBensAtiva={true}
+          cidadePagamentoPix="JANDIRA"
+          saquePagaMesmaSexta={true}
         />
       </div>
 
