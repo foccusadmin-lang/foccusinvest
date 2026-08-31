@@ -156,6 +156,10 @@ model User {
   // Modal de convite pro Grupo Foccus (WhatsApp) — mostrado uma única vez; marcado como visto
   // tanto ao clicar em "Acessar grupo" quanto ao fechar a janela (ver GrupoFoccusModal).
   viuGrupoFoccus Boolean        @default(false)
+  // Se true, sempre que o saldo disponível pra reaplicar (rendimento + bônus) atingir o mínimo
+  // (R$100), reaplica sozinho — sem esperar o investidor clicar em "Reaplicar agora" (ver
+  // reaplicarAutomaticamenteSeNecessario, em lib/carteira.ts).
+  reaplicacaoAutomatica Boolean @default(false)
 
   codigoIndicacao String? @unique
   indicadoPorId   String?

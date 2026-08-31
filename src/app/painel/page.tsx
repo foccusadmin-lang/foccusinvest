@@ -81,6 +81,7 @@ export default async function PainelPage() {
         ehLider,
         indicadosDiretos,
         aplicacaoBensAtiva: configuracao.aplicacaoBensAtiva,
+        reaplicacaoAutomatica: user.reaplicacaoAutomatica,
       }}
       resumo={resumo}
       janelaSaqueRendimentoAberta={janelaSaqueRendimentoAberta()}

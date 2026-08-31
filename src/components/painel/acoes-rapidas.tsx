@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button, LinkButton } from "@/components/ui/button";
 import { MoneyInput } from "@/components/ui/money-input";
@@ -29,6 +29,7 @@ import {
   reaplicar,
   reaplicarPorFonte,
   solicitarAporteBem,
+  definirReaplicacaoAutomatica,
   type AcaoState,
 } from "@/app/painel/actions";
 import {
@@ -109,6 +110,7 @@ export function AcoesRapidas({
   incentivoLiderancaAcumulado,
   bonusDisponivel,
   aplicacaoBensAtiva,
+  reaplicacaoAutomatica,
 }: {
   primeiroNome: string;
   saldoParaReaplicar: number;
@@ -131,6 +133,7 @@ export function AcoesRapidas({
   incentivoLiderancaAcumulado: number;
   bonusDisponivel: number;
   aplicacaoBensAtiva: boolean;
+  reaplicacaoAutomatica: boolean;
 }) {
   const [aberto, setAberto] = useState<TipoAcao | null>(null);
   const reaplicarDesativado = saldoParaReaplicar < MINIMO_REAPLICACAO;
@@ -186,20 +189,18 @@ export function AcoesRapidas({
           </Button>
         )}
 
-        {reaplicarDesativado ? (
-          <Button
-            variant="outline"
-            className="w-full cursor-not-allowed opacity-50"
-            disabled
-            title={`Disponível a partir de ${formatMoeda(MINIMO_REAPLICACAO)} em saldo`}
-          >
-            <IconRefresh width={16} height={16} /> Reaplicar
-          </Button>
-        ) : (
-          <Button variant="outline" className="w-full" onClick={() => setAberto("reaplicar")}>
-            <IconRefresh width={16} height={16} /> Reaplicar
-          </Button>
-        )}
+        <Button
+          variant="outline"
+          className="w-full"
+          onClick={() => setAberto("reaplicar")}
+          title={
+            reaplicarDesativado
+              ? `Reaplicar agora exige ${formatMoeda(MINIMO_REAPLICACAO)} em saldo — mas dá pra ligar a reaplicação automática mesmo assim.`
+              : undefined
+          }
+        >
+          <IconRefresh width={16} height={16} /> Reaplicar
+        </Button>
 
         <Button
           variant="outline"
@@ -317,6 +318,7 @@ export function AcoesRapidas({
           incentivoDisponivel={incentivoLiderancaDisponivel}
           bonusDisponivel={bonusDisponivel}
           moeda={moeda}
+          reaplicacaoAutomaticaInicial={reaplicacaoAutomatica}
         />
       )}
       {aberto === "saque-rendimento" && ehLider && (
@@ -346,6 +348,7 @@ export function AcoesRapidas({
             saldoParaReaplicar={saldoParaReaplicar}
             ehLider={ehLider}
             incentivoLiderancaDisponivel={incentivoLiderancaDisponivel}
+            reaplicacaoAutomaticaInicial={reaplicacaoAutomatica}
           />
         )}
     </>
@@ -1060,6 +1063,56 @@ function SaqueEmergenciaModal({
   );
 }
 
+/** Manual/Automático da reaplicação — quando Automático, o próprio investidor reaplica sozinho
+ *  assim que o saldo disponível (rendimento + bônus) bater o mínimo, sem precisar clicar em
+ *  "Reaplicar agora" toda vez (ver reaplicarAutomaticamenteSeNecessario, em lib/carteira.ts). */
+function ToggleReaplicacaoAutomatica({ ativaInicial }: { ativaInicial: boolean }) {
+  const [ativa, setAtiva] = useState(ativaInicial);
+  const [isPending, startTransition] = useTransition();
+
+  function alternar(novoValor: boolean) {
+    setAtiva(novoValor);
+    startTransition(async () => {
+      await definirReaplicacaoAutomatica(novoValor);
+    });
+  }
+
+  return (
+    <div className="rounded-xl border border-border bg-surface-2 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm font-medium text-foreground/90">Reaplicação automática</span>
+        <div className="flex rounded-lg border border-border bg-surface p-0.5">
+          <button
+            type="button"
+            disabled={isPending}
+            onClick={() => alternar(false)}
+            className={`rounded-md px-3 py-1 text-xs font-semibold transition disabled:opacity-50 ${
+              !ativa ? "bg-gold text-black" : "text-muted hover:text-foreground"
+            }`}
+          >
+            Manual
+          </button>
+          <button
+            type="button"
+            disabled={isPending}
+            onClick={() => alternar(true)}
+            className={`rounded-md px-3 py-1 text-xs font-semibold transition disabled:opacity-50 ${
+              ativa ? "bg-gold text-black" : "text-muted hover:text-foreground"
+            }`}
+          >
+            Automático
+          </button>
+        </div>
+      </div>
+      <p className="mt-1.5 text-xs text-muted">
+        {ativa
+          ? `Ligado: sempre que seu saldo disponível atingir ${formatMoeda(MINIMO_REAPLICACAO)} ou mais, reaplica sozinho — sem precisar clicar em "Reaplicar agora".`
+          : `Desligado: você decide quando reaplicar, clicando em "Reaplicar agora".`}
+      </p>
+    </div>
+  );
+}
+
 function AcaoModal({
   tipo,
   onClose,
@@ -1071,6 +1124,7 @@ function AcaoModal({
   saldoParaReaplicar,
   ehLider,
   incentivoLiderancaDisponivel,
+  reaplicacaoAutomaticaInicial,
 }: {
   tipo: TipoAcaoSimples;
   onClose: () => void;
@@ -1082,6 +1136,7 @@ function AcaoModal({
   saldoParaReaplicar: number;
   ehLider: boolean;
   incentivoLiderancaDisponivel: number;
+  reaplicacaoAutomaticaInicial: boolean;
 }) {
   const cfg = CONFIG[tipo];
   const [state, action, pending] = useActionState(cfg.action, undefined);
@@ -1176,6 +1231,12 @@ function AcaoModal({
                 Inclui {formatMoeda(incentivoLiderancaDisponivel, moeda)} de incentivo de liderança
               </p>
             )}
+          </div>
+        )}
+
+        {tipo === "reaplicar" && (
+          <div className="mt-3">
+            <ToggleReaplicacaoAutomatica ativaInicial={reaplicacaoAutomaticaInicial} />
           </div>
         )}
 
@@ -1399,12 +1460,14 @@ function ReaplicarLiderModal({
   incentivoDisponivel,
   bonusDisponivel,
   moeda,
+  reaplicacaoAutomaticaInicial,
 }: {
   onClose: () => void;
   plrDisponivel: number;
   incentivoDisponivel: number;
   bonusDisponivel: number;
   moeda: "BRL" | "USD" | "USDT";
+  reaplicacaoAutomaticaInicial: boolean;
 }) {
   const [state, action, pending] = useActionState(reaplicarPorFonte, undefined);
   const router = useRouter();
@@ -1473,6 +1536,10 @@ function ReaplicarLiderModal({
           Escolha as fontes que quer reaplicar — total, parcial ou individualmente. O novo lote
           fica com carência de 90 dias.
         </p>
+
+        <div className="mt-3">
+          <ToggleReaplicacaoAutomatica ativaInicial={reaplicacaoAutomaticaInicial} />
+        </div>
 
         {state?.sucesso ? (
           <p className="mt-6 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-300">

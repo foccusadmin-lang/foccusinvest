@@ -43,6 +43,7 @@ export type PainelUsuario = {
   ehLider?: boolean;
   indicadosDiretos?: IndicadoDireto[];
   aplicacaoBensAtiva?: boolean;
+  reaplicacaoAutomatica?: boolean;
 };
 
 const statusLabel: Record<string, { label: string; className: string }> = {
@@ -237,6 +238,7 @@ export function PainelDashboard({
           incentivoLiderancaDisponivel={resumo.incentivoLiderancaDisponivel}
           incentivoLiderancaAcumulado={resumo.incentivoLiderancaAcumulado}
           aplicacaoBensAtiva={usuario.aplicacaoBensAtiva ?? true}
+          reaplicacaoAutomatica={usuario.reaplicacaoAutomatica ?? false}
         />
 
         {vitrineOperacao && <VitrineOperacao {...vitrineOperacao} />}

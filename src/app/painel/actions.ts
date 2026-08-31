@@ -12,6 +12,7 @@ import {
   reaplicarSaldoDisponivel,
   getResumoCarteira,
   SaldoInsuficienteError,
+  VALOR_MINIMO_REAPLICACAO,
 } from "@/lib/carteira";
 import { obterLiberacaoAtivaDoUsuario, executarSaqueEmergencial } from "@/lib/emergencia";
 import {
@@ -81,7 +82,6 @@ const MENSAGEM_PEDIDO_JA_ENVIADO =
   "Esse pedido já tinha sido enviado — não foi duplicado. Confira o status em Histórico.";
 
 const VALOR_MINIMO_APLICACAO = 50;
-const VALOR_MINIMO_REAPLICACAO = 100;
 
 const TAMANHO_MAXIMO_COMPROVANTE = 5 * 1024 * 1024;
 
@@ -704,6 +704,22 @@ export async function solicitarSaqueEmergencia(
   revalidatePath("/restrito/saques");
 
   return { sucesso: resultado.mensagem };
+}
+
+/** Liga/desliga a reaplicação automática do próprio investidor — quando ligada, o saldo
+ *  disponível (rendimento + bônus) reaplica sozinho assim que atingir o mínimo (ver
+ *  reaplicarAutomaticamenteSeNecessario, em lib/carteira.ts, chamada a cada carga do painel). */
+export async function definirReaplicacaoAutomatica(ativa: boolean): Promise<{ error?: string }> {
+  const session = await auth();
+  if (!session?.user?.id) return { error: "Não autenticado." };
+
+  await prisma.user.update({
+    where: { id: session.user.id },
+    data: { reaplicacaoAutomatica: ativa },
+  });
+
+  revalidatePath("/painel");
+  return {};
 }
 
 export async function reaplicar(

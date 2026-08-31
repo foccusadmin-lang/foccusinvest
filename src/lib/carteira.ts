@@ -48,7 +48,10 @@ function sextaDaSemanaDe(data: Date): string {
 }
 
 export async function getResumoCarteira(userId: string): Promise<ResumoFinanceiro> {
-  await prisma.$transaction((tx) => sincronizarDistribuicoesDoUsuario(tx, userId));
+  await prisma.$transaction(async (tx) => {
+    await sincronizarDistribuicoesDoUsuario(tx, userId);
+    await reaplicarAutomaticamenteSeNecessario(tx, userId);
+  });
 
   const agora = new Date();
 
@@ -401,5 +404,30 @@ export async function reaplicarSaldoDisponivel(
       status: "CONFIRMADA",
       liberaEm: calcularLiberacao(),
     },
+  });
+}
+
+export const VALOR_MINIMO_REAPLICACAO = 100;
+
+/** Se o investidor ligou a reaplicação automática, reaplica sozinho assim que o saldo
+ *  disponível (rendimento + bônus, mesma soma que "Disponível para reaplicar" mostra na tela)
+ *  atingir o mínimo — sem esperar ele clicar em "Reaplicar agora". Chamada de dentro de
+ *  `getResumoCarteira`, então roda a cada carregamento do painel (mesmo padrão de
+ *  `sincronizarDistribuicoesDoUsuario`, que já roda ali e credita o rendimento do dia antes
+ *  desta função conferir o saldo). Não faz nada se o investidor não ligou a opção, ou se o
+ *  saldo ainda não bateu o mínimo — nunca lança erro, só pula. */
+export async function reaplicarAutomaticamenteSeNecessario(tx: TxClient, userId: string): Promise<void> {
+  const user = await tx.user.findUnique({ where: { id: userId }, select: { reaplicacaoAutomatica: true } });
+  if (!user?.reaplicacaoAutomatica) return;
+
+  const creditos = await tx.creditoCarteira.findMany({
+    where: { userId, tipo: { in: ["RENDIMENTO", "BONUS"] }, utilizadoEm: null, solicitacaoSaqueId: null },
+  });
+  const disponivel = creditos.reduce((acc, c) => acc + c.valor, 0);
+  if (disponivel < VALOR_MINIMO_REAPLICACAO) return;
+
+  await reaplicarSaldoDisponivel(tx, userId, disponivel);
+  await tx.logAuditoria.create({
+    data: { userId, acao: "reaplicacao_automatica", detalhes: `R$ ${disponivel.toFixed(2)}` },
   });
 }
