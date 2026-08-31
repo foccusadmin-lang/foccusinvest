@@ -21,7 +21,16 @@ const reaplicacoes: ReaplicacaoLinha[] = [
     id: "r1",
     valor: 640,
     moeda: "BRL",
+    origem: "REAPLICACAO",
     criadoEm: new Date(agora - 5 * dia),
+    user: { name: "Waldir Rodrigues Custódio", email: "waldir.custodio@exemplo.com" },
+  },
+  {
+    id: "r2",
+    valor: 112.5,
+    moeda: "BRL",
+    origem: "REAPLICACAO_AUTOMATICA",
+    criadoEm: new Date(agora - 1 * dia),
     user: { name: "Waldir Rodrigues Custódio", email: "waldir.custodio@exemplo.com" },
   },
 ];

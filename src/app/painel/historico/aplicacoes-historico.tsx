@@ -26,6 +26,7 @@ const STATUS_APLICACAO: Record<string, { label: string; className: string }> = {
 const ORIGEM_LABEL: Record<string, string> = {
   NOVA_APLICACAO: "Nova aplicação",
   REAPLICACAO: "Reaplicação",
+  REAPLICACAO_AUTOMATICA: "Reaplicação automática",
   MIGRACAO: "Migração",
   AJUSTE_ADMIN: "Ajuste (admin)",
 };

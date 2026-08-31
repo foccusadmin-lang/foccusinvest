@@ -90,7 +90,9 @@ export async function getResumoCarteira(userId: string): Promise<ResumoFinanceir
         else capitalDisponivel += ap.valor;
       }
     }
-    if (ap.origem === "REAPLICACAO") valoresReaplicados += ap.valor;
+    if (ap.origem === "REAPLICACAO" || ap.origem === "REAPLICACAO_AUTOMATICA") {
+      valoresReaplicados += ap.valor;
+    }
   }
 
   let distribuicoesAcumuladas = 0;
@@ -347,7 +349,8 @@ export async function reservarCreditosParaSaque(
 export async function reaplicarSaldoDisponivel(
   tx: TxClient,
   userId: string,
-  valor: number
+  valor: number,
+  automatica: boolean = false
 ): Promise<void> {
   // Nota: `orderBy: { tipo: "desc" }` NÃO garante RENDIMENTO antes de BONUS — enums nativos do
   // Postgres ordenam pelo ordinal declarado no `CREATE TYPE` (RENDIMENTO=1, BONUS=2), não
@@ -400,7 +403,7 @@ export async function reaplicarSaldoDisponivel(
       userId,
       valor,
       moeda: "BRL",
-      origem: "REAPLICACAO",
+      origem: automatica ? "REAPLICACAO_AUTOMATICA" : "REAPLICACAO",
       status: "CONFIRMADA",
       liberaEm: calcularLiberacao(),
     },
@@ -426,7 +429,7 @@ export async function reaplicarAutomaticamenteSeNecessario(tx: TxClient, userId:
   const disponivel = creditos.reduce((acc, c) => acc + c.valor, 0);
   if (disponivel < VALOR_MINIMO_REAPLICACAO) return;
 
-  await reaplicarSaldoDisponivel(tx, userId, disponivel);
+  await reaplicarSaldoDisponivel(tx, userId, disponivel, true);
   await tx.logAuditoria.create({
     data: { userId, acao: "reaplicacao_automatica", detalhes: `R$ ${disponivel.toFixed(2)}` },
   });

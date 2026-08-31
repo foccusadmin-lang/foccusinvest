@@ -64,6 +64,10 @@ enum StatusCadastro {
 enum OrigemAplicacao {
   NOVA_APLICACAO
   REAPLICACAO
+  // Mesma coisa que REAPLICACAO, só que lançada sozinha pelo sistema (reaplicação automática
+  // ligada pelo investidor) em vez de um clique manual em "Reaplicar agora" — só pra aparecer
+  // rotulada certo no histórico (ver reaplicarAutomaticamenteSeNecessario, em lib/carteira.ts).
+  REAPLICACAO_AUTOMATICA
   MIGRACAO
   AJUSTE_ADMIN
   DOACAO

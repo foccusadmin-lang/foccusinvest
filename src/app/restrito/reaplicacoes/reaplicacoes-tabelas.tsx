@@ -17,6 +17,7 @@ export type ReaplicacaoLinha = {
   id: string;
   valor: number;
   moeda: string;
+  origem: string;
   criadoEm: Date;
   user: { name: string | null; email: string };
 };
@@ -122,6 +123,7 @@ export function ReaplicacoesTabelas({
               <tr>
                 <th className="px-4 py-3">Investidor</th>
                 <th className="px-4 py-3">Valor</th>
+                <th className="px-4 py-3">Origem</th>
                 <th className="px-4 py-3">Data</th>
               </tr>
             </thead>
@@ -134,6 +136,17 @@ export function ReaplicacoesTabelas({
                   </td>
                   <td className="px-4 py-3 font-semibold text-gold-light">
                     {formatMoeda(r.valor, r.moeda as "BRL")}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                        r.origem === "REAPLICACAO_AUTOMATICA"
+                          ? "bg-sky-500/15 text-sky-300"
+                          : "bg-white/10 text-muted"
+                      }`}
+                    >
+                      {r.origem === "REAPLICACAO_AUTOMATICA" ? "Automática" : "Manual"}
+                    </span>
                   </td>
                   <td className="px-4 py-3 text-muted">{formatData(r.criadoEm)}</td>
                 </tr>

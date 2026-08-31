@@ -11,7 +11,7 @@ export default async function RestritoReaplicacoesPage() {
 
   const [reaplicacoes, capitaisPorUsuario, rendimentoDisponivelPorUsuario] = await Promise.all([
     prisma.aplicacao.findMany({
-      where: { origem: "REAPLICACAO" },
+      where: { origem: { in: ["REAPLICACAO", "REAPLICACAO_AUTOMATICA"] } },
       include: { user: { select: { name: true, email: true } } },
       orderBy: { criadoEm: "desc" },
       omit: { comprovante: true },

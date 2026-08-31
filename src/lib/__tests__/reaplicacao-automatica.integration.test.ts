@@ -34,7 +34,7 @@ describe("reaplicarAutomaticamenteSeNecessario", () => {
 
     await prisma.$transaction((tx) => reaplicarAutomaticamenteSeNecessario(tx, userId));
 
-    const aplicacoes = await prisma.aplicacao.findMany({ where: { userId, origem: "REAPLICACAO" } });
+    const aplicacoes = await prisma.aplicacao.findMany({ where: { userId, origem: { in: ["REAPLICACAO", "REAPLICACAO_AUTOMATICA"] } } });
     expect(aplicacoes.length).toBe(0);
   });
 
@@ -46,7 +46,7 @@ describe("reaplicarAutomaticamenteSeNecessario", () => {
 
     await prisma.$transaction((tx) => reaplicarAutomaticamenteSeNecessario(tx, userId));
 
-    const aplicacoes = await prisma.aplicacao.findMany({ where: { userId, origem: "REAPLICACAO" } });
+    const aplicacoes = await prisma.aplicacao.findMany({ where: { userId, origem: { in: ["REAPLICACAO", "REAPLICACAO_AUTOMATICA"] } } });
     expect(aplicacoes.length).toBe(0);
   });
 
@@ -61,10 +61,13 @@ describe("reaplicarAutomaticamenteSeNecessario", () => {
 
     await prisma.$transaction((tx) => reaplicarAutomaticamenteSeNecessario(tx, userId));
 
-    const aplicacoes = await prisma.aplicacao.findMany({ where: { userId, origem: "REAPLICACAO" } });
+    const aplicacoes = await prisma.aplicacao.findMany({ where: { userId, origem: { in: ["REAPLICACAO", "REAPLICACAO_AUTOMATICA"] } } });
     expect(aplicacoes.length).toBe(1);
     expect(aplicacoes[0].valor).toBeCloseTo(110, 2);
     expect(aplicacoes[0].status).toBe("CONFIRMADA");
+    // Precisa vir marcada como automática (não a mesma origem da reaplicação manual), pra
+    // aparecer rotulada certo no histórico do investidor.
+    expect(aplicacoes[0].origem).toBe("REAPLICACAO_AUTOMATICA");
 
     const creditos = await prisma.creditoCarteira.findMany({ where: { userId } });
     expect(creditos.every((c) => c.utilizadoEm !== null)).toBe(true);
@@ -82,7 +85,7 @@ describe("reaplicarAutomaticamenteSeNecessario", () => {
     await prisma.$transaction((tx) => reaplicarAutomaticamenteSeNecessario(tx, userId));
     await prisma.$transaction((tx) => reaplicarAutomaticamenteSeNecessario(tx, userId));
 
-    const aplicacoes = await prisma.aplicacao.findMany({ where: { userId, origem: "REAPLICACAO" } });
+    const aplicacoes = await prisma.aplicacao.findMany({ where: { userId, origem: { in: ["REAPLICACAO", "REAPLICACAO_AUTOMATICA"] } } });
     expect(aplicacoes.length).toBe(1);
   });
 });
