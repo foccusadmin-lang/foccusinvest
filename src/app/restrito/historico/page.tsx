@@ -73,7 +73,9 @@ export default async function RestritoHistoricoPage({
             ? "Reaplicação automática"
             : a.origem === "MIGRACAO"
               ? "Migração de saldo"
-              : "Aplicação",
+              : a.origem === "TRANSFERENCIA"
+                ? "Transferência recebida"
+                : "Aplicação",
       usuario: a.user.name ?? a.user.email,
       valor: a.valor,
       detalhe: `Status: ${a.status}`,

@@ -61,6 +61,12 @@ const BOTOES: Botao[] = [
     icone: <IconGeneric path="M21 12a9 9 0 1 1-9-9c2.52 0 4.85.99 6.57 2.64M21 3v6h-6" />,
   },
   {
+    label: "Transferência de Saldo",
+    href: "/restrito/transferencia",
+    cor: "bg-rose-600 hover:bg-rose-500",
+    icone: <IconGeneric path="M17 1l4 4-4 4M3 11V9a4 4 0 0 1 4-4h14M7 23l-4-4 4-4M21 13v2a4 4 0 0 1-4 4H3" />,
+  },
+  {
     label: "Criar por e-mail",
     href: "/restrito/criar-usuario",
     cor: "bg-orange-600 hover:bg-orange-500",

@@ -71,6 +71,10 @@ enum OrigemAplicacao {
   MIGRACAO
   AJUSTE_ADMIN
   DOACAO
+  // Capital movido de um investidor pra outro pelo admin (ver transferirCapitalEntreUsuarios,
+  // em lib/carteira.ts) — só marca o lote criado pro lado que RECEBE; o lado que envia só tem
+  // o capital reduzido (mesmo padrão do ajuste manual "Apagar"), sem registro próprio.
+  TRANSFERENCIA
 }
 
 enum CategoriaBem {

@@ -434,3 +434,64 @@ export async function reaplicarAutomaticamenteSeNecessario(tx: TxClient, userId:
     data: { userId, acao: "reaplicacao_automatica", detalhes: `R$ ${disponivel.toFixed(2)}` },
   });
 }
+
+/** Consome capital "livre" (lotes CONFIRMADA, mais antigos primeiro — mesma FIFO usada em todo
+ *  o resto da carteira) até atingir `valor`, dividindo o último lote se necessário. Não olha
+ *  carência (o admin pode transferir capital ainda em carência, igual já podia ajustar/apagar
+ *  saldo manualmente) nem lotes já reservados num saque em andamento (esses não entram na
+ *  busca, então nunca são tocados). Lança SaldoInsuficienteError se a origem não tiver capital
+ *  livre suficiente. */
+async function reduzirCapitalLivre(tx: TxClient, userId: string, valor: number): Promise<void> {
+  const lotes = await tx.aplicacao.findMany({
+    where: { userId, status: "CONFIRMADA" },
+    orderBy: { criadoEm: "asc" },
+  });
+
+  const restante = await consumirFIFO(
+    lotes,
+    valor,
+    async (lote) => {
+      await tx.aplicacao.delete({ where: { id: lote.id } });
+    },
+    async (lote, _valorConsumido, valorRestanteNoLote) => {
+      await tx.aplicacao.update({ where: { id: lote.id }, data: { valor: valorRestanteNoLote } });
+    }
+  );
+
+  if (restante > EPSILON) {
+    throw new SaldoInsuficienteError("O investidor de origem não tem capital livre suficiente pra essa transferência.");
+  }
+}
+
+/**
+ * Move capital de um investidor pra outro, por decisão do admin — reduz o capital livre da
+ * origem (FIFO, mesma lógica de qualquer redução de capital) e cria um lote novo (carência de
+ * 90 dias, como qualquer capital novo) pro destino. Tudo dentro da mesma transação: ou as duas
+ * pontas acontecem, ou nenhuma.
+ */
+export async function transferirCapitalEntreUsuarios(
+  tx: TxClient,
+  origemUserId: string,
+  destinoUserId: string,
+  valor: number
+): Promise<void> {
+  if (origemUserId === destinoUserId) {
+    throw new Error("A origem e o destino da transferência não podem ser o mesmo investidor.");
+  }
+  if (!valor || valor <= 0) {
+    throw new Error("Informe um valor válido para a transferência.");
+  }
+
+  await reduzirCapitalLivre(tx, origemUserId, valor);
+
+  await tx.aplicacao.create({
+    data: {
+      userId: destinoUserId,
+      valor,
+      moeda: "BRL",
+      origem: "TRANSFERENCIA",
+      status: "CONFIRMADA",
+      liberaEm: calcularLiberacao(),
+    },
+  });
+}

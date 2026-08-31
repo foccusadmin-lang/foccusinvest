@@ -16,6 +16,7 @@ const LINKS = [
   { href: "/restrito/distribuicoes", label: "Distribuições" },
   { href: "/restrito/plr-individual", label: "PLR Individual" },
   { href: "/restrito/reaplicacoes", label: "Reaplicações" },
+  { href: "/restrito/transferencia", label: "Transferência de Saldo" },
   { href: "/restrito/migracao", label: "Migração" },
   { href: "/restrito/historico", label: "Histórico" },
   { href: "/restrito/entidades", label: "Entidades" },

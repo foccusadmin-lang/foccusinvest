@@ -29,6 +29,7 @@ const ORIGEM_LABEL: Record<string, string> = {
   REAPLICACAO_AUTOMATICA: "Reaplicação automática",
   MIGRACAO: "Migração",
   AJUSTE_ADMIN: "Ajuste (admin)",
+  TRANSFERENCIA: "Transferência recebida",
 };
 
 export function AplicacoesHistorico({ itens }: { itens: Aplicacao[] }) {

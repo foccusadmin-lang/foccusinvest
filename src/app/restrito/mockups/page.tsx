@@ -33,6 +33,7 @@ const ITENS: MockupItem[] = [
   { key: "admin-distribuicoes", label: "Distribuições", grupo: "Administrador", path: "/preview/admin-distribuicoes" },
   { key: "admin-plr-individual", label: "PLR Individual", grupo: "Administrador", path: "/preview/admin-plr-individual" },
   { key: "admin-reaplicacoes", label: "Reaplicações", grupo: "Administrador", path: "/preview/admin-reaplicacoes" },
+  { key: "admin-transferencia", label: "Transferência de saldo", grupo: "Administrador", path: "/preview/admin-transferencia" },
   { key: "admin-migracao", label: "Migração de saldo", grupo: "Administrador", path: "/preview/admin-migracao" },
   { key: "admin-historico", label: "Histórico completo", grupo: "Administrador", path: "/preview/admin-historico" },
   { key: "admin-entidades", label: "Entidades", grupo: "Administrador", path: "/preview/admin-entidades" },
