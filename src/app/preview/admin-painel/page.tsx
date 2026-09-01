@@ -23,6 +23,7 @@ export default function PreviewAdminPainelPage() {
           aplicacaoBensAtiva={true}
           cidadePagamentoPix="JANDIRA"
           saquePagaMesmaSexta={true}
+          modoPLR="MANUAL"
         />
       </div>
 

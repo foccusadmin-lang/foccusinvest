@@ -13,7 +13,8 @@ export async function definirModoSaque(
     | "modoVerificacaoCadastro"
     | "modoIncentivoLideranca"
     | "modoBonusIndicacao"
-    | "modoAprovacaoAporte",
+    | "modoAprovacaoAporte"
+    | "modoPLR",
   modo: ModoProcessamento
 ) {
   const session = await auth();

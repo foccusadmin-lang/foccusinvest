@@ -23,11 +23,11 @@ export async function criarDistribuicao(params: {
   percentual: number;
   resultadoApurado: string;
   observacoes?: string;
-}): Promise<void> {
+}): Promise<{ distribuicaoId: string }> {
   const { criadoPorId, periodoInicio, periodoFim, percentual, resultadoApurado, observacoes } =
     params;
 
-  await prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx) => {
     const usuarios = await tx.user.findMany({
       where: { statusCadastro: "APROVADO" },
       include: { aplicacoes: { omit: { comprovante: true } } },
@@ -95,6 +95,8 @@ export async function criarDistribuicao(params: {
         update: { variacaoDia: percentual },
       });
     }
+
+    return { distribuicaoId: distribuicao.id };
   });
 }
 

@@ -20,6 +20,7 @@ export default function PreviewAdminConfiguracoesPage() {
           aplicacaoBensAtiva={true}
           cidadePagamentoPix="JANDIRA"
           saquePagaMesmaSexta={true}
+          modoPLR="MANUAL"
         />
       </div>
     </AdminPreviewShell>

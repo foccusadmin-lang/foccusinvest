@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState, useTransition } from "react";
+import Link from "next/link";
 import type { ModoProcessamento } from "@prisma/client";
 import {
   definirModoSaque,
@@ -17,6 +18,7 @@ import {
   IconPlus,
   IconPackage,
   IconArrowDown,
+  IconTrendingUp,
 } from "@/components/icons";
 
 type CampoConfig =
@@ -25,7 +27,8 @@ type CampoConfig =
   | "modoVerificacaoCadastro"
   | "modoIncentivoLideranca"
   | "modoBonusIndicacao"
-  | "modoAprovacaoAporte";
+  | "modoAprovacaoAporte"
+  | "modoPLR";
 
 function Toggle({
   label,
@@ -194,6 +197,7 @@ export function ControleSaques({
   aplicacaoBensAtiva,
   cidadePagamentoPix,
   saquePagaMesmaSexta,
+  modoPLR,
 }: {
   modoSaqueCapital: ModoProcessamento;
   modoSaqueRendimento: ModoProcessamento;
@@ -205,6 +209,7 @@ export function ControleSaques({
   aplicacaoBensAtiva: boolean;
   cidadePagamentoPix: string;
   saquePagaMesmaSexta: boolean;
+  modoPLR: ModoProcessamento;
 }) {
   return (
     <div className="space-y-3">
@@ -303,6 +308,26 @@ export function ControleSaques({
           Automático libera 5% em toda nova aplicação do indicado (não só a primeira). No manual,
           só a primeira aplicação libera sozinha — as seguintes ficam disponíveis pro botão
           "Liberar bônus" em Aportes.
+        </p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-6 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4">
+        <div className="flex items-center gap-2 text-emerald-200">
+          <IconTrendingUp width={16} height={16} />
+          <span className="text-sm font-semibold">Lançamento de PLR</span>
+        </div>
+        <Toggle label="Modo" campo="modoPLR" valor={modoPLR} />
+        <p className="w-full text-xs text-muted">
+          Manual: continue lançando cada Distribuição na mão, como sempre, em{" "}
+          <Link href="/restrito/distribuicoes" className="underline hover:text-emerald-100">
+            Distribuições
+          </Link>
+          . Automático: defina um percentual total, um período e um horário de lançamento em{" "}
+          <Link href="/restrito/plr-automatico" className="underline hover:text-emerald-100">
+            PLR Automático
+          </Link>{" "}
+          — o sistema gera sozinho uma Distribuição por dia, com mais nas sextas-feiras e menos
+          nos fins de semana, sempre somando exatamente o percentual definido.
         </p>
       </div>
     </div>

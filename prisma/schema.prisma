@@ -85,7 +85,7 @@ enum OrigemAplicacao {
   // distinguir uma transferência que o próprio investidor fez de uma feita pelo admin.
   TRANSFERENCIA_ENTRE_USUARIOS
   // Marca o lote de capital recebido pela carteira interna da empresa (User perfil EMPRESA)
-  // como pagamento de tarifa de serviço — ver lib/servicos-pagamento.ts.
+  // como pagamento de tarifa de serviço — ver lib/servicos-contratacao.ts.
   PAGAMENTO_SERVICO
 }
 
@@ -220,6 +220,7 @@ model User {
   servicosLiberados ContratoServico[] @relation("ServicoLiberadoPor")
   cobrancasServico  CobrancaServico[]
   benchmarksCriados BenchmarkMercado[]
+  campanhasPlrCriadas CampanhaPlrAutomatica[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -345,6 +346,9 @@ model DistribuicaoMensal {
   criadoEm    DateTime @default(now())
 
   participantes DistribuicaoParticipante[]
+  // Presente só quando esta Distribuição foi gerada sozinha pelo motor de PLR automático (um
+  // dia = uma Distribuição de um dia só) — null quando foi lançada manualmente pelo admin.
+  campanhaPlrDia CampanhaPlrDia?
 }
 
 /**
@@ -642,6 +646,10 @@ model ConfiguracaoSistema {
   // Se a solicitação de saque cair numa sexta-feira, decide se a data programada de pagamento
   // é aquela mesma sexta (true) ou a sexta seguinte (false).
   saquePagaMesmaSexta Boolean @default(true)
+  // Manual: admin continua lançando cada Distribuição na mão, como sempre (ver
+  // /restrito/distribuicoes). Automático: usa a campanha ativa em CampanhaPlrAutomatica pra
+  // gerar uma Distribuição por dia sozinho (ver lib/plr-automatico.ts).
+  modoPLR                 ModoProcessamento @default(MANUAL)
   updatedAt               DateTime          @updatedAt
 }
 
@@ -905,4 +913,50 @@ model BenchmarkMercado {
   atualizadoEm DateTime @updatedAt
 
   @@unique([indicador, mes])
+}
+
+// =====================================================================================
+// PLR AUTOMÁTICO — quando ConfiguracaoSistema.modoPLR = AUTOMATICO, o admin define um
+// percentual total + período + horário de lançamento diário, e o sistema gera sozinho uma
+// Distribuição por dia (ver lib/plr-automatico.ts), reaproveitando 100% do motor de
+// Distribuição/diluição diária que já existe pro lançamento manual.
+// =====================================================================================
+
+/** Uma "campanha" = um percentual total definido pelo admin, distribuído de forma variada ao
+ *  longo dos dias do período (mais nas sextas, menos nos fins de semana) — o cronograma inteiro
+ *  (CampanhaPlrDia) já é sorteado e gravado na criação, garantindo que a soma bata exatamente
+ *  com percentualTotal. Só uma campanha fica "ativa" por vez. */
+model CampanhaPlrAutomatica {
+  id                String   @id @default(cuid())
+  percentualTotal   Float
+  periodoInicio     DateTime
+  periodoFim        DateTime
+  // Horário (Brasília, "HH:MM") a partir do qual o dia fica liberado pra ser lançado — o motor
+  // só materializa a Distribuição daquele dia depois desse horário (ver processarDiasPendentes).
+  horarioLancamento String
+  ativa             Boolean  @default(true)
+
+  criadoPorId String
+  criadoPor   User     @relation(fields: [criadoPorId], references: [id])
+  criadoEm    DateTime @default(now())
+
+  dias CampanhaPlrDia[]
+}
+
+/** Um dia do cronograma de uma campanha — o percentual de cada dia já é sorteado (dentro da
+ *  faixa do tipo de dia: seg-qui, sexta ou fim de semana) no momento da criação da campanha,
+ *  nunca recalculado depois. `processadoEm`/`distribuicaoId` só são preenchidos quando o motor
+ *  automático de fato gera a Distribuição daquele dia. */
+model CampanhaPlrDia {
+  id         String                @id @default(cuid())
+  campanhaId String
+  campanha   CampanhaPlrAutomatica @relation(fields: [campanhaId], references: [id], onDelete: Cascade)
+  data       DateTime
+  percentual Float
+
+  processadoEm   DateTime?
+  distribuicaoId String?             @unique
+  distribuicao   DistribuicaoMensal? @relation(fields: [distribuicaoId], references: [id])
+
+  @@unique([campanhaId, data])
 }

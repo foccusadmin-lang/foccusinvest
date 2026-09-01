@@ -102,6 +102,7 @@ export default async function RestritoPainelPage() {
           aplicacaoBensAtiva={configuracao.aplicacaoBensAtiva}
           cidadePagamentoPix={configuracao.cidadePagamentoPix}
           saquePagaMesmaSexta={configuracao.saquePagaMesmaSexta}
+          modoPLR={configuracao.modoPLR}
         />
       </div>
 

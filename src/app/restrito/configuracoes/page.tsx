@@ -29,6 +29,7 @@ export default async function RestritoConfiguracoesPage() {
           aplicacaoBensAtiva={configuracao.aplicacaoBensAtiva}
           cidadePagamentoPix={configuracao.cidadePagamentoPix}
           saquePagaMesmaSexta={configuracao.saquePagaMesmaSexta}
+          modoPLR={configuracao.modoPLR}
         />
       </div>
     </div>
