@@ -78,8 +78,10 @@ export function CampanhaForm() {
       </form>
 
       <p className="mt-2 text-[11px] text-muted">
-        Horário no fuso de Brasília. Criar uma nova campanha desativa automaticamente qualquer
-        outra que ainda esteja ativa (os dias dela já lançados continuam intactos no histórico).
+        Horário no fuso de Brasília — a checagem só roda uma vez por dia, às 19h45, então um
+        horário depois desse ponto materializa no dia seguinte. Criar uma nova campanha desativa
+        automaticamente qualquer outra que ainda esteja ativa (os dias dela já lançados continuam
+        intactos no histórico).
       </p>
 
       {state?.error && <p className="mt-2 text-sm text-red-400">{state.error}</p>}

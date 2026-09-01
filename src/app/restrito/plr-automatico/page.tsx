@@ -18,7 +18,9 @@ export default async function RestritoPlrAutomaticoPage() {
       <p className="mt-1 text-sm text-muted">
         Defina um percentual total, um período e um horário de lançamento — o sistema sorteia o
         cronograma diário na hora (mais nas sextas-feiras, menos nos fins de semana, um pouco de
-        variação todo dia) e depois só materializa cada dia sozinho, no horário configurado.
+        variação todo dia) e depois materializa cada dia sozinho. Importante: a checagem roda uma
+        vez por dia, às 19h45 (horário de Brasília) — um horário de lançamento definido depois
+        desse ponto só materializa no dia seguinte, não na hora exata configurada.
       </p>
 
       {configuracao.modoPLR === "MANUAL" && (
