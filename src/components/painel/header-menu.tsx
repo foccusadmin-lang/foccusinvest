@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
-import { IconBell, IconLogout, IconSettings, IconClock, IconHeadset, IconVideo } from "@/components/icons";
+import { IconBell, IconLogout, IconSettings, IconClock, IconHeadset, IconVideo, IconPackage } from "@/components/icons";
 import { IndicacaoHeaderButton } from "./indicacao-header-button";
 import { TELEFONE_ATENDIMENTO_ADMIN, mensagemSuportePadrao } from "@/lib/config";
 
@@ -50,6 +50,14 @@ export function HeaderMenu({
         className="flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted transition hover:text-gold-light"
       >
         <IconClock width={16} height={16} />
+      </Link>
+      <Link
+        href="/painel/servicos"
+        aria-label="Pacotes de Serviços"
+        title="Pacotes de Serviços"
+        className="flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted transition hover:text-gold-light"
+      >
+        <IconPackage width={16} height={16} />
       </Link>
       <Link
         href="/painel/configuracoes"

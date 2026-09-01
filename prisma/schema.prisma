@@ -16,6 +16,11 @@ enum PerfilUsuario {
   LIDER
   ADMIN
   ENTIDADE
+  // Carteira interna da empresa (WD Insight Rodrigues Soluções e Consultoria LTDA,
+  // codigoIndicacao "2VPDV-GRUPO") que recebe as tarifas de Pacotes de Serviços — reaproveita a
+  // mesma carteira normal (Aplicacao/CreditoCarteira) de qualquer usuário, só pra registrar o
+  // capital recebido; nunca faz login nem aparece em listagens de investidor.
+  EMPRESA
 }
 
 enum TipoEntidade {
@@ -75,6 +80,13 @@ enum OrigemAplicacao {
   // em lib/carteira.ts) — só marca o lote criado pro lado que RECEBE; o lado que envia só tem
   // o capital reduzido (mesmo padrão do ajuste manual "Apagar"), sem registro próprio.
   TRANSFERENCIA
+  // Capital movido entre dois investidores pelo serviço "Transferência entre usuários" (pago,
+  // do Pacote de Serviços) — mesma mecânica de TRANSFERENCIA, só separado no histórico pra
+  // distinguir uma transferência que o próprio investidor fez de uma feita pelo admin.
+  TRANSFERENCIA_ENTRE_USUARIOS
+  // Marca o lote de capital recebido pela carteira interna da empresa (User perfil EMPRESA)
+  // como pagamento de tarifa de serviço — ver lib/servicos-pagamento.ts.
+  PAGAMENTO_SERVICO
 }
 
 enum CategoriaBem {
@@ -203,6 +215,10 @@ model User {
 
   mensagensGuia MensagemGuia[]
   faqsGuiaCriadas FaqGuia[]
+
+  contratosServico  ContratoServico[]
+  servicosLiberados ContratoServico[] @relation("ServicoLiberadoPor")
+  cobrancasServico  CobrancaServico[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -706,4 +722,153 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+// =====================================================================================
+// PACOTES DE SERVIÇOS — catálogo, contratos por usuário e cobranças.
+// =====================================================================================
+
+enum CodigoServico {
+  TRANSFERENCIA_USUARIOS
+  REAPLICACAO_AUTOMATICA
+  ASSESSORIA_CONTABIL
+  ASSESSORIA_JURIDICA
+  ASSESSORIA_TI
+  APLICACAO_BENS
+  DOAR_ENTIDADE
+  PLANO_LIDERANCA
+  // Serviço adicional (fora dos 8 originais do pacote completo — não entra no cálculo de
+  // desconto de 5%/R$ 50,00) — contratar deixa o usuário elegível a receber uma liberação de
+  // saque de emergência do admin (ver lib/emergencia.ts); sem o serviço ATIVO, o admin não
+  // consegue criar a liberação.
+  SAQUE_EMERGENCIA
+}
+
+/** Estados possíveis de um serviço pra um usuário específico (seção 8 do documento). */
+enum StatusServicoUsuario {
+  DISPONIVEL
+  SELECIONADO
+  AGUARDANDO_CONFIRMACAO
+  PAGAMENTO_PENDENTE
+  CONTRATADO
+  CONTRATADO_AGUARDANDO_ELEGIBILIDADE
+  ATIVO
+  INATIVO
+  DESATIVACAO_AGENDADA
+  BLOQUEADO
+  SUSPENSO
+  CANCELADO
+  PAGAMENTO_RECUSADO
+  ERRO_PAGAMENTO
+}
+
+enum FormaContratacaoServico {
+  INDIVIDUAL
+  PACOTE_MENSAL
+  PACOTE_ANUAL
+}
+
+enum StatusCobrancaServico {
+  PENDENTE
+  CONFIRMADA
+  RECUSADA
+  CANCELADA
+  ESTORNADA
+  DUPLICADA
+  ERRO
+}
+
+/** Catálogo — um registro por serviço, sempre cadastrado e ativo internamente (o que fica
+ *  oculto/bloqueado pro usuário é o CONTRATO dele, não o catálogo). */
+model ServicoPacote {
+  id            String        @id @default(cuid())
+  codigo        CodigoServico @unique
+  nome          String
+  descricao     String
+  // Tarifa unitária mensal — usada tanto na contratação individual (integral) quanto somada
+  // no subtotal do pacote completo (com desconto).
+  tarifa        Float
+  // Preço próprio quando contratado avulso no plano anual (não simplesmente tarifa*12) — só
+  // usado fora do pacote completo; o pacote completo anual usa PRECO_PACOTE_ANUAL fixo.
+  icone         String?
+  ordem         Int           @default(0)
+  integraPacote Boolean       @default(true)
+  ativoGlobal   Boolean       @default(true)
+  // Contato/mensagem das assessorias (Contábil/Jurídica vêm com valor fixo já semeado;
+  // TI fica em branco até o admin configurar — nunca inventado).
+  contatoWhatsapp String?
+  mensagemPadrao  String?
+
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  contratos ContratoServico[]
+}
+
+/** Status individual do serviço pra cada usuário — o que de fato controla se a funcionalidade
+ *  aparece/funciona pra ele (seção 1 e 7 do documento). Preserva todo o histórico: nunca é
+ *  apagado, só muda de status. */
+model ContratoServico {
+  id        String                @id @default(cuid())
+  userId    String
+  user      User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  servicoId String
+  servico   ServicoPacote         @relation(fields: [servicoId], references: [id])
+  status    StatusServicoUsuario  @default(INATIVO)
+
+  formaContratacao FormaContratacaoServico?
+  contratadoEm     DateTime?
+  ativadoEm        DateTime?
+  desativadoEm     DateTime?
+  // Fim da vigência (pacote mensal/anual) — informativo; não gera cancelamento/estorno
+  // automático (documento proíbe isso sem regra definida pelo admin).
+  vigenciaFim      DateTime?
+
+  // Plano de Liderança: liberação excepcional pelo admin antes da meta de 30 indicados.
+  liberacaoExcepcional Boolean   @default(false)
+  liberadoPorId        String?
+  liberadoPor          User?     @relation("ServicoLiberadoPor", fields: [liberadoPorId], references: [id])
+  motivoLiberacao      String?
+  liberadoEm           DateTime?
+
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  @@unique([userId, servicoId])
+}
+
+/**
+ * Registro financeiro de cada cobrança de serviço (individual ou pacote) — nunca apagado,
+ * mesmo que o(s) serviço(s) sejam desativados depois. Um único registro por contratação, ainda
+ * que envolva vários serviços (pacote completo).
+ */
+model CobrancaServico {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Códigos dos serviços incluídos nesta cobrança, em JSON (ex: '["ASSESSORIA_TI"]').
+  servicosCodigos  String
+  formaContratacao FormaContratacaoServico
+
+  valorBruto         Float
+  percentualDesconto Float @default(0)
+  valorDesconto      Float @default(0)
+  valorFinal         Float
+
+  // De onde saiu o valor — rendimento/bônus primeiro, capital só se faltar (mesma prioridade
+  // de reaplicarSaldoDisponivel).
+  origemRendimento Float @default(0)
+  origemBonus      Float @default(0)
+  origemCapital    Float @default(0)
+
+  carteiraDestinoNome  String @default("WD INSIGHT RODRIGUES SOLUCOES E CONSULTORIA LTDA")
+  codigoCarteiraDestino String @default("2VPDV-GRUPO")
+
+  status         StatusCobrancaServico @default(CONFIRMADA)
+  idempotencyKey String?               @unique
+  txid           String                @unique
+
+  criadoEm    DateTime  @default(now())
+  processadoEm DateTime?
 }

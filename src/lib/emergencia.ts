@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { reservarCreditosParaSaque, consumirFIFO, SaldoInsuficienteError, type TxClient } from "@/lib/carteira";
 import { getConfiguracao } from "@/lib/configuracao";
 import { estimarSaqueEmergencial } from "@/lib/emergencia-calculo";
+import { usuarioTemServicoAtivo } from "@/lib/servicos-contratacao";
 import type { TipoLiberacaoEmergencial } from "@prisma/client";
 
 const EPSILON = 0.005;
@@ -59,6 +60,17 @@ export async function criarLiberacaoEmergencial(
   if (!aplicacao) return { error: "Aplicação não encontrada." };
   if (aplicacao.status !== "CONFIRMADA") {
     return { error: "Essa aplicação não está mais disponível pra liberação (já foi sacada ou está em outro saque)." };
+  }
+
+  // Serviço "Saque de emergência" (Pacotes de Serviços) precisa estar contratado e ATIVO pra
+  // esse investidor — sem ele, o admin não consegue criar a liberação, mesmo com todo o resto
+  // preenchido corretamente (checagem no servidor, não só na tela).
+  const temServicoAtivo = await usuarioTemServicoAtivo(aplicacao.userId, "SAQUE_EMERGENCIA");
+  if (!temServicoAtivo) {
+    return {
+      error:
+        "Esse investidor ainda não contratou o serviço \"Saque de emergência\" (Pacotes de Serviços) — não é possível liberar sem ele.",
+    };
   }
 
   if (tipoSaque === "TOTAL") {

@@ -441,7 +441,7 @@ export async function reaplicarAutomaticamenteSeNecessario(tx: TxClient, userId:
  *  saldo manualmente) nem lotes já reservados num saque em andamento (esses não entram na
  *  busca, então nunca são tocados). Lança SaldoInsuficienteError se a origem não tiver capital
  *  livre suficiente. */
-async function reduzirCapitalLivre(tx: TxClient, userId: string, valor: number): Promise<void> {
+export async function reduzirCapitalLivre(tx: TxClient, userId: string, valor: number): Promise<void> {
   const lotes = await tx.aplicacao.findMany({
     where: { userId, status: "CONFIRMADA" },
     orderBy: { criadoEm: "asc" },
@@ -494,4 +494,86 @@ export async function transferirCapitalEntreUsuarios(
       liberaEm: calcularLiberacao(),
     },
   });
+}
+
+export type DebitoServico = { rendimento: number; bonus: number; capital: number };
+
+/** Debita uma cobrança de serviço (Pacotes de Serviços) do investidor, na ordem: rendimento
+ *  disponível, depois bônus disponível e só então capital livre — mesma prioridade confirmada
+ *  pra esse módulo. Igual a `reaplicarSaldoDisponivel`/`debitarSaldoDisponivelParaDoacao` nos
+ *  dois primeiros passos (marca utilizadoEm, não cria capital novo), mas com um terceiro passo
+ *  novo (capital, via `reduzirCapitalLivre`) quando rendimento+bônus não bastam. Devolve o
+ *  quanto saiu de cada origem, pra registrar em CobrancaServico. Lança SaldoInsuficienteError se
+ *  nem com capital der pra cobrir. */
+export async function debitarSaldoParaServico(
+  tx: TxClient,
+  userId: string,
+  valor: number
+): Promise<DebitoServico> {
+  let restante = valor;
+  let rendimento = 0;
+  let bonus = 0;
+
+  for (const tipo of ["RENDIMENTO", "BONUS"] as const) {
+    if (restante <= 0) break;
+    const disponiveis = await tx.creditoCarteira.findMany({
+      where: { userId, tipo, utilizadoEm: null, solicitacaoSaqueId: null },
+      orderBy: { criadoEm: "asc" },
+    });
+
+    const antesDesteTipo = restante;
+    restante = await consumirFIFO(
+      disponiveis,
+      restante,
+      async (credito) => {
+        await tx.creditoCarteira.update({ where: { id: credito.id }, data: { utilizadoEm: new Date() } });
+      },
+      async (credito, _valorConsumido, valorRestanteNaLinha) => {
+        const cheio = await tx.creditoCarteira.findUniqueOrThrow({ where: { id: credito.id } });
+        await tx.creditoCarteira.update({ where: { id: credito.id }, data: { valor: valorRestanteNaLinha } });
+        await tx.creditoCarteira.create({
+          data: {
+            userId,
+            tipo: cheio.tipo,
+            valor: cheio.valor - valorRestanteNaLinha,
+            moeda: cheio.moeda,
+            origem: cheio.origem,
+            utilizadoEm: new Date(),
+          },
+        });
+      }
+    );
+    const consumidoNesteTipo = antesDesteTipo - restante;
+    if (tipo === "RENDIMENTO") rendimento = consumidoNesteTipo;
+    else bonus = consumidoNesteTipo;
+  }
+
+  let capital = 0;
+  if (restante > EPSILON) {
+    capital = restante;
+    await reduzirCapitalLivre(tx, userId, restante); // lança SaldoInsuficienteError se faltar
+  }
+
+  return { rendimento, bonus, capital };
+}
+
+/** Credita o valor de uma cobrança de serviço na carteira interna da empresa (User perfil
+ *  EMPRESA) — disponível na hora, sem carência de 90 dias (mesmo padrão de
+ *  `creditarDoacaoNaEntidade`: carteira interna, não um investidor comum). */
+export async function creditarPagamentoServicoNaEmpresa(
+  tx: TxClient,
+  empresaUserId: string,
+  valor: number
+): Promise<string> {
+  const aplicacao = await tx.aplicacao.create({
+    data: {
+      userId: empresaUserId,
+      valor,
+      moeda: "BRL",
+      origem: "PAGAMENTO_SERVICO",
+      status: "CONFIRMADA",
+      liberaEm: new Date(),
+    },
+  });
+  return aplicacao.id;
 }
