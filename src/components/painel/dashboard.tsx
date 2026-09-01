@@ -6,6 +6,7 @@ import { HeaderMenu } from "./header-menu";
 import { ViewSwitcher } from "@/components/admin/view-switcher";
 import { ConvidarAmigoButton } from "./convidar-amigo-button";
 import { VitrineOperacao, type VitrineOperacaoProps } from "./vitrine-operacao";
+import { RentabilidadeVsIndices, type PontoComparativoClient } from "./rentabilidade-vs-indices";
 import { formatMoeda, formatData } from "@/lib/format";
 import { IconWallet, IconTrendingUp, IconGift, IconVerified, IconUsers } from "@/components/icons";
 import type { LiberacaoAtiva } from "@/lib/emergencia";
@@ -59,11 +60,13 @@ export function PainelDashboard({
   resumo,
   janelaSaqueRendimentoAberta,
   vitrineOperacao,
+  comparativoRentabilidade,
 }: {
   usuario: PainelUsuario;
   resumo: ResumoFinanceiro;
   janelaSaqueRendimentoAberta: boolean;
   vitrineOperacao?: VitrineOperacaoProps | null;
+  comparativoRentabilidade?: PontoComparativoClient[];
 }) {
   const moeda = usuario.moeda ?? "BRL";
   const status = statusLabel[usuario.statusCadastro] ?? statusLabel.INCOMPLETO;
@@ -247,6 +250,12 @@ export function PainelDashboard({
           Atividade
         </p>
         <RendimentosChart pontos={resumo.historicoRendimentos} moeda={moeda} />
+
+        {comparativoRentabilidade && comparativoRentabilidade.length > 0 && (
+          <div className="mt-4">
+            <RentabilidadeVsIndices pontos={comparativoRentabilidade} />
+          </div>
+        )}
       </main>
     </div>
   );

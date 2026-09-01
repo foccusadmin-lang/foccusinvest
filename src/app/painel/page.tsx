@@ -7,6 +7,7 @@ import { janelaSaqueRendimentoAberta } from "@/lib/janela-saque";
 import { obterLiberacaoAtivaDoUsuario } from "@/lib/emergencia";
 import { getConfiguracao } from "@/lib/configuracao";
 import { obterVitrineOperacaoAtiva } from "@/lib/estrategia";
+import { obterComparativoRentabilidade } from "@/lib/indices-mercado";
 
 export default async function PainelPage() {
   const session = await auth();
@@ -39,6 +40,7 @@ export default async function PainelPage() {
   const liberacaoEmergencial = await obterLiberacaoAtivaDoUsuario(user.id);
   const configuracao = await getConfiguracao();
   const vitrineOperacao = await obterVitrineOperacaoAtiva();
+  const comparativoRentabilidade = await obterComparativoRentabilidade(6);
 
   const aportesAnteriores = await prisma.aplicacao.count({
     where: {
@@ -96,6 +98,11 @@ export default async function PainelPage() {
             }
           : null
       }
+      comparativoRentabilidade={comparativoRentabilidade.map((p) => ({
+        mes: p.mes.toISOString().slice(0, 10),
+        foccus: p.foccus,
+        valores: p.valores,
+      }))}
     />
   );
 }

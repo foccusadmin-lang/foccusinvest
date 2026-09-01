@@ -24,6 +24,7 @@ const LINKS = [
   { href: "/restrito/lideranca", label: "Liderança" },
   { href: "/restrito/guia", label: "Guia Foccus" },
   { href: "/restrito/estrategia", label: "Vitrine de Operação" },
+  { href: "/restrito/indices", label: "Rentabilidade vs Índices" },
 ];
 
 export function AdminNav() {

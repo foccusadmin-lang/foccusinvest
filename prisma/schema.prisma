@@ -219,6 +219,7 @@ model User {
   contratosServico  ContratoServico[]
   servicosLiberados ContratoServico[] @relation("ServicoLiberadoPor")
   cobrancasServico  CobrancaServico[]
+  benchmarksCriados BenchmarkMercado[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -871,4 +872,37 @@ model CobrancaServico {
 
   criadoEm    DateTime  @default(now())
   processadoEm DateTime?
+}
+
+// =====================================================================================
+// RENTABILIDADE VS ÍNDICES — comparativo factual entre a rentabilidade realmente distribuída
+// (DistribuicaoMensal.percentual, já existente) e índices de mercado inseridos manualmente
+// pelo admin (sem integração com API de mercado). Só dado histórico realizado — nenhuma meta,
+// nenhuma promessa de retorno futuro.
+// =====================================================================================
+
+enum IndicadorMercado {
+  CDI
+  CDB
+  IPCA
+  IBOVESPA
+}
+
+/** Valor mensal de um índice de mercado, lançado manualmente pelo admin — não há integração
+ *  automática com nenhuma fonte de mercado. Um valor por índice por mês. */
+model BenchmarkMercado {
+  id              String           @id @default(cuid())
+  indicador       IndicadorMercado
+  // Sempre o primeiro dia do mês (ex: 2026-08-01) — mesma convenção de "period bucket" usada
+  // pra agrupar DistribuicaoMensal por mês no comparativo.
+  mes             DateTime
+  valorPercentual Float
+
+  criadoPorId String
+  criadoPor   User   @relation(fields: [criadoPorId], references: [id])
+
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  @@unique([indicador, mes])
 }
