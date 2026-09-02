@@ -132,6 +132,27 @@ export async function criarCampanhaPlrAutomatica(
   if (periodoFim < periodoInicio) return { error: "A data fim não pode ser antes da data início." };
   if (!validarHorario(horarioLancamento)) return { error: "Informe um horário válido (HH:MM)." };
 
+  // Impede criar uma campanha cujo período sobreponha dias que outra campanha já materializou
+  // (lançou de fato) — é exatamente esse cenário (duas campanhas cobrindo o mesmo dia) que
+  // duplicaria o PLR daquele dia. Campanhas antigas cujos dias sobrepostos nunca chegaram a ser
+  // processados não bloqueiam (correção de campanha antes dela rodar continua permitida).
+  const candidatas = await prisma.campanhaPlrAutomatica.findMany({
+    where: { periodoInicio: { lte: periodoFim }, periodoFim: { gte: periodoInicio } },
+    include: {
+      dias: {
+        where: { data: { gte: periodoInicio, lte: periodoFim }, processadoEm: { not: null } },
+        select: { data: true },
+      },
+    },
+  });
+  const conflito = candidatas.find((c) => c.dias.length > 0);
+  if (conflito) {
+    const diasConflitantes = conflito.dias.map((d) => d.data.toISOString().slice(0, 10)).join(", ");
+    return {
+      error: `Já existe PLR automático lançado nesse período pela campanha ${conflito.id} (${diasConflitantes}) — ajuste as datas pra não sobrepor.`,
+    };
+  }
+
   const cronograma = gerarCronogramaDiario(percentualTotal, periodoInicio, periodoFim);
 
   const campanhaId = await prisma.$transaction(async (tx) => {
@@ -192,8 +213,18 @@ function horaAtualBrasilia(): string {
  * Rodada do motor automático — chamada pelo cron (ver api/cron/plr-automatico). Pra cada
  * campanha ativa, materializa (cria a Distribuição de fato, reaproveitando `criarDistribuicao`)
  * todo dia que: já chegou (data <= hoje), o horário configurado da campanha já passou (horário
- * de Brasília) e ainda não foi processado. Idempotente — cada CampanhaPlrDia só é processado uma
- * vez (marca processadoEm/distribuicaoId na mesma operação que cria a Distribuição).
+ * de Brasília) e ainda não foi processado.
+ *
+ * Duas camadas de proteção contra lançar o mesmo dia duas vezes:
+ * 1. Reivindicação atômica — marca `processadoEm` ANTES de criar a Distribuição (via update
+ *    condicional que só afeta a linha se ela ainda estiver com processadoEm null), fechando a
+ *    janela de corrida de duas rodadas do cron acontecendo ao mesmo tempo. Se `criarDistribuicao`
+ *    falhar depois da reivindicação (erro inesperado, não SemCapitalElegivel), desfaz a
+ *    reivindicação pra tentar de novo na próxima rodada.
+ * 2. Checagem entre campanhas — antes de criar uma Distribuição nova, confere se já existe uma
+ *    "PLR automático" pra aquela data exata (de QUALQUER campanha, não só a atual). Se existir
+ *    (ex: duas campanhas com período sobreposto), reaproveita a Distribuição já criada em vez de
+ *    duplicar — auto-corrige sozinho, sem precisar de intervenção manual.
  */
 export async function processarDiasPendentes(): Promise<{ processados: number; erros: string[] }> {
   const agora = new Date();
@@ -210,15 +241,37 @@ export async function processarDiasPendentes(): Promise<{ processados: number; e
     if (horaAtual < campanha.horarioLancamento) continue;
 
     for (const dia of campanha.dias) {
-      try {
-        // Reconfirma direto no banco que ainda não foi processado — proteção best-effort contra
-        // o cron rodar em paralelo (a marcação de processadoEm logo abaixo fecha a janela pro
-        // resto da rodada; duas rodadas exatamente simultâneas são um risco aceito, igual ao
-        // resto do motor de cron desse projeto, que também não usa lock distribuído).
-        const atual = await prisma.campanhaPlrDia.findUniqueOrThrow({ where: { id: dia.id } });
-        if (atual.processadoEm) continue;
+      const dataTexto = dia.data.toISOString().slice(0, 10);
 
-        const dataTexto = dia.data.toISOString().slice(0, 10);
+      // Reivindicação atômica: só segue se ESTA chamada foi quem marcou processadoEm agora —
+      // se outra rodada já reivindicou entre a busca acima e aqui, count vem 0 e pula.
+      const reivindicado = await prisma.campanhaPlrDia.updateMany({
+        where: { id: dia.id, processadoEm: null },
+        data: { processadoEm: agora },
+      });
+      if (reivindicado.count === 0) continue;
+
+      try {
+        // Rede de segurança entre campanhas: se já existe uma Distribuição "PLR automático"
+        // pra essa data exata (de outra campanha, período sobreposto), religa nela em vez de
+        // criar uma segunda — nunca duplica o crédito do investidor.
+        const existente = await prisma.distribuicaoMensal.findFirst({
+          where: {
+            periodoInicio: dia.data,
+            periodoFim: dia.data,
+            resultadoApurado: { startsWith: "PLR automático" },
+          },
+          orderBy: { criadoEm: "asc" },
+        });
+
+        if (existente) {
+          await prisma.campanhaPlrDia.update({ where: { id: dia.id }, data: { distribuicaoId: existente.id } });
+          erros.push(
+            `Campanha ${campanha.id}, dia ${dataTexto}: já existia Distribuição ${existente.id} pra essa data (período sobreposto entre campanhas) — reaproveitada, nada duplicado.`
+          );
+          continue;
+        }
+
         const { distribuicaoId } = await criarDistribuicao({
           criadoPorId: campanha.criadoPorId,
           periodoInicio: dia.data,
@@ -227,19 +280,18 @@ export async function processarDiasPendentes(): Promise<{ processados: number; e
           resultadoApurado: `PLR automático — ${dataTexto}`,
         });
 
-        await prisma.campanhaPlrDia.update({
-          where: { id: dia.id },
-          data: { processadoEm: new Date(), distribuicaoId },
-        });
+        await prisma.campanhaPlrDia.update({ where: { id: dia.id }, data: { distribuicaoId } });
         processados++;
       } catch (err) {
         if (err instanceof SemCapitalElegivelError) {
-          // Sem ninguém elegível hoje — marca como processado mesmo assim (não fica tentando
-          // de novo a cada rodada do cron pro mesmo dia) e segue pro próximo.
-          await prisma.campanhaPlrDia.update({ where: { id: dia.id }, data: { processadoEm: new Date() } });
+          // Sem ninguém elegível hoje — mantém a reivindicação (não fica tentando de novo a
+          // cada rodada pro mesmo dia) e segue pro próximo.
           continue;
         }
-        erros.push(`Campanha ${campanha.id}, dia ${dia.data.toISOString().slice(0, 10)}: ${(err as Error).message}`);
+        // Erro inesperado: desfaz a reivindicação pra essa data poder ser tentada de novo na
+        // próxima rodada, em vez de ficar presa como "processada" sem nenhuma Distribuição.
+        await prisma.campanhaPlrDia.update({ where: { id: dia.id }, data: { processadoEm: null } });
+        erros.push(`Campanha ${campanha.id}, dia ${dataTexto}: ${(err as Error).message}`);
       }
     }
   }
