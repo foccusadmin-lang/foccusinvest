@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import {
   criarCampanhaPlrAutomatica,
   desativarCampanhaPlrAutomatica,
+  cancelarCampanhaPlrAutomatica,
+  excluirCampanhaPlrAutomatica,
   processarDiasPendentes,
   recalcularCronogramaRestante,
   LIMITE_MAXIMO_DIARIO,
@@ -421,5 +423,108 @@ describe("PLR automático — campanha e motor de processamento", () => {
 
     const correcao = await recalcularCronogramaRestante(resultado.campanhaId!);
     expect(correcao.error).toBeDefined();
+  });
+
+  describe("cancelarCampanhaPlrAutomatica", () => {
+    it("remove a campanha por completo quando nenhum dia foi processado ainda", async () => {
+      const inicio = new Date();
+      const fim = new Date(inicio.getTime() + 3 * 86400000);
+      const resultado = await criarCampanhaPlrAutomatica({
+        percentualTotal: 1,
+        periodoInicio: inicio,
+        periodoFim: fim,
+        horarioLancamento: "23:59",
+        criadoPorId: adminId,
+      });
+      // Não empurra pra campanhaIds — se o cancelamento funcionar, já não sobra nada pra limpar.
+
+      const cancelamento = await cancelarCampanhaPlrAutomatica(resultado.campanhaId!);
+      expect(cancelamento.error).toBeUndefined();
+      expect(cancelamento.removidaPorCompleto).toBe(true);
+
+      const campanha = await prisma.campanhaPlrAutomatica.findUnique({ where: { id: resultado.campanhaId! } });
+      expect(campanha).toBeNull();
+      const dias = await prisma.campanhaPlrDia.findMany({ where: { campanhaId: resultado.campanhaId! } });
+      expect(dias).toHaveLength(0);
+    });
+
+    it("preserva os dias já processados e remove só os pendentes quando parte da campanha já rodou", async () => {
+      const inicio = new Date(Date.now() - 86400000); // ontem
+      const fim = new Date(Date.now() + 3 * 86400000);
+      const resultado = await criarCampanhaPlrAutomatica({
+        percentualTotal: 1,
+        periodoInicio: inicio,
+        periodoFim: fim,
+        horarioLancamento: "00:00",
+        criadoPorId: adminId,
+      });
+      campanhaIds.push(resultado.campanhaId!);
+
+      await processarDiasPendentes(); // materializa ontem e hoje
+
+      const antes = await prisma.campanhaPlrDia.findMany({ where: { campanhaId: resultado.campanhaId! } });
+      for (const d of antes) if (d.distribuicaoId) distribuicaoIds.push(d.distribuicaoId);
+      const processadosAntes = antes.filter((d) => d.processadoEm !== null);
+      const pendentesAntes = antes.filter((d) => d.processadoEm === null);
+      expect(processadosAntes.length).toBeGreaterThan(0);
+      expect(pendentesAntes.length).toBeGreaterThan(0);
+
+      const cancelamento = await cancelarCampanhaPlrAutomatica(resultado.campanhaId!);
+      expect(cancelamento.removidaPorCompleto).toBe(false);
+      expect(cancelamento.diasPendentesRemovidos).toBe(pendentesAntes.length);
+
+      const campanha = await prisma.campanhaPlrAutomatica.findUnique({ where: { id: resultado.campanhaId! } });
+      expect(campanha).not.toBeNull();
+      expect(campanha?.ativa).toBe(false);
+
+      const depois = await prisma.campanhaPlrDia.findMany({ where: { campanhaId: resultado.campanhaId! } });
+      expect(depois).toHaveLength(processadosAntes.length); // só os processados sobraram
+      expect(depois.every((d) => d.processadoEm !== null)).toBe(true);
+
+      // As Distribuições/créditos reais gerados continuam intactos.
+      for (const d of processadosAntes) {
+        const distribuicao = await prisma.distribuicaoMensal.findUnique({ where: { id: d.distribuicaoId! } });
+        expect(distribuicao).not.toBeNull();
+      }
+    });
+  });
+
+  describe("excluirCampanhaPlrAutomatica", () => {
+    it("remove o registro da campanha mesmo com dias já processados, sem tocar na Distribuição real", async () => {
+      const hoje = new Date();
+      const resultado = await criarCampanhaPlrAutomatica({
+        percentualTotal: 0.3,
+        periodoInicio: hoje,
+        periodoFim: hoje,
+        horarioLancamento: "00:00",
+        criadoPorId: adminId,
+      });
+
+      await processarDiasPendentes();
+      const dia = await prisma.campanhaPlrDia.findFirstOrThrow({ where: { campanhaId: resultado.campanhaId! } });
+      expect(dia.distribuicaoId).not.toBeNull();
+      distribuicaoIds.push(dia.distribuicaoId!);
+
+      const exclusao = await excluirCampanhaPlrAutomatica(resultado.campanhaId!);
+      expect(exclusao.error).toBeUndefined();
+
+      const campanha = await prisma.campanhaPlrAutomatica.findUnique({ where: { id: resultado.campanhaId! } });
+      expect(campanha).toBeNull();
+      const diasRestantes = await prisma.campanhaPlrDia.findMany({ where: { campanhaId: resultado.campanhaId! } });
+      expect(diasRestantes).toHaveLength(0);
+
+      // A Distribuição real (e o crédito que ela gerou) continua intacta — só a campanha sumiu.
+      const distribuicao = await prisma.distribuicaoMensal.findUnique({ where: { id: dia.distribuicaoId! } });
+      expect(distribuicao).not.toBeNull();
+
+      await prisma.$transaction((tx) => sincronizarDistribuicoesDoUsuario(tx, investidorId));
+      const creditos = await prisma.creditoCarteira.findMany({ where: { userId: investidorId, tipo: "RENDIMENTO" } });
+      expect(creditos.length).toBeGreaterThan(0);
+    });
+
+    it("recusa excluir uma campanha inexistente", async () => {
+      const exclusao = await excluirCampanhaPlrAutomatica("id-que-nao-existe");
+      expect(exclusao.error).toBeDefined();
+    });
   });
 });

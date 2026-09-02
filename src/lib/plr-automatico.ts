@@ -256,6 +256,63 @@ export async function desativarCampanhaPlrAutomatica(id: string): Promise<void> 
   await prisma.campanhaPlrAutomatica.update({ where: { id }, data: { ativa: false } });
 }
 
+export type ResultadoCancelamento = { error?: string; removidaPorCompleto?: boolean; diasPendentesRemovidos?: number };
+
+/**
+ * Cancela uma campanha — o que exatamente isso faz depende de quanto dela já rodou de verdade:
+ * - Nenhum dia processado ainda (nenhuma Distribuição real criada por ela): remove a campanha
+ *   inteira, como se nunca tivesse existido — não há nenhum histórico financeiro real pra
+ *   preservar.
+ * - Algum dia já processado: preserva a campanha e os dias já processados (já viraram
+ *   Distribuição de verdade, dinheiro já pode ter se movido — nunca apaga isso), só desativa e
+ *   remove os dias AINDA pendentes, cancelando o que faltava rodar.
+ */
+export async function cancelarCampanhaPlrAutomatica(id: string): Promise<ResultadoCancelamento> {
+  const campanha = await prisma.campanhaPlrAutomatica.findUnique({
+    where: { id },
+    include: { dias: true },
+  });
+  if (!campanha) return { error: "Campanha não encontrada." };
+
+  const processados = campanha.dias.filter((d) => d.processadoEm !== null);
+
+  if (processados.length === 0) {
+    await prisma.$transaction([
+      prisma.campanhaPlrDia.deleteMany({ where: { campanhaId: id } }),
+      prisma.campanhaPlrAutomatica.delete({ where: { id } }),
+    ]);
+    return { removidaPorCompleto: true };
+  }
+
+  const pendentesIds = campanha.dias.filter((d) => d.processadoEm === null).map((d) => d.id);
+  await prisma.$transaction([
+    prisma.campanhaPlrDia.deleteMany({ where: { id: { in: pendentesIds } } }),
+    prisma.campanhaPlrAutomatica.update({ where: { id }, data: { ativa: false } }),
+  ]);
+  return { removidaPorCompleto: false, diasPendentesRemovidos: pendentesIds.length };
+}
+
+/**
+ * Exclui o REGISTRO da campanha por completo — todos os CampanhaPlrDia, processados ou não, e a
+ * própria CampanhaPlrAutomatica. Diferente de cancelar: nunca preserva os dias já processados
+ * NESSE registro, mas isso é seguro porque a campanha/dia é só o agendamento — cada dia
+ * processado já virou uma DistribuicaoMensal (e os créditos reais que ela gerou) de verdade,
+ * independente, que essa exclusão NUNCA toca (CampanhaPlrDia.distribuicaoId é `ON DELETE SET
+ * NULL` do lado da DistribuicaoMensal, não o contrário). Só some da lista de campanhas — o
+ * histórico financeiro real (Distribuições, créditos) continua intacto e auditável.
+ */
+export async function excluirCampanhaPlrAutomatica(id: string): Promise<{ error?: string }> {
+  const campanha = await prisma.campanhaPlrAutomatica.findUnique({ where: { id } });
+  if (!campanha) return { error: "Campanha não encontrada." };
+
+  await prisma.$transaction([
+    prisma.campanhaPlrDia.deleteMany({ where: { campanhaId: id } }),
+    prisma.campanhaPlrAutomatica.delete({ where: { id } }),
+  ]);
+
+  return {};
+}
+
 /**
  * Regera o cronograma dos dias AINDA NÃO processados de uma campanha (ex: depois de uma
  * correção nas regras de sorteio) — nunca toca nos dias já materializados (já viraram
