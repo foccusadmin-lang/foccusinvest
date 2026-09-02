@@ -135,4 +135,89 @@ describe("Rentabilidade vs Índices — comparativo factual", () => {
     });
     expect(resultado.error).toBeDefined();
   });
+
+  describe("índice FOCCUS — histórico manual como fallback", () => {
+    it("mês sem Distribuição usa o histórico manual, marcado como origem 'manual'", async () => {
+      const mesAtual = primeiroDiaMesAtual();
+      const mesStr = `${mesAtual.getUTCFullYear()}-${String(mesAtual.getUTCMonth() + 1).padStart(2, "0")}`;
+
+      const resultado = await salvarBenchmark({
+        indicador: "FOCCUS",
+        mes: mesStr,
+        valorPercentual: 1.85,
+        criadoPorId: adminId,
+      });
+      expect(resultado.error).toBeUndefined();
+      const registro = await prisma.benchmarkMercado.findFirstOrThrow({ where: { indicador: "FOCCUS", mes: mesAtual } });
+      benchmarkIds.push(registro.id);
+
+      const serie = await obterComparativoRentabilidade(1);
+      expect(serie[0].foccus).toBeCloseTo(1.85, 2);
+      expect(serie[0].foccusOrigem).toBe("manual");
+      expect(serie[0].valores.FOCCUS).toBeUndefined(); // nunca aparece como "índice de mercado"
+    });
+
+    it("Distribuição real sempre tem prioridade sobre o histórico manual, mesmo que o manual exista", async () => {
+      const mesAtual = primeiroDiaMesAtual();
+      const mesStr = `${mesAtual.getUTCFullYear()}-${String(mesAtual.getUTCMonth() + 1).padStart(2, "0")}`;
+
+      // Sem Distribuição ainda: lança o manual primeiro (isso é permitido).
+      await salvarBenchmark({ indicador: "FOCCUS", mes: mesStr, valorPercentual: 1.0, criadoPorId: adminId });
+      const registro = await prisma.benchmarkMercado.findFirstOrThrow({ where: { indicador: "FOCCUS", mes: mesAtual } });
+      benchmarkIds.push(registro.id);
+
+      // Agora lança a Distribuição real do mesmo mês.
+      const dist = await prisma.distribuicaoMensal.create({
+        data: {
+          periodoInicio: mesAtual,
+          periodoFim: new Date(mesAtual.getTime() + 10 * 86400000),
+          percentual: 2.5,
+          valorTotal: 1000,
+          resultadoApurado: "Teste",
+          status: "ATIVA",
+          criadoPorId: adminId,
+        },
+      });
+      distribuicaoIds.push(dist.id);
+
+      const serie = await obterComparativoRentabilidade(1);
+      expect(serie[0].foccus).toBeCloseTo(2.5, 2); // real, não o 1.0 manual
+      expect(serie[0].foccusOrigem).toBe("distribuicao");
+    });
+
+    it("recusa lançar histórico manual num mês que já tem Distribuição real", async () => {
+      const mesAtual = primeiroDiaMesAtual();
+      const mesStr = `${mesAtual.getUTCFullYear()}-${String(mesAtual.getUTCMonth() + 1).padStart(2, "0")}`;
+
+      const dist = await prisma.distribuicaoMensal.create({
+        data: {
+          periodoInicio: mesAtual,
+          periodoFim: new Date(mesAtual.getTime() + 10 * 86400000),
+          percentual: 2.0,
+          valorTotal: 1000,
+          resultadoApurado: "Teste",
+          status: "ATIVA",
+          criadoPorId: adminId,
+        },
+      });
+      distribuicaoIds.push(dist.id);
+
+      const resultado = await salvarBenchmark({
+        indicador: "FOCCUS",
+        mes: mesStr,
+        valorPercentual: 5,
+        criadoPorId: adminId,
+      });
+      expect(resultado.error).toBeDefined();
+
+      const registro = await prisma.benchmarkMercado.findFirst({ where: { indicador: "FOCCUS", mes: mesAtual } });
+      expect(registro).toBeNull(); // nada foi salvo
+    });
+
+    it("mês sem Distribuição e sem histórico manual continua null, origem null", async () => {
+      const serie = await obterComparativoRentabilidade(1);
+      expect(serie[0].foccus).toBeNull();
+      expect(serie[0].foccusOrigem).toBeNull();
+    });
+  });
 });

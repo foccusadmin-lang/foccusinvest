@@ -101,6 +101,7 @@ export default async function PainelPage() {
       comparativoRentabilidade={comparativoRentabilidade.map((p) => ({
         mes: p.mes.toISOString().slice(0, 10),
         foccus: p.foccus,
+        foccusOrigem: p.foccusOrigem,
         valores: p.valores,
       }))}
     />

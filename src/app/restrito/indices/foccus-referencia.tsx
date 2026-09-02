@@ -1,4 +1,4 @@
-type Ponto = { mes: string; foccus: number | null };
+type Ponto = { mes: string; foccus: number | null; foccusOrigem: "distribuicao" | "manual" | null };
 
 function formatMes(iso: string): string {
   const [ano, mes] = iso.split("-").map(Number);
@@ -7,10 +7,11 @@ function formatMes(iso: string): string {
     .replace(".", "");
 }
 
-/** Referência só de leitura — mostra a rentabilidade que a Foccus Invest de fato distribuiu em
- *  cada mês (mesmo dado do comparativo do investidor), pro admin comparar enquanto lança os
- *  índices de mercado. Não é editável aqui: o valor da Foccus nunca é digitado à mão, sempre vem
- *  das Distribuições já lançadas (ver lib/indices-mercado.ts). */
+/** Referência só de leitura — mostra a rentabilidade da Foccus Invest em cada mês (mesmo dado do
+ *  comparativo do investidor), pro admin comparar enquanto lança os índices de mercado. Não é
+ *  editável AQUI: o lançamento manual de histórico fica em "Lançar / atualizar índice" (índice
+ *  Foccus Invest) — só serve como fallback pra meses sem Distribuição real; quando existe uma
+ *  Distribuição, ela sempre aparece aqui em vez do valor manual. */
 export function FoccusReferencia({ pontos }: { pontos: Ponto[] }) {
   return (
     <div className="rounded-2xl border border-gold/30 bg-gold/5 p-5">
@@ -18,9 +19,9 @@ export function FoccusReferencia({ pontos }: { pontos: Ponto[] }) {
         Foccus Invest — referência (só leitura)
       </p>
       <p className="mb-3 text-xs text-muted">
-        Rentabilidade que já foi de fato distribuída, mês a mês — mesmo dado do comparativo do
-        investidor. Não editável aqui: vem sempre das Distribuições já lançadas, nunca digitado à
-        mão.
+        Mês a mês — mesmo dado do comparativo do investidor. Prioriza sempre a Distribuição real;
+        &ldquo;hist.&rdquo; marca um mês preenchido pelo histórico manual (Lançar / atualizar
+        índice → Foccus Invest), usado só quando ainda não há Distribuição pra aquele mês.
       </p>
       <div className="flex flex-wrap gap-2">
         {pontos.map((p) => (
@@ -29,6 +30,7 @@ export function FoccusReferencia({ pontos }: { pontos: Ponto[] }) {
             <p className={`text-sm font-semibold ${p.foccus === null ? "text-muted" : "text-gold-light"}`}>
               {p.foccus === null ? "—" : `${p.foccus.toFixed(2)}%`}
             </p>
+            {p.foccusOrigem === "manual" && <p className="text-[9px] text-amber-300">hist.</p>}
           </div>
         ))}
       </div>

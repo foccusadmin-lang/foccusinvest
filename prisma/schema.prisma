@@ -894,6 +894,11 @@ enum IndicadorMercado {
   CDB
   IPCA
   IBOVESPA
+  // Lançamento manual de histórico da própria Foccus Invest — só serve como fallback pra meses
+  // SEM nenhuma Distribuição real lançada (ex: dados herdados da plataforma anterior, IRT, de
+  // antes da Foccus Invest existir). Se depois uma Distribuição real for lançada pro mesmo mês,
+  // ela sempre tem prioridade automática (ver obterComparativoRentabilidade).
+  FOCCUS
 }
 
 /** Valor mensal de um índice de mercado, lançado manualmente pelo admin — não há integração

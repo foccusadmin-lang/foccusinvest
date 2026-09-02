@@ -24,12 +24,20 @@ export default async function RestritoIndicesPage() {
         não há integração automática com nenhuma fonte de dados. Esses valores aparecem no
         comparativo do painel do investidor ao lado da rentabilidade que já foi de fato
         distribuída (Distribuições, já lançadas separadamente). Nenhum valor aqui deve ser uma
-        projeção — sempre o número real já publicado pra aquele mês.
+        projeção — sempre o número real já publicado pra aquele mês. O índice &ldquo;Foccus
+        Invest&rdquo; no formulário abaixo é diferente dos outros: só serve pra preencher histórico de meses SEM
+        nenhuma Distribuição lançada (ex: dados herdados de uma plataforma anterior, de antes da
+        Foccus Invest existir) — assim que uma Distribuição real for lançada pro mesmo mês, ela
+        sempre tem prioridade automática sobre o valor manual.
       </p>
 
       <div className="mt-6">
         <FoccusReferencia
-          pontos={comparativo.map((p) => ({ mes: p.mes.toISOString().slice(0, 10), foccus: p.foccus }))}
+          pontos={comparativo.map((p) => ({
+            mes: p.mes.toISOString().slice(0, 10),
+            foccus: p.foccus,
+            foccusOrigem: p.foccusOrigem,
+          }))}
         />
       </div>
 
@@ -49,6 +57,7 @@ export default async function RestritoIndicesPage() {
           pontos={comparativo.map((p) => ({
             mes: p.mes.toISOString().slice(0, 10),
             foccus: p.foccus,
+            foccusOrigem: p.foccusOrigem,
             valores: p.valores,
           }))}
         />

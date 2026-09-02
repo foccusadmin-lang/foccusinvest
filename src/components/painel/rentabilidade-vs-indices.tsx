@@ -4,7 +4,7 @@ import { useId, useState } from "react";
 import {
   LABEL_INDICADOR as LABEL,
   COR_INDICADOR as COR,
-  ORDEM_INDICADORES as ORDEM,
+  INDICADORES_MERCADO as ORDEM,
 } from "@/lib/indices-mercado-catalogo";
 
 export type IndicadorMercadoClient = "CDI" | "CDB" | "IPCA" | "IBOVESPA";
@@ -12,8 +12,13 @@ export type IndicadorMercadoClient = "CDI" | "CDB" | "IPCA" | "IBOVESPA";
 export type PontoComparativoClient = {
   /** Primeiro dia do mês, em ISO (ex: "2026-08-01"). */
   mes: string;
-  /** Rentabilidade realmente distribuída nesse mês — null se não houve distribuição lançada. */
+  /** Rentabilidade da Foccus nesse mês — null se não há dado nenhum (nem real, nem histórico
+   *  manual). */
   foccus: number | null;
+  /** "distribuicao": dado real (Distribuições já lançadas) — sempre tem prioridade. "manual":
+   *  histórico lançado à mão pelo admin (só existe pra meses sem nenhuma Distribuição real,
+   *  ex: período anterior ao rastreamento automático). null: sem dado. */
+  foccusOrigem?: "distribuicao" | "manual" | null;
   valores: Partial<Record<IndicadorMercadoClient, number>>;
 };
 
@@ -110,8 +115,13 @@ export function RentabilidadeVsIndices({ pontos }: { pontos: PontoComparativoCli
           {pontos.map((ponto, mesIndex) => {
             const cx = PADDING_LEFT + slot * mesIndex + slot / 2;
 
-            const valoresDoMes: { chave: string; valor: number | null; cor: string }[] = [
-              { chave: "FOCCUS", valor: ponto.foccus, cor: `url(#${gradientId})` },
+            const valoresDoMes: { chave: string; valor: number | null; cor: string; historico?: boolean }[] = [
+              {
+                chave: "FOCCUS",
+                valor: ponto.foccus,
+                cor: `url(#${gradientId})`,
+                historico: ponto.foccusOrigem === "manual",
+              },
               ...ORDEM.map((c) => ({ chave: c, valor: ponto.valores[c] ?? null, cor: COR[c] })),
             ];
             // Só as séries que de fato têm dado nesse mês — centraliza o grupo com base na
@@ -140,7 +150,13 @@ export function RentabilidadeVsIndices({ pontos }: { pontos: PontoComparativoCli
                       height={Math.max(barHeight, 2)}
                       rx={2}
                       fill={serie.cor}
-                      opacity={isHovered ? 1 : 0.9}
+                      // Foccus com dado histórico manual (sem Distribuição real ainda pra esse
+                      // mês) fica mais translúcida — diferencia visualmente de um mês com dado
+                      // real, sem precisar de outra cor.
+                      opacity={isHovered ? 1 : serie.historico ? 0.45 : 0.9}
+                      strokeDasharray={serie.historico ? "2 1.5" : undefined}
+                      stroke={serie.historico ? "#f2d675" : undefined}
+                      strokeWidth={serie.historico ? 1 : undefined}
                       onPointerEnter={() => setHover({ mesIndex, serie: serie.chave })}
                       onPointerLeave={() => setHover((cur) => (cur?.mesIndex === mesIndex && cur.serie === serie.chave ? null : cur))}
                       className="cursor-pointer transition-opacity duration-150"
@@ -157,7 +173,8 @@ export function RentabilidadeVsIndices({ pontos }: { pontos: PontoComparativoCli
                   >
                     {(() => {
                       const s = valoresDoMes.find((v) => v.chave === hover.serie);
-                      return s?.valor !== null && s?.valor !== undefined ? `${s.valor.toFixed(2)}%` : "";
+                      if (s?.valor === null || s?.valor === undefined) return "";
+                      return `${s.valor.toFixed(2)}%${s.historico ? " (histórico)" : ""}`;
                     })()}
                   </text>
                 )}
@@ -185,7 +202,10 @@ export function RentabilidadeVsIndices({ pontos }: { pontos: PontoComparativoCli
 
       <p className="mt-4 rounded-xl border border-border/70 bg-surface-2 p-3 text-[11px] leading-relaxed text-muted">
         Comparativo apenas informativo. Os valores da Foccus Invest são a rentabilidade
-        efetivamente distribuída em cada mês; os índices de mercado são inseridos manualmente pela
+        efetivamente distribuída em cada mês; a barra dourada mais translúcida (contorno
+        tracejado) indica um mês sem Distribuição lançada ainda, preenchido com histórico
+        cadastrado manualmente pela administração (ex: período anterior ao início do
+        rastreamento automático). Os índices de mercado são inseridos manualmente pela
         administração e podem não refletir cotações em tempo real. Rentabilidade passada não
         garante rentabilidade futura.
       </p>
