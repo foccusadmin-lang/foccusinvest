@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { formatMoeda } from "@/lib/format";
+import { criarDistribuicao, SemCapitalElegivelError } from "@/lib/distribuicao";
 
 export type PlrIndividualState = { error?: string; sucesso?: string } | undefined;
 
@@ -108,6 +109,78 @@ export async function aplicarPlrIndividual(
 
   return {
     sucesso: `PLR de ${percentual}% aplicado para ${usuariosCreditados} investidor(es). Total creditado: ${formatMoeda(totalCreditado)}.`,
+  };
+}
+
+/**
+ * Igual ao lançamento instantâneo, mas em vez de creditar tudo na hora, programa um percentual
+ * sobre o capital dos usuários selecionados diluído dia a dia ao longo de um período — mesma
+ * mecânica de uma Distribuição normal (lib/distribuicao.ts), só que restrita a quem foi
+ * escolhido em vez de todo mundo elegível.
+ */
+export async function aplicarPlrIndividualPorPeriodo(
+  _prevState: PlrIndividualState,
+  formData: FormData
+): Promise<PlrIndividualState> {
+  const session = await auth();
+  if (session?.user?.perfil !== "ADMIN") return { error: "Acesso negado." };
+
+  const percentual = parsePercentual(formData.get("percentual"));
+  const userIds = formData.getAll("userIds").map(String);
+  const observacao = String(formData.get("observacao") ?? "").trim();
+  const periodoInicioStr = String(formData.get("periodoInicio") ?? "");
+  const periodoFimStr = String(formData.get("periodoFim") ?? "");
+
+  if (!percentual || percentual <= 0 || Number.isNaN(percentual) || percentual > 100) {
+    return { error: "Informe um percentual válido (ex: 0,5 para 0,5%)." };
+  }
+  if (userIds.length === 0) {
+    return { error: "Selecione ao menos um usuário." };
+  }
+  if (!periodoInicioStr || !periodoFimStr) {
+    return { error: "Informe a data início e a data fim do período." };
+  }
+
+  const periodoInicio = new Date(periodoInicioStr);
+  const periodoFim = new Date(periodoFimStr);
+  if (periodoFim < periodoInicio) {
+    return { error: "A data fim não pode ser antes da data início." };
+  }
+
+  let distribuicaoId: string;
+  try {
+    const resultado = await criarDistribuicao({
+      criadoPorId: session.user.id,
+      periodoInicio,
+      periodoFim,
+      percentual,
+      resultadoApurado: `PLR individual (admin)${observacao ? ` — ${observacao}` : ""}`,
+      observacoes: observacao || undefined,
+      userIds,
+    });
+    distribuicaoId = resultado.distribuicaoId;
+  } catch (e) {
+    if (e instanceof SemCapitalElegivelError) return { error: e.message };
+    throw e;
+  }
+
+  await prisma.logAuditoria.create({
+    data: {
+      userId: session.user.id,
+      acao: "aplicar_plr_individual_por_periodo",
+      detalhes: `${percentual}% para ${userIds.length} usuário(s), ${periodoInicioStr} a ${periodoFimStr}${observacao ? ` | ${observacao}` : ""} | distribuição ${distribuicaoId}`,
+    },
+  });
+
+  revalidatePath("/restrito/plr-individual");
+  revalidatePath("/restrito/usuarios");
+  revalidatePath("/restrito/painel");
+  revalidatePath("/restrito/distribuicoes");
+  revalidatePath("/painel");
+  revalidatePath("/painel/historico");
+
+  return {
+    sucesso: `PLR de ${percentual}% programado para ${userIds.length} investidor(es), de ${periodoInicioStr} a ${periodoFimStr} — creditado dia a dia, igual a qualquer Distribuição.`,
   };
 }
 

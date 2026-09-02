@@ -1,9 +1,9 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { formatMoeda } from "@/lib/format";
-import { aplicarPlrIndividual } from "./actions";
+import { aplicarPlrIndividual, aplicarPlrIndividualPorPeriodo, type PlrIndividualState } from "./actions";
 
 type Usuario = {
   id: string;
@@ -13,10 +13,22 @@ type Usuario = {
   capital: number;
 };
 
+type Modo = "instantaneo" | "periodo";
+
+function hojeStr(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export function PlrIndividualForm({ usuarios }: { usuarios: Usuario[] }) {
-  const [state, action, pending] = useActionState(aplicarPlrIndividual, undefined);
+  const [modo, setModo] = useState<Modo>("instantaneo");
+  const [state, setState] = useState<PlrIndividualState>(undefined);
+  const [pending, startTransition] = useTransition();
+
   const [percentualTexto, setPercentualTexto] = useState("0,5");
-  const [dataTexto, setDataTexto] = useState(() => new Date().toISOString().slice(0, 10));
+  const [dataTexto, setDataTexto] = useState(hojeStr);
+  const [periodoInicioTexto, setPeriodoInicioTexto] = useState(hojeStr);
+  const [periodoFimTexto, setPeriodoFimTexto] = useState("");
+  const [observacao, setObservacao] = useState("");
   const [busca, setBusca] = useState("");
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
   const router = useRouter();
@@ -28,6 +40,7 @@ export function PlrIndividualForm({ usuarios }: { usuarios: Usuario[] }) {
       router.refresh();
       setSelecionados(new Set());
     }
+    if (!state?.sucesso) processado.current = false;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
 
@@ -67,14 +80,51 @@ export function PlrIndividualForm({ usuarios }: { usuarios: Usuario[] }) {
     .filter((u) => selecionados.has(u.id))
     .reduce((acc, u) => acc + u.capital * (percentual / 100), 0);
 
+  function submeter() {
+    setState(undefined);
+    const formData = new FormData();
+    formData.set("percentual", percentualTexto);
+    selecionados.forEach((id) => formData.append("userIds", id));
+    formData.set("observacao", observacao);
+
+    if (modo === "instantaneo") {
+      formData.set("data", dataTexto);
+    } else {
+      formData.set("periodoInicio", periodoInicioTexto);
+      formData.set("periodoFim", periodoFimTexto);
+    }
+
+    startTransition(async () => {
+      const resultado =
+        modo === "instantaneo"
+          ? await aplicarPlrIndividual(undefined, formData)
+          : await aplicarPlrIndividualPorPeriodo(undefined, formData);
+      setState(resultado);
+    });
+  }
+
   return (
-    <form action={action} className="space-y-4">
+    <div className="space-y-4">
+      <div className="flex rounded-lg border border-border bg-surface-2 p-0.5" style={{ width: "fit-content" }}>
+        {(["instantaneo", "periodo"] as Modo[]).map((opcao) => (
+          <button
+            key={opcao}
+            type="button"
+            onClick={() => setModo(opcao)}
+            className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+              modo === opcao ? "bg-gold text-black" : "text-muted hover:text-foreground"
+            }`}
+          >
+            {opcao === "instantaneo" ? "Instantâneo" : "Por período"}
+          </button>
+        ))}
+      </div>
+
       <div className="rounded-2xl border border-gold/30 bg-surface-2 p-4">
         <div className="flex flex-wrap gap-4">
           <label className="block text-sm">
             <span className="mb-1 block font-medium text-foreground/90">Percentual a aplicar (%)</span>
             <input
-              name="percentual"
               value={percentualTexto}
               onChange={(e) => setPercentualTexto(e.target.value)}
               type="text"
@@ -84,18 +134,43 @@ export function PlrIndividualForm({ usuarios }: { usuarios: Usuario[] }) {
               className="w-full max-w-[160px] rounded-lg border border-border bg-surface px-3 py-2 text-foreground outline-none focus:border-gold/60"
             />
           </label>
-          <label className="block text-sm">
-            <span className="mb-1 block font-medium text-foreground/90">Data do lançamento</span>
-            <input
-              name="data"
-              value={dataTexto}
-              onChange={(e) => setDataTexto(e.target.value)}
-              type="date"
-              max={new Date().toISOString().slice(0, 10)}
-              required
-              className="w-full max-w-[160px] rounded-lg border border-border bg-surface px-3 py-2 text-foreground outline-none focus:border-gold/60"
-            />
-          </label>
+
+          {modo === "instantaneo" ? (
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium text-foreground/90">Data do lançamento</span>
+              <input
+                value={dataTexto}
+                onChange={(e) => setDataTexto(e.target.value)}
+                type="date"
+                max={hojeStr()}
+                required
+                className="w-full max-w-[160px] rounded-lg border border-border bg-surface px-3 py-2 text-foreground outline-none focus:border-gold/60"
+              />
+            </label>
+          ) : (
+            <>
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium text-foreground/90">Data início</span>
+                <input
+                  value={periodoInicioTexto}
+                  onChange={(e) => setPeriodoInicioTexto(e.target.value)}
+                  type="date"
+                  required
+                  className="w-full max-w-[160px] rounded-lg border border-border bg-surface px-3 py-2 text-foreground outline-none focus:border-gold/60"
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium text-foreground/90">Data fim</span>
+                <input
+                  value={periodoFimTexto}
+                  onChange={(e) => setPeriodoFimTexto(e.target.value)}
+                  type="date"
+                  required
+                  className="w-full max-w-[160px] rounded-lg border border-border bg-surface px-3 py-2 text-foreground outline-none focus:border-gold/60"
+                />
+              </label>
+            </>
+          )}
         </div>
         <p className="mt-2 text-xs text-muted">
           Exemplo: capital de {formatMoeda(10000)} × {percentualTexto || "0"}% ={" "}
@@ -103,9 +178,17 @@ export function PlrIndividualForm({ usuarios }: { usuarios: Usuario[] }) {
             {formatMoeda(10000 * (percentual / 100))}
           </span>
         </p>
-        <p className="mt-1 text-xs text-muted">
-          Use uma data passada pra lançar um dia que ficou pra trás (ex: esqueceu ontem).
-        </p>
+        {modo === "instantaneo" ? (
+          <p className="mt-1 text-xs text-muted">
+            Credita na hora, como rendimento disponível. Use uma data passada pra lançar um dia
+            que ficou pra trás (ex: esqueceu ontem).
+          </p>
+        ) : (
+          <p className="mt-1 text-xs text-muted">
+            Não credita tudo de uma vez — dilui dia a dia ao longo do período, exatamente como uma
+            Distribuição normal, só que restrita aos investidores selecionados abaixo.
+          </p>
+        )}
       </div>
 
       <div className="flex flex-col gap-2 sm:flex-row">
@@ -167,7 +250,6 @@ export function PlrIndividualForm({ usuarios }: { usuarios: Usuario[] }) {
                       onClick={(e) => e.stopPropagation()}
                       className="accent-gold"
                     />
-                    {marcado && <input type="hidden" name="userIds" value={u.id} />}
                   </td>
                   <td className="px-3 py-2">
                     <p className="font-medium text-foreground">{u.nome}</p>
@@ -196,7 +278,8 @@ export function PlrIndividualForm({ usuarios }: { usuarios: Usuario[] }) {
       <label className="block text-sm">
         <span className="mb-1 block font-medium text-foreground/90">Observação (opcional)</span>
         <input
-          name="observacao"
+          value={observacao}
+          onChange={(e) => setObservacao(e.target.value)}
           type="text"
           placeholder="Ex: bônus julho/2026, correção de bug do dia 20..."
           className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground outline-none focus:border-gold/60"
@@ -211,14 +294,21 @@ export function PlrIndividualForm({ usuarios }: { usuarios: Usuario[] }) {
       )}
 
       <button
-        type="submit"
-        disabled={pending || selecionados.size === 0}
+        type="button"
+        onClick={submeter}
+        disabled={
+          pending ||
+          selecionados.size === 0 ||
+          (modo === "periodo" && (!periodoInicioTexto || !periodoFimTexto))
+        }
         className="w-full rounded-xl bg-gradient-to-br from-[#f2d675] via-[#d4af37] to-[#93731f] py-3 text-sm font-semibold text-black transition hover:brightness-110 disabled:opacity-50 sm:w-auto sm:px-8"
       >
         {pending
           ? "Processando..."
-          : `Aplicar PLR aos selecionados (${selecionados.size})`}
+          : modo === "instantaneo"
+            ? `Aplicar PLR aos selecionados (${selecionados.size})`
+            : `Programar PLR por período (${selecionados.size})`}
       </button>
-    </form>
+    </div>
   );
 }

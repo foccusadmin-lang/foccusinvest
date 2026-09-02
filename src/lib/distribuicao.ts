@@ -15,6 +15,13 @@ export class SemCapitalElegivelError extends Error {}
  * Lança um resultado real do período como uma porcentagem (ex: "julho deu 3%"). Cada investidor
  * elegível recebe esse mesmo percentual sobre o próprio capital — congelado no momento do
  * lançamento. O pagamento em si é diluído dia a dia por `sincronizarDistribuicoesDoUsuario`.
+ *
+ * Sem `userIds`: aplica a TODOS os investidores elegíveis (uso normal, em Distribuições).
+ * Com `userIds`: restringe aos investidores selecionados — usado pelo PLR Individual por
+ * período, pra bonificar só quem foi escolhido, com a mesma diluição dia a dia de uma
+ * Distribuição normal. Nesse caso não sincroniza a Vitrine de Operação (o ponto diário dela
+ * representa o resultado da empresa como um todo, não faria sentido refletir um lançamento que
+ * só foi pra alguns investidores).
  */
 export async function criarDistribuicao(params: {
   criadoPorId: string;
@@ -23,13 +30,14 @@ export async function criarDistribuicao(params: {
   percentual: number;
   resultadoApurado: string;
   observacoes?: string;
+  userIds?: string[];
 }): Promise<{ distribuicaoId: string }> {
-  const { criadoPorId, periodoInicio, periodoFim, percentual, resultadoApurado, observacoes } =
+  const { criadoPorId, periodoInicio, periodoFim, percentual, resultadoApurado, observacoes, userIds } =
     params;
 
   return prisma.$transaction(async (tx) => {
     const usuarios = await tx.user.findMany({
-      where: { statusCadastro: "APROVADO" },
+      where: { statusCadastro: "APROVADO", ...(userIds ? { id: { in: userIds } } : {}) },
       include: { aplicacoes: { omit: { comprovante: true } } },
     });
 
@@ -44,7 +52,9 @@ export async function criarDistribuicao(params: {
 
     if (elegiveis.length === 0) {
       throw new SemCapitalElegivelError(
-        "Nenhum investidor com capital elegível no momento — distribuição não criada."
+        userIds
+          ? "Nenhum dos investidores selecionados tem capital elegível no momento — nada foi lançado."
+          : "Nenhum investidor com capital elegível no momento — distribuição não criada."
       );
     }
 
@@ -78,11 +88,11 @@ export async function criarDistribuicao(params: {
     // mesma data de início e o mesmo percentual da distribuição — o admin não precisa mais
     // lançar de novo em Vitrine de Operação. Se já existir um ponto nessa data, substitui (igual
     // ao lançamento manual). Não bloqueia a distribuição se ainda não houver estratégia ativa
-    // cadastrada — só não lança o ponto.
-    const estrategiaAtiva = await tx.estrategiaOperacao.findFirst({
-      where: { ativa: true },
-      orderBy: { criadoEm: "desc" },
-    });
+    // cadastrada — só não lança o ponto. Pulado quando `userIds` restringe a poucos investidores
+    // (PLR Individual por período): a vitrine representa o resultado da empresa como um todo.
+    const estrategiaAtiva = userIds
+      ? null
+      : await tx.estrategiaOperacao.findFirst({ where: { ativa: true }, orderBy: { criadoEm: "desc" } });
     if (estrategiaAtiva) {
       // Reconstrói a data ao meio-dia em Brasília (mesma convenção do lançamento manual em
       // Vitrine de Operação) — evita que o dia "escorregue" pro dia anterior por causa do
