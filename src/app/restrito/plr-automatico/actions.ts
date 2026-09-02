@@ -3,7 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { criarCampanhaPlrAutomatica, desativarCampanhaPlrAutomatica } from "@/lib/plr-automatico";
+import {
+  criarCampanhaPlrAutomatica,
+  desativarCampanhaPlrAutomatica,
+  recalcularCronogramaRestante,
+} from "@/lib/plr-automatico";
 
 export type CampanhaState = { error?: string; sucesso?: string } | undefined;
 
@@ -63,4 +67,23 @@ export async function desativarCampanhaAction(id: string): Promise<void> {
     data: { userId: admin.id, acao: "desativar_campanha_plr_automatica", detalhes: id },
   });
   revalidatePath("/restrito/plr-automatico");
+}
+
+/** Regera o cronograma dos dias ainda não processados de uma campanha (ex: depois de uma
+ *  correção nas regras de sorteio) — nunca toca nos dias já materializados. */
+export async function recalcularCronogramaAction(id: string): Promise<{ error?: string }> {
+  const admin = await requireAdmin();
+  const resultado = await recalcularCronogramaRestante(id);
+  if (resultado.error) return { error: resultado.error };
+
+  await prisma.logAuditoria.create({
+    data: {
+      userId: admin.id,
+      acao: "recalcular_cronograma_plr_automatica",
+      detalhes: `Campanha ${id} — ${resultado.diasRegerados} dia(s) regerado(s)`,
+    },
+  });
+
+  revalidatePath("/restrito/plr-automatico");
+  return {};
 }

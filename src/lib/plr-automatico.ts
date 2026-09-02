@@ -11,6 +11,10 @@ export const FAIXA_SEGUNDA_A_QUINTA = { min: 0.1, max: 0.16 };
 export const FAIXA_SEXTA = { min: 0.27, max: 0.33 };
 export const FAIXA_FIM_DE_SEMANA = { min: 0.05, max: 0.08 };
 
+/** Teto absoluto por dia quando o PLR está no modo automático — nenhum dia do cronograma pode
+ *  passar disso, nem mesmo pra absorver resíduo de arredondamento (fixado pelo usuário). */
+export const LIMITE_MAXIMO_DIARIO = 0.45;
+
 function faixaDoDia(data: Date): { min: number; max: number } {
   const diaSemana = data.getUTCDay(); // 0=domingo, 5=sexta, 6=sábado
   if (diaSemana === 5) return FAIXA_SEXTA;
@@ -40,72 +44,138 @@ export type DiaCronograma = { data: Date; percentual: number };
 
 /**
  * Sorteia o percentual de cada dia do período dentro da faixa do seu tipo de dia (seg-qui /
- * sexta / fim de semana) e ajusta o ÚLTIMO dia pra soma bater exatamente com `percentualTotal`
- * — mesmo padrão do exemplo fornecido (o resíduo de arredondamento é absorvido no último dia,
- * mesmo que isso empurre aquele dia pra fora da faixa normal do seu tipo). Se um único dia não
- * puder absorver o resíduo sem ficar negativo (período muito curto ou percentual muito baixo em
- * relação ao mínimo dos outros dias), cai pra um fallback seguro: escala todos os dias
- * proporcionalmente pra bater o total, sem nenhum dia negativo.
+ * sexta / fim de semana), escala tudo proporcionalmente pro total bater com `percentualTotal`
+ * (preserva a prioridade sexta > dia útil > fim de semana, já que escalar pelo mesmo fator não
+ * muda a ordem relativa) e então: (1) nunca deixa nenhum dia passar de `LIMITE_MAXIMO_DIARIO`,
+ * redistribuindo qualquer sobra entre os outros dias com folga; (2) nunca repete o mesmo
+ * percentual em dois dias seguidos (troca 0,01 com outro dia longe o bastante, sempre mantendo
+ * a soma exata). `valorDiaAnterior`, se informado, trata o dia anterior ao período (fora do
+ * cronograma gerado, ex: o último dia já processado de uma campanha) como se fosse adjacente ao
+ * primeiro dia — evita repetir o valor dele também.
  */
 export function gerarCronogramaDiario(
   percentualTotal: number,
   periodoInicio: Date,
-  periodoFim: Date
+  periodoFim: Date,
+  valorDiaAnterior: number | null = null
 ): DiaCronograma[] {
   const dias = listarDias(periodoInicio, periodoFim);
   if (dias.length === 0) return [];
 
-  const valoresBrutos = dias.map((data) => sortearNaFaixa(faixaDoDia(data)));
-
   if (dias.length === 1) {
-    return [{ data: dias[0], percentual: arredondar2(percentualTotal) }];
+    return [{ data: dias[0], percentual: Math.max(0, Math.min(arredondar2(percentualTotal), LIMITE_MAXIMO_DIARIO)) }];
   }
 
-  const valoresArredondados = valoresBrutos.slice(0, -1).map(arredondar2);
-  const somaSemUltimo = valoresArredondados.reduce((acc, v) => acc + v, 0);
-  const ultimoDia = arredondar2(percentualTotal - somaSemUltimo);
-
-  if (ultimoDia >= 0) {
-    return dias.map((data, i) => ({
-      data,
-      percentual: i === dias.length - 1 ? ultimoDia : valoresArredondados[i],
-    }));
-  }
-
-  // Fallback: o último dia ficaria negativo — escala todo mundo proporcionalmente ao total
-  // sorteado originalmente, garantindo que nenhum dia fique negativo.
+  const valoresBrutos = dias.map((data) => sortearNaFaixa(faixaDoDia(data)));
   const somaTotalBruta = valoresBrutos.reduce((acc, v) => acc + v, 0);
   const fator = somaTotalBruta > 0 ? percentualTotal / somaTotalBruta : 0;
-  const escalados = valoresBrutos.map((v) => arredondar2(Math.max(v * fator, 0)));
+  const escalados = valoresBrutos.map((v) => arredondar2(Math.max(Math.min(v * fator, LIMITE_MAXIMO_DIARIO), 0)));
 
-  // O arredondamento de cada dia individualmente pode deixar um resíduo na soma total — distribui
-  // esse resíduo entre os dias (começando pelo de maior valor, que tem mais folga), zerando um
-  // dia e passando o restante adiante se um único dia não bastar pra absorver tudo sem ficar
-  // negativo. Garante soma exata mesmo nesse caminho de fallback.
+  // O arredondamento (e o corte pelo teto) de cada dia individualmente deixa um resíduo na soma
+  // total — redistribui entre os dias com folga na direção certa (tira de quem tem mais valor
+  // quando sobrou, soma em quem tem mais espaço até o teto quando faltou). Garante soma exata.
   const somaEscalada = escalados.reduce((acc, v) => acc + v, 0);
-  const ajustados = distribuirResiduo(escalados, arredondar2(percentualTotal - somaEscalada));
+  const ajustados = distribuirResiduo(escalados, arredondar2(percentualTotal - somaEscalada), LIMITE_MAXIMO_DIARIO);
 
-  return dias.map((data, i) => ({ data, percentual: ajustados[i] }));
+  const semRepeticoes = quebrarRepeticoesAdjacentes(ajustados, LIMITE_MAXIMO_DIARIO, valorDiaAnterior);
+
+  return dias.map((data, i) => ({ data, percentual: semRepeticoes[i] }));
 }
 
-/** Aplica `residuo` (positivo ou negativo) sobre `valores`, sempre mantendo cada valor >= 0 —
- *  tenta absorver tudo no dia de maior valor primeiro; se não couber sem ficar negativo, zera
- *  esse dia e carrega o restante do resíduo pro próximo maior, até zerar. */
-function distribuirResiduo(valores: number[], residuoInicial: number): number[] {
+/** Aplica `residuo` (positivo ou negativo) sobre `valores`, sempre mantendo 0 <= valor <=
+ *  `limiteMaximo` — quando sobra (residuo negativo), tira primeiro de quem tem mais valor;
+ *  quando falta (residuo positivo), soma primeiro em quem tem mais espaço até o teto. Se um
+ *  único dia não bastar, passa o restante adiante até zerar o resíduo. */
+function distribuirResiduo(valores: number[], residuoInicial: number, limiteMaximo: number): number[] {
   const resultado = [...valores];
   let residuo = residuoInicial;
-  const indicesPorValorDesc = resultado.map((_, i) => i).sort((a, b) => resultado[b] - resultado[a]);
 
-  for (const i of indicesPorValorDesc) {
+  const indices = resultado.map((_, i) => i);
+  if (residuo >= 0) {
+    indices.sort((a, b) => limiteMaximo - resultado[a] - (limiteMaximo - resultado[b])); // mais espaço até o teto primeiro
+  } else {
+    indices.sort((a, b) => resultado[b] - resultado[a]); // mais valor primeiro
+  }
+
+  for (const i of indices) {
     if (Math.abs(residuo) < 0.005) break;
-    const novo = arredondar2(resultado[i] + residuo);
-    if (novo >= 0) {
-      resultado[i] = novo;
-      residuo = 0;
-      break;
+    if (residuo > 0) {
+      const espaco = arredondar2(limiteMaximo - resultado[i]);
+      if (espaco <= 0) continue;
+      const aplicar = Math.min(espaco, residuo);
+      resultado[i] = arredondar2(resultado[i] + aplicar);
+      residuo = arredondar2(residuo - aplicar);
+    } else {
+      const aplicar = Math.min(resultado[i], -residuo);
+      resultado[i] = arredondar2(resultado[i] - aplicar);
+      residuo = arredondar2(residuo + aplicar);
     }
-    residuo = arredondar2(residuo + resultado[i]);
-    resultado[i] = 0;
+  }
+
+  return resultado;
+}
+
+/** Garante que nenhum dia repita o percentual do dia anterior (documento: "não lançar a mesma
+ *  porcentagem repetida sequenciada... deverá intercalar"). Quando acontece, tenta subir ou
+ *  descer o valor desse dia (sem passar do teto nem ficar negativo, e sem criar um novo empate
+ *  com o PRÓXIMO dia) e compensa a diferença em outro dia distante, pra manter a soma total
+ *  exata. Compensar um dia pode, por coincidência, criar uma colisão NOVA nele (com o vizinho
+ *  dele) ou reverter uma correção anterior — por isso roda várias passadas completas até não
+ *  sobrar nenhuma colisão (ou até o limite de tentativas). Se não convergir, devolve o melhor
+ *  resultado alcançado — prioriza sempre a soma exata e o teto por dia sobre esse detalhe
+ *  estético. */
+function quebrarRepeticoesAdjacentes(
+  valores: number[],
+  limiteMaximo: number,
+  valorDiaAnterior: number | null
+): number[] {
+  const resultado = [...valores];
+
+  for (let passada = 0; passada < 6; passada++) {
+    let mudouAlgo = false;
+
+    for (let i = 0; i < resultado.length; i++) {
+      const anterior = i === 0 ? valorDiaAnterior : resultado[i - 1];
+      if (anterior === null || resultado[i] !== anterior) continue;
+
+      const proximo = i + 1 < resultado.length ? resultado[i + 1] : null;
+
+      // Tenta deltas crescentes (±0,01, ±0,02, ±0,03...) até achar um valor que não bata nem
+      // com o anterior nem com o próximo — evita desistir cedo só porque +0,01/-0,01 também
+      // colidiram com o próximo dia (comum quando os dias vizinhos vêm da mesma faixa estreita).
+      let novoValor: number | null = null;
+      for (let passo = 1; passo <= 5 && novoValor === null; passo++) {
+        const delta = arredondar2(passo * 0.01);
+        const subir = arredondar2(resultado[i] + delta);
+        const descer = arredondar2(resultado[i] - delta);
+        if (subir <= limiteMaximo && subir !== proximo) novoValor = subir;
+        else if (descer >= 0 && descer !== proximo) novoValor = descer;
+      }
+      if (novoValor === null) continue;
+
+      const diferenca = arredondar2(novoValor - resultado[i]);
+
+      let idxCompensar = -1;
+      for (let j = 0; j < resultado.length; j++) {
+        if (Math.abs(j - i) < 2) continue;
+        // O dia 0 é o único ancorado por um valor EXTERNO (valorDiaAnterior), que essa mesma
+        // passada só confere quando chega em i=0 — usá-lo como doador arrisca recriar bem essa
+        // colisão sem a passada notar (a próxima passada ainda pega, mas evita gastar tentativas).
+        if (j === 0 && valorDiaAnterior !== null) continue;
+        const candidato = arredondar2(resultado[j] - diferenca);
+        if (candidato >= 0 && candidato <= limiteMaximo) {
+          idxCompensar = j;
+          break;
+        }
+      }
+      if (idxCompensar === -1) continue; // não achou onde compensar — mantém a soma exata acima de tudo
+
+      resultado[i] = novoValor;
+      resultado[idxCompensar] = arredondar2(resultado[idxCompensar] - diferenca);
+      mudouAlgo = true;
+    }
+
+    if (!mudouAlgo) break; // passada inteira sem nenhuma colisão encontrada — convergiu
   }
 
   return resultado;
@@ -131,6 +201,14 @@ export async function criarCampanhaPlrAutomatica(
   if (!percentualTotal || percentualTotal <= 0) return { error: "Informe um percentual total válido." };
   if (periodoFim < periodoInicio) return { error: "A data fim não pode ser antes da data início." };
   if (!validarHorario(horarioLancamento)) return { error: "Informe um horário válido (HH:MM)." };
+
+  const qtdDias = Math.floor((periodoFim.getTime() - periodoInicio.getTime()) / 86400000) + 1;
+  const maximoPossivel = qtdDias * LIMITE_MAXIMO_DIARIO;
+  if (percentualTotal > maximoPossivel) {
+    return {
+      error: `Com o teto de ${LIMITE_MAXIMO_DIARIO}% por dia, o máximo possível em ${qtdDias} dia(s) é ${maximoPossivel.toFixed(2)}% — reduza o percentual total ou aumente o período.`,
+    };
+  }
 
   // Impede criar uma campanha cujo período sobreponha dias que outra campanha já materializou
   // (lançou de fato) — é exatamente esse cenário (duas campanhas cobrindo o mesmo dia) que
@@ -176,6 +254,55 @@ export async function criarCampanhaPlrAutomatica(
 
 export async function desativarCampanhaPlrAutomatica(id: string): Promise<void> {
   await prisma.campanhaPlrAutomatica.update({ where: { id }, data: { ativa: false } });
+}
+
+/**
+ * Regera o cronograma dos dias AINDA NÃO processados de uma campanha (ex: depois de uma
+ * correção nas regras de sorteio) — nunca toca nos dias já materializados (já viraram
+ * Distribuição de verdade, dinheiro já pode ter se movido). O percentual total continua o mesmo
+ * da campanha: soma(dias já processados) + soma(dias regerados) = percentualTotal, sempre.
+ * Considera o valor do último dia já processado (se houver) como "dia anterior" pro novo
+ * cronograma, pra também não repetir o percentual bem na fronteira entre o que já rodou e o que
+ * ainda vai rodar.
+ */
+export async function recalcularCronogramaRestante(campanhaId: string): Promise<{ error?: string; diasRegerados?: number }> {
+  const campanha = await prisma.campanhaPlrAutomatica.findUnique({
+    where: { id: campanhaId },
+    include: { dias: { orderBy: { data: "asc" } } },
+  });
+  if (!campanha) return { error: "Campanha não encontrada." };
+
+  const processados = campanha.dias.filter((d) => d.processadoEm !== null);
+  const pendentes = campanha.dias.filter((d) => d.processadoEm === null);
+  if (pendentes.length === 0) return { error: "Todos os dias dessa campanha já foram processados — não há nada pra regerar." };
+
+  const somaProcessada = processados.reduce((acc, d) => acc + d.percentual, 0);
+  const restante = arredondar2(campanha.percentualTotal - somaProcessada);
+  const maximoPossivel = pendentes.length * LIMITE_MAXIMO_DIARIO;
+  if (restante > maximoPossivel + 0.005) {
+    return {
+      error: `O que falta distribuir (${restante.toFixed(2)}%) passa do máximo possível nos ${pendentes.length} dia(s) pendentes com o teto de ${LIMITE_MAXIMO_DIARIO}% por dia (${maximoPossivel.toFixed(2)}%).`,
+    };
+  }
+
+  const primeiroPendente = pendentes[0].data;
+  const ultimoPendente = pendentes[pendentes.length - 1].data;
+  const ultimoProcessado = processados[processados.length - 1] ?? null;
+
+  const novoCronograma = gerarCronogramaDiario(
+    restante,
+    primeiroPendente,
+    ultimoPendente,
+    ultimoProcessado?.percentual ?? null
+  );
+
+  await prisma.$transaction(
+    novoCronograma.map((dia, i) =>
+      prisma.campanhaPlrDia.update({ where: { id: pendentes[i].id }, data: { percentual: dia.percentual } })
+    )
+  );
+
+  return { diasRegerados: novoCronograma.length };
 }
 
 export type CampanhaComDias = {

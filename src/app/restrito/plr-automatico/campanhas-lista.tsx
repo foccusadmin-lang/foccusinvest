@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { desativarCampanhaAction } from "./actions";
+import { desativarCampanhaAction, recalcularCronogramaAction } from "./actions";
 
 type Dia = { id: string; data: Date; percentual: number; processadoEm: Date | null };
 type Campanha = {
@@ -25,6 +25,15 @@ function formatData(data: Date): string {
 export function CampanhasLista({ campanhas }: { campanhas: Campanha[] }) {
   const [expandidaId, setExpandidaId] = useState<string | null>(campanhas[0]?.id ?? null);
   const [pending, startTransition] = useTransition();
+  const [erroRecalculo, setErroRecalculo] = useState<{ id: string; msg: string } | null>(null);
+
+  function recalcular(id: string) {
+    setErroRecalculo(null);
+    startTransition(async () => {
+      const resultado = await recalcularCronogramaAction(id);
+      if (resultado.error) setErroRecalculo({ id, msg: resultado.error });
+    });
+  }
 
   if (campanhas.length === 0) {
     return <p className="text-sm text-muted">Nenhuma campanha criada ainda.</p>;
@@ -62,6 +71,17 @@ export function CampanhasLista({ campanhas }: { campanhas: Campanha[] }) {
                 <span className="text-xs text-muted">
                   {processados}/{c.dias.length} dias lançados
                 </span>
+                {processados < c.dias.length && (
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => recalcular(c.id)}
+                    title="Regera o percentual só dos dias ainda não lançados, respeitando o mesmo total da campanha"
+                    className="rounded-lg border border-border/60 px-2 py-1 text-xs text-muted hover:border-gold/40 hover:text-gold-light disabled:opacity-50"
+                  >
+                    Recalcular cronograma
+                  </button>
+                )}
                 {c.ativa && (
                   <button
                     type="button"
@@ -79,6 +99,7 @@ export function CampanhasLista({ campanhas }: { campanhas: Campanha[] }) {
               Criada por {c.criadoPor.name ?? c.criadoPor.email} · cronograma soma{" "}
               {somaCronograma.toFixed(2)}%
             </p>
+            {erroRecalculo?.id === c.id && <p className="mt-1 text-[11px] text-red-400">{erroRecalculo.msg}</p>}
 
             {expandida && (
               <div className="mt-3 max-h-72 overflow-y-auto rounded-xl border border-border/70">

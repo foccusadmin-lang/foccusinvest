@@ -5,6 +5,8 @@ import {
   criarCampanhaPlrAutomatica,
   desativarCampanhaPlrAutomatica,
   processarDiasPendentes,
+  recalcularCronogramaRestante,
+  LIMITE_MAXIMO_DIARIO,
 } from "@/lib/plr-automatico";
 import { sincronizarDistribuicoesDoUsuario } from "@/lib/distribuicao";
 
@@ -91,7 +93,7 @@ describe("PLR automático — campanha e motor de processamento", () => {
   it("criar uma nova campanha desativa a anterior automaticamente", async () => {
     const hoje = new Date();
     const r1 = await criarCampanhaPlrAutomatica({
-      percentualTotal: 2,
+      percentualTotal: 0.5, // período de 2 dias, máximo possível é 0,90%
       periodoInicio: hoje,
       periodoFim: new Date(hoje.getTime() + 86400000),
       horarioLancamento: "00:00",
@@ -100,7 +102,7 @@ describe("PLR automático — campanha e motor de processamento", () => {
     campanhaIds.push(r1.campanhaId!);
 
     const r2 = await criarCampanhaPlrAutomatica({
-      percentualTotal: 4,
+      percentualTotal: 0.8,
       periodoInicio: hoje,
       periodoFim: new Date(hoje.getTime() + 86400000),
       horarioLancamento: "00:00",
@@ -119,7 +121,7 @@ describe("PLR automático — campanha e motor de processamento", () => {
     const amanha = new Date(Date.now() + 86400000);
 
     const resultado = await criarCampanhaPlrAutomatica({
-      percentualTotal: 2,
+      percentualTotal: 0.3, // período de 1 dia, máximo possível é 0,45% // período de 3 dias, máximo possível é 1,35%
       periodoInicio: ontem,
       periodoFim: amanha,
       horarioLancamento: "00:00", // já passou, qualquer hora do dia
@@ -156,7 +158,7 @@ describe("PLR automático — campanha e motor de processamento", () => {
   it("rodar processarDiasPendentes duas vezes não duplica a Distribuição do mesmo dia (idempotência)", async () => {
     const hoje = new Date();
     const resultado = await criarCampanhaPlrAutomatica({
-      percentualTotal: 1,
+      percentualTotal: 0.3, // período de 1 dia, máximo possível é 0,45%
       periodoInicio: hoje,
       periodoFim: hoje,
       horarioLancamento: "00:00",
@@ -179,9 +181,11 @@ describe("PLR automático — campanha e motor de processamento", () => {
   it("não materializa nada antes do horário configurado chegar", async () => {
     const agora = new Date();
     // Um horário "mais tarde hoje" sem nunca virar o dia (evita o teste ficar instável perto da
-    // meia-noite de Brasília, quando "agora + 2h" cairia amanhã e a comparação de string
+    // meia-noite de Brasília, quando "agora + Xh" cairia amanhã e a comparação de string
     // "HH:MM" pararia de fazer sentido — a produção nunca soma horas assim, só compara contra o
-    // horário atual do próprio dia, então esse cuidado é só do teste).
+    // horário atual do próprio dia, então esse cuidado é só do teste). Margem de 5 minutos (não
+    // 1) pra sobrar folga real contra o tempo de execução do teste até chamar
+    // processarDiasPendentes — 1 minuto de folga já se mostrou insuficiente na prática.
     const partes = new Intl.DateTimeFormat("en-US", {
       timeZone: "America/Sao_Paulo",
       hour: "2-digit",
@@ -191,12 +195,12 @@ describe("PLR automático — campanha e motor de processamento", () => {
     const horaAtual = parseInt(partes.find((p) => p.type === "hour")?.value ?? "0", 10);
     const minutoAtual = parseInt(partes.find((p) => p.type === "minute")?.value ?? "0", 10);
     const horarioTexto =
-      minutoAtual < 59
-        ? `${String(horaAtual).padStart(2, "0")}:${String(minutoAtual + 1).padStart(2, "0")}`
+      minutoAtual < 54
+        ? `${String(horaAtual).padStart(2, "0")}:${String(minutoAtual + 5).padStart(2, "0")}`
         : `${String(Math.min(horaAtual + 1, 23)).padStart(2, "0")}:59`;
 
     const resultado = await criarCampanhaPlrAutomatica({
-      percentualTotal: 1,
+      percentualTotal: 0.3, // período de 1 dia, máximo possível é 0,45%
       periodoInicio: agora,
       periodoFim: agora,
       horarioLancamento: horarioTexto,
@@ -214,7 +218,7 @@ describe("PLR automático — campanha e motor de processamento", () => {
   it("desativarCampanhaPlrAutomatica impede que o motor continue processando os dias pendentes dela", async () => {
     const hoje = new Date();
     const resultado = await criarCampanhaPlrAutomatica({
-      percentualTotal: 1,
+      percentualTotal: 0.3, // período de 1 dia, máximo possível é 0,45%
       periodoInicio: hoje,
       periodoFim: hoje,
       horarioLancamento: "00:00",
@@ -230,7 +234,7 @@ describe("PLR automático — campanha e motor de processamento", () => {
   it("duas rodadas do cron ao mesmo tempo (concorrência) não duplicam a Distribuição do mesmo dia", async () => {
     const hoje = new Date();
     const resultado = await criarCampanhaPlrAutomatica({
-      percentualTotal: 1,
+      percentualTotal: 0.3, // período de 1 dia, máximo possível é 0,45%
       periodoInicio: hoje,
       periodoFim: hoje,
       horarioLancamento: "00:00",
@@ -252,7 +256,7 @@ describe("PLR automático — campanha e motor de processamento", () => {
   it("recusa criar uma campanha cujo período sobrepõe dias já lançados por outra campanha", async () => {
     const hoje = new Date();
     const r1 = await criarCampanhaPlrAutomatica({
-      percentualTotal: 1,
+      percentualTotal: 0.3, // período de 1 dia, máximo possível é 0,45%
       periodoInicio: hoje,
       periodoFim: hoje,
       horarioLancamento: "00:00",
@@ -265,7 +269,7 @@ describe("PLR automático — campanha e motor de processamento", () => {
     for (const d of diasProcessados) if (d.distribuicaoId) distribuicaoIds.push(d.distribuicaoId);
 
     const r2 = await criarCampanhaPlrAutomatica({
-      percentualTotal: 2,
+      percentualTotal: 0.35, // feasível isoladamente — a rejeição precisa ser por sobreposição, não por teto
       periodoInicio: hoje,
       periodoFim: hoje,
       horarioLancamento: "10:00",
@@ -278,7 +282,7 @@ describe("PLR automático — campanha e motor de processamento", () => {
   it("permite criar uma campanha sobreposta a outra que ainda não chegou a lançar nenhum dia (correção antes de rodar)", async () => {
     const amanha = new Date(Date.now() + 86400000);
     const r1 = await criarCampanhaPlrAutomatica({
-      percentualTotal: 1,
+      percentualTotal: 0.3, // período de 1 dia, máximo possível é 0,45%
       periodoInicio: amanha,
       periodoFim: amanha,
       horarioLancamento: "00:00",
@@ -288,7 +292,7 @@ describe("PLR automático — campanha e motor de processamento", () => {
     // Não roda processarDiasPendentes — nada foi lançado ainda (a data é amanhã).
 
     const r2 = await criarCampanhaPlrAutomatica({
-      percentualTotal: 3,
+      percentualTotal: 0.4, // período de 1 dia, máximo possível é 0,45%
       periodoInicio: amanha,
       periodoFim: amanha,
       horarioLancamento: "00:00",
@@ -316,7 +320,7 @@ describe("PLR automático — campanha e motor de processamento", () => {
     distribuicaoIds.push(distribuicaoExistente.id);
 
     const resultado = await criarCampanhaPlrAutomatica({
-      percentualTotal: 1,
+      percentualTotal: 0.3, // período de 1 dia, máximo possível é 0,45%
       periodoInicio: hoje,
       periodoFim: hoje,
       horarioLancamento: "00:00",
@@ -334,5 +338,88 @@ describe("PLR automático — campanha e motor de processamento", () => {
       where: { periodoInicio: hoje, periodoFim: hoje, resultadoApurado: { startsWith: "PLR automático" } },
     });
     expect(totalParaEssaData).toBe(1);
+  });
+
+  it("recusa criar campanha cujo percentual total passa do máximo possível com o teto de 0,45%/dia", async () => {
+    const inicio = new Date();
+    const fim = new Date(inicio.getTime() + 4 * 86400000); // 5 dias, máximo 2,25%
+
+    const resultado = await criarCampanhaPlrAutomatica({
+      percentualTotal: 3, // passa do máximo possível (2,25%)
+      periodoInicio: inicio,
+      periodoFim: fim,
+      horarioLancamento: "00:00",
+      criadoPorId: adminId,
+    });
+
+    expect(resultado.error).toBeDefined();
+    expect(resultado.campanhaId).toBeUndefined();
+  });
+
+  it("recalcularCronogramaRestante regenera só os dias pendentes, preservando os já processados e a soma total", async () => {
+    const inicio = new Date(Date.now() - 2 * 86400000); // começou há 2 dias
+    const fim = new Date(Date.now() + 5 * 86400000); // termina daqui a 5 dias (8 dias no total)
+
+    const resultado = await criarCampanhaPlrAutomatica({
+      percentualTotal: 2,
+      periodoInicio: inicio,
+      periodoFim: fim,
+      horarioLancamento: "00:00", // já passou — processa os dias que já chegaram
+      criadoPorId: adminId,
+    });
+    campanhaIds.push(resultado.campanhaId!);
+
+    // Materializa os dias que já chegaram (há 2 dias, ontem, hoje — 3 dias já "processados").
+    await processarDiasPendentes();
+
+    const antesDaCorrecao = await prisma.campanhaPlrDia.findMany({
+      where: { campanhaId: resultado.campanhaId! },
+      orderBy: { data: "asc" },
+    });
+    for (const d of antesDaCorrecao) if (d.distribuicaoId) distribuicaoIds.push(d.distribuicaoId);
+    const processadosAntes = antesDaCorrecao.filter((d) => d.processadoEm !== null);
+    const pendentesAntes = antesDaCorrecao.filter((d) => d.processadoEm === null);
+    expect(processadosAntes.length).toBeGreaterThan(0);
+    expect(pendentesAntes.length).toBeGreaterThan(0);
+    const valoresProcessadosAntes = processadosAntes.map((d) => d.percentual);
+
+    const correcao = await recalcularCronogramaRestante(resultado.campanhaId!);
+    expect(correcao.error).toBeUndefined();
+    expect(correcao.diasRegerados).toBe(pendentesAntes.length);
+
+    const depois = await prisma.campanhaPlrDia.findMany({
+      where: { campanhaId: resultado.campanhaId! },
+      orderBy: { data: "asc" },
+    });
+
+    // Dias já processados: percentual intacto, processadoEm/distribuicaoId intocados.
+    const processadosDepois = depois.filter((d) => d.processadoEm !== null);
+    expect(processadosDepois.map((d) => d.percentual)).toEqual(valoresProcessadosAntes);
+
+    // Soma total continua batendo com o percentualTotal da campanha.
+    const somaTotal = depois.reduce((acc, d) => acc + d.percentual, 0);
+    expect(somaTotal).toBeCloseTo(2, 2);
+
+    // Nenhum dia (processado ou regerado) passa do teto.
+    for (const d of depois) expect(d.percentual).toBeLessThanOrEqual(LIMITE_MAXIMO_DIARIO);
+  });
+
+  it("recalcularCronogramaRestante recusa quando todos os dias já foram processados", async () => {
+    const hoje = new Date();
+    const resultado = await criarCampanhaPlrAutomatica({
+      percentualTotal: 0.3,
+      periodoInicio: hoje,
+      periodoFim: hoje,
+      horarioLancamento: "00:00",
+      criadoPorId: adminId,
+    });
+    campanhaIds.push(resultado.campanhaId!);
+    await processarDiasPendentes();
+
+    const dias = await prisma.campanhaPlrDia.findMany({ where: { campanhaId: resultado.campanhaId! } });
+    for (const d of dias) if (d.distribuicaoId) distribuicaoIds.push(d.distribuicaoId);
+
+    const correcao = await recalcularCronogramaRestante(resultado.campanhaId!);
+    expect(correcao.error).toBeDefined();
   });
 });
