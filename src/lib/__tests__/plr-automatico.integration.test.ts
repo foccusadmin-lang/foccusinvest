@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { prisma } from "@/lib/prisma";
 import {
   criarCampanhaPlrAutomatica,
@@ -7,6 +7,25 @@ import {
   processarDiasPendentes,
 } from "@/lib/plr-automatico";
 import { sincronizarDistribuicoesDoUsuario } from "@/lib/distribuicao";
+
+// `processarDiasPendentes` chama `criarDistribuicao` SEM `userIds` (por design: PLR automático
+// de verdade aplica a TODOS os investidores elegíveis). Rodar isso contra o banco compartilhado
+// (dev/prod) sem essa trava já vazou crédito real pra um investidor de verdade nesta sessão — a
+// distribuição de teste existiu por uma fração de segundo, tempo suficiente pra alguém sincronizar
+// a própria carteira no meio do caminho. Esse mock força TODA chamada de criarDistribuicao feita
+// durante estes testes a ficar restrita só ao investidor de teste do `beforeEach`, sem alterar
+// nenhuma outra lógica real (atomicidade da reivindicação, dedupe entre campanhas, gate de
+// horário — tudo isso continua batendo direto no banco de verdade).
+const investidoresElegiveisDeTeste = vi.hoisted(() => ({ ids: [] as string[] }));
+
+vi.mock("@/lib/distribuicao", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@/lib/distribuicao")>();
+  return {
+    ...original,
+    criarDistribuicao: (params: Parameters<typeof original.criarDistribuicao>[0]) =>
+      original.criarDistribuicao({ ...params, userIds: investidoresElegiveisDeTeste.ids }),
+  };
+});
 
 describe("PLR automático — campanha e motor de processamento", () => {
   let adminId: string;
@@ -29,11 +48,16 @@ describe("PLR automático — campanha e motor de processamento", () => {
       data: { userId: investidorId, valor: 1000, moeda: "BRL", status: "CONFIRMADA", liberaEm: new Date(Date.now() - 86400000) },
     });
 
+    // Trava de segurança (ver mock acima): só o investidor deste teste pode ser considerado
+    // elegível por qualquer criarDistribuicao chamada durante o teste.
+    investidoresElegiveisDeTeste.ids = [investidorId];
+
     campanhaIds = [];
     distribuicaoIds = [];
   });
 
   afterEach(async () => {
+    investidoresElegiveisDeTeste.ids = [];
     await prisma.distribuicaoParticipante.deleteMany({ where: { distribuicaoId: { in: distribuicaoIds } } });
     await prisma.campanhaPlrDia.deleteMany({ where: { campanhaId: { in: campanhaIds } } });
     await prisma.campanhaPlrAutomatica.deleteMany({ where: { id: { in: campanhaIds } } });

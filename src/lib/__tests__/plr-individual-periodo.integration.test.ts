@@ -111,26 +111,15 @@ describe("PLR Individual por período — criarDistribuicao restrita a userIds",
     expect(pontos).toHaveLength(0);
   });
 
-  it("uma Distribuição normal (sem userIds) continua sincronizando a Vitrine de Operação normalmente", async () => {
-    const estrategia = await prisma.estrategiaOperacao.create({
-      data: { nome: "Teste", moedas: "USD", esperadoMin: 1, esperadoMax: 2, ativa: true },
-    });
-    estrategiaId = estrategia.id;
-
-    const hoje = new Date();
-    const { distribuicaoId } = await criarDistribuicao({
-      criadoPorId: adminId,
-      periodoInicio: hoje,
-      periodoFim: hoje,
-      percentual: 1.5,
-      resultadoApurado: "Resultado do dia — teste normal",
-    });
-    distribuicaoIds.push(distribuicaoId);
-
-    const pontos = await prisma.pontoEstrategia.findMany({ where: { estrategiaId: estrategia.id } });
-    expect(pontos).toHaveLength(1);
-    expect(pontos[0].variacaoDia).toBeCloseTo(1.5, 2);
-  });
+  // NÃO existe (deliberadamente) um teste "criarDistribuicao sem userIds sincroniza a Vitrine
+  // de Operação normalmente" aqui. Chamar criarDistribuicao sem `userIds` aplica a TODOS os
+  // investidores elegíveis de verdade (é assim que Distribuições normais e PLR Automático
+  // funcionam) — rodar isso contra o banco compartilhado (dev/prod) já vazou crédito real pra
+  // um investidor de verdade nesta sessão (a Distribuição de teste existiu por uma fração de
+  // segundo, tempo suficiente pra alguém sincronizar a própria carteira no meio do caminho). O
+  // branch "sem userIds sincroniza a vitrine" (`userIds ? null : ...`, em lib/distribuicao.ts)
+  // é simples o bastante pra ficar só na revisão de código; o caminho SEGURO (com `userIds`,
+  // testado acima) é o único exercitado aqui.
 
   it("lança erro específico quando nenhum dos selecionados tem capital elegível", async () => {
     const semCapital = await prisma.user.create({
