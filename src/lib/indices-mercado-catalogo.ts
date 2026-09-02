@@ -5,7 +5,7 @@ import type { IndicadorMercado } from "@prisma/client";
 
 export const LABEL_INDICADOR: Record<IndicadorMercado, string> = {
   CDI: "CDI",
-  CDB: "CDB",
+  CDB: "CDB (100% do CDI)",
   IPCA: "IPCA",
   IBOVESPA: "Ibovespa",
 };

@@ -1,6 +1,11 @@
 "use client";
 
 import { useId, useState } from "react";
+import {
+  LABEL_INDICADOR as LABEL,
+  COR_INDICADOR as COR,
+  ORDEM_INDICADORES as ORDEM,
+} from "@/lib/indices-mercado-catalogo";
 
 export type IndicadorMercadoClient = "CDI" | "CDB" | "IPCA" | "IBOVESPA";
 
@@ -11,22 +16,6 @@ export type PontoComparativoClient = {
   foccus: number | null;
   valores: Partial<Record<IndicadorMercadoClient, number>>;
 };
-
-const LABEL: Record<IndicadorMercadoClient, string> = {
-  CDI: "CDI",
-  CDB: "CDB",
-  IPCA: "IPCA",
-  IBOVESPA: "Ibovespa",
-};
-
-const COR: Record<IndicadorMercadoClient, string> = {
-  CDI: "#1E88E5",
-  CDB: "#00ACC1",
-  IPCA: "#FB8C00",
-  IBOVESPA: "#8E24AA",
-};
-
-const ORDEM: IndicadorMercadoClient[] = ["CDI", "CDB", "IPCA", "IBOVESPA"];
 
 const WIDTH = 640;
 const HEIGHT = 260;
