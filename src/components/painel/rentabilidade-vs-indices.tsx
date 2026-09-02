@@ -55,7 +55,6 @@ export function RentabilidadeVsIndices({ pontos }: { pontos: PontoComparativoCli
   const seriesPorMes = 5;
   const barWidth = Math.min(10, (slot * 0.8) / seriesPorMes);
   const gapEntreBarras = 2;
-  const larguraGrupo = seriesPorMes * barWidth + (seriesPorMes - 1) * gapEntreBarras;
 
   const gridValues = Array.from({ length: GRID_STEPS + 1 }, (_, i) => (max / GRID_STEPS) * i);
 
@@ -110,18 +109,24 @@ export function RentabilidadeVsIndices({ pontos }: { pontos: PontoComparativoCli
 
           {pontos.map((ponto, mesIndex) => {
             const cx = PADDING_LEFT + slot * mesIndex + slot / 2;
-            const inicioGrupo = cx - larguraGrupo / 2;
 
             const valoresDoMes: { chave: string; valor: number | null; cor: string }[] = [
               { chave: "FOCCUS", valor: ponto.foccus, cor: `url(#${gradientId})` },
               ...ORDEM.map((c) => ({ chave: c, valor: ponto.valores[c] ?? null, cor: COR[c] })),
             ];
+            // Só as séries que de fato têm dado nesse mês — centraliza o grupo com base na
+            // quantidade real de barras, em vez de sempre reservar espaço pras 5 séries (isso
+            // deixava o grupo inteiro desalinhado do "tick" do mês sempre que uma série faltava,
+            // ex: Foccus sem Distribuição lançada ainda).
+            const seriesComDado = valoresDoMes.filter((s) => s.valor !== null);
+            const larguraGrupoReal =
+              seriesComDado.length * barWidth + Math.max(seriesComDado.length - 1, 0) * gapEntreBarras;
+            const inicioGrupo = cx - larguraGrupoReal / 2;
 
             return (
               <g key={ponto.mes}>
-                {valoresDoMes.map((serie, i) => {
-                  if (serie.valor === null) return null;
-                  const barHeight = (serie.valor / max) * plotHeight;
+                {seriesComDado.map((serie, i) => {
+                  const barHeight = (serie.valor! / max) * plotHeight;
                   const x = inicioGrupo + i * (barWidth + gapEntreBarras);
                   const y = PADDING_TOP + plotHeight - barHeight;
                   const isHovered = hover?.mesIndex === mesIndex && hover.serie === serie.chave;
