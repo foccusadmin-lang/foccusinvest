@@ -960,3 +960,14 @@ model CampanhaPlrDia {
 
   @@unique([campanhaId, data])
 }
+
+/** Marcador de "incentivo de liderança automático já reivindicado nesse dia" — existir a linha
+ *  (não o conteúdo dela) é o que importa. `dia` é único, então só UMA chamada concorrente
+ *  consegue criar o marcador pra um dia; as demais recebem violação de unicidade (P2002) e
+ *  desistem sem duplicar (ver liberarIncentivoAutomaticoSeNecessario, em
+ *  lib/incentivo-lideranca.ts) — mesma proteção que CampanhaPlrDia dá pro PLR automático. */
+model LiberacaoIncentivoDiaria {
+  id       String   @id @default(cuid())
+  dia      DateTime @unique
+  criadoEm DateTime @default(now())
+}

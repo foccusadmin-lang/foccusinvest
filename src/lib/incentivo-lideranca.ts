@@ -355,15 +355,28 @@ function agoraBrasilia(): { diaSemana: number; hora: number } {
 
 export type ResultadoLiberacaoAutomatica = ResultadoLiberacao & { pulou?: string };
 
+/** Erro de violação de índice único do Prisma (P2002) — mesmo helper usado em painel/actions.ts
+ *  pra detectar quando duas chamadas concorrentes colidem numa reivindicação por unicidade. */
+function ehViolacaoDeUnicidade(e: unknown): boolean {
+  return typeof e === "object" && e !== null && "code" in e && (e as { code?: string }).code === "P2002";
+}
+
 /**
  * Libera o incentivo automático de hoje pra todos os líderes SE ainda não tiver sido liberado —
  * é a mesma lógica do cron (/api/cron/liberar-incentivo-lideranca), mas chamada como fallback de
  * qualquer página carregada pelo admin depois das 19h. Existe porque um cron do Vercel que falha
  * silenciosamente (CRON_SECRET não configurado, plano sem cron, etc) não pode ser a ÚNICA forma
  * do incentivo automático funcionar — mesmo padrão de resiliência já usado pra distribuições
- * (sincronizarDistribuicoesDoUsuario, que roda toda vez que a carteira é consultada). Sempre
- * idempotente: nunca credita duas vezes o mesmo dia, então é seguro chamar em toda carga de
- * página sem custo real na maioria das vezes (só faz a query de checagem).
+ * (sincronizarDistribuicoesDoUsuario, que roda toda vez que a carteira é consultada).
+ *
+ * Como essa função roda em toda carga de página depois das 19h (não só uma vez por dia, como o
+ * cron), duas chamadas quase simultâneas — cron + uma ou mais páginas carregadas ao mesmo tempo —
+ * podiam passar as duas pela checagem "já rodou hoje?" antes de qualquer uma credencial escrever,
+ * duplicando o incentivo do dia. A checagem abaixo continua existindo como atalho barato (evita
+ * tocar o banco de novo na maioria das chamadas, depois que o dia já foi liberado), mas quem
+ * garante mesmo que só uma liberação aconteça é a reivindicação atômica em
+ * LiberacaoIncentivoDiaria: `dia` é único, então só a PRIMEIRA chamada consegue criar o
+ * marcador — as demais recebem violação de unicidade (P2002) e desistem sem duplicar.
  */
 export async function liberarIncentivoAutomaticoSeNecessario(): Promise<ResultadoLiberacaoAutomatica> {
   const config = await getConfiguracao();
@@ -380,6 +393,7 @@ export async function liberarIncentivoAutomaticoSeNecessario(): Promise<Resultad
   }
 
   const inicioDoDia = new Date(`${hojeBrasiliaStr()}T00:00:00-03:00`);
+
   const jaRodouHoje = await prisma.creditoCarteira.findFirst({
     where: { origem: { startsWith: ORIGEM_INCENTIVO_AUTOMATICO }, criadoEm: { gte: inicioDoDia } },
   });
@@ -387,11 +401,28 @@ export async function liberarIncentivoAutomaticoSeNecessario(): Promise<Resultad
     return { creditados: 0, total: 0, pulou: "já liberado hoje" };
   }
 
-  const resultado = await liberarIncentivoParaTodosLideres(
-    PERCENTUAL_INCENTIVO_AUTOMATICO,
-    new Date(),
-    " (automático)"
-  );
+  try {
+    await prisma.liberacaoIncentivoDiaria.create({ data: { dia: inicioDoDia } });
+  } catch (err) {
+    if (ehViolacaoDeUnicidade(err)) {
+      return { creditados: 0, total: 0, pulou: "já liberado hoje (reivindicado por outra chamada)" };
+    }
+    throw err;
+  }
+
+  let resultado: ResultadoLiberacao;
+  try {
+    resultado = await liberarIncentivoParaTodosLideres(
+      PERCENTUAL_INCENTIVO_AUTOMATICO,
+      new Date(),
+      " (automático)"
+    );
+  } catch (err) {
+    // Falhou depois de reivindicar o dia — desfaz a reivindicação pra poder tentar de novo na
+    // próxima chamada, em vez de deixar o dia marcado como "feito" sem nenhum crédito real.
+    await prisma.liberacaoIncentivoDiaria.deleteMany({ where: { dia: inicioDoDia } });
+    throw err;
+  }
 
   await prisma.logAuditoria.create({
     data: {
