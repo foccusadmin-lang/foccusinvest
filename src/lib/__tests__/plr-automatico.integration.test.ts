@@ -154,13 +154,22 @@ describe("PLR automático — campanha e motor de processamento", () => {
 
   it("não materializa nada antes do horário configurado chegar", async () => {
     const agora = new Date();
-    const horaFutura = new Date(agora.getTime() + 2 * 60 * 60 * 1000); // 2h à frente
-    const horarioTexto = new Intl.DateTimeFormat("pt-BR", {
+    // Um horário "mais tarde hoje" sem nunca virar o dia (evita o teste ficar instável perto da
+    // meia-noite de Brasília, quando "agora + 2h" cairia amanhã e a comparação de string
+    // "HH:MM" pararia de fazer sentido — a produção nunca soma horas assim, só compara contra o
+    // horário atual do próprio dia, então esse cuidado é só do teste).
+    const partes = new Intl.DateTimeFormat("en-US", {
       timeZone: "America/Sao_Paulo",
       hour: "2-digit",
       minute: "2-digit",
       hour12: false,
-    }).format(horaFutura);
+    }).formatToParts(agora);
+    const horaAtual = parseInt(partes.find((p) => p.type === "hour")?.value ?? "0", 10);
+    const minutoAtual = parseInt(partes.find((p) => p.type === "minute")?.value ?? "0", 10);
+    const horarioTexto =
+      minutoAtual < 59
+        ? `${String(horaAtual).padStart(2, "0")}:${String(minutoAtual + 1).padStart(2, "0")}`
+        : `${String(Math.min(horaAtual + 1, 23)).padStart(2, "0")}:59`;
 
     const resultado = await criarCampanhaPlrAutomatica({
       percentualTotal: 1,

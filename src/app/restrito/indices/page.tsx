@@ -1,15 +1,19 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { listarBenchmarks } from "@/lib/indices-mercado";
+import { listarBenchmarks, obterComparativoRentabilidade } from "@/lib/indices-mercado";
 import { BenchmarksForm } from "./benchmarks-form";
 import { BenchmarksLista } from "./benchmarks-lista";
+import { FoccusReferencia } from "./foccus-referencia";
 
 export default async function RestritoIndicesPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
   if (session.user.perfil !== "ADMIN") redirect("/painel");
 
-  const benchmarks = await listarBenchmarks();
+  const [benchmarks, comparativo] = await Promise.all([
+    listarBenchmarks(),
+    obterComparativoRentabilidade(12),
+  ]);
 
   return (
     <div>
@@ -21,6 +25,12 @@ export default async function RestritoIndicesPage() {
         distribuída (Distribuições, já lançadas separadamente). Nenhum valor aqui deve ser uma
         projeção — sempre o número real já publicado pra aquele mês.
       </p>
+
+      <div className="mt-6">
+        <FoccusReferencia
+          pontos={comparativo.map((p) => ({ mes: p.mes.toISOString().slice(0, 10), foccus: p.foccus }))}
+        />
+      </div>
 
       <div className="mt-6 rounded-2xl border border-border bg-surface p-5">
         <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
