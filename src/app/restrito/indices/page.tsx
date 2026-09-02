@@ -4,6 +4,7 @@ import { listarBenchmarks, obterComparativoRentabilidade } from "@/lib/indices-m
 import { BenchmarksForm } from "./benchmarks-form";
 import { BenchmarksLista } from "./benchmarks-lista";
 import { FoccusReferencia } from "./foccus-referencia";
+import { RentabilidadeVsIndices } from "@/components/painel/rentabilidade-vs-indices";
 
 export default async function RestritoIndicesPage() {
   const session = await auth();
@@ -39,11 +40,22 @@ export default async function RestritoIndicesPage() {
         <BenchmarksForm />
       </div>
 
-      <div className="mt-6 rounded-2xl border border-border bg-surface p-5">
+      <div className="mt-6">
         <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
           Índices lançados
         </p>
-        <BenchmarksLista itens={benchmarks} />
+
+        <RentabilidadeVsIndices
+          pontos={comparativo.map((p) => ({
+            mes: p.mes.toISOString().slice(0, 10),
+            foccus: p.foccus,
+            valores: p.valores,
+          }))}
+        />
+
+        <div className="mt-4 rounded-2xl border border-border bg-surface p-5">
+          <BenchmarksLista itens={benchmarks} />
+        </div>
       </div>
     </div>
   );
