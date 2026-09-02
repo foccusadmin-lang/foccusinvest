@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { cancelarCampanhaAction, excluirCampanhaAction, recalcularCronogramaAction } from "./actions";
+import { cancelarCampanhaAction, recalcularCronogramaAction } from "./actions";
 
 type Dia = { id: string; data: Date; percentual: number; processadoEm: Date | null };
 type Campanha = {
@@ -48,20 +48,6 @@ export function CampanhasLista({ campanhas }: { campanhas: Campanha[] }) {
       const resultado = await cancelarCampanhaAction(id);
       if (resultado.error) setMensagem({ id, msg: resultado.error, erro: true });
       else if (resultado.mensagem) setMensagem({ id, msg: resultado.mensagem, erro: false });
-    });
-  }
-
-  function excluir(id: string, processados: number) {
-    const aviso =
-      processados === 0
-        ? "Excluir essa campanha? Não pode ser desfeito."
-        : `Excluir essa campanha? Ela some da lista, mas os ${processados} dia(s) já lançado(s) continuam intactos como Distribuição real (dinheiro já movido não é desfeito) — só o registro da campanha em si é removido. Não pode ser desfeito.`;
-    if (!confirm(aviso)) return;
-
-    setMensagem(null);
-    startTransition(async () => {
-      const resultado = await excluirCampanhaAction(id);
-      if (resultado.error) setMensagem({ id, msg: resultado.error, erro: true });
     });
   }
 
@@ -127,15 +113,6 @@ export function CampanhasLista({ campanhas }: { campanhas: Campanha[] }) {
                     Cancelar
                   </button>
                 )}
-                <button
-                  type="button"
-                  disabled={pending}
-                  onClick={() => excluir(c.id, processados)}
-                  title="Remove o registro da campanha da lista — nunca desfaz dinheiro já movido pelos dias já lançados"
-                  className="rounded-lg border border-border/60 px-2 py-1 text-xs text-muted hover:border-red-500/40 hover:text-red-300 disabled:opacity-50"
-                >
-                  Excluir
-                </button>
               </div>
             </div>
 

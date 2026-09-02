@@ -6,7 +6,6 @@ import { prisma } from "@/lib/prisma";
 import {
   criarCampanhaPlrAutomatica,
   cancelarCampanhaPlrAutomatica,
-  excluirCampanhaPlrAutomatica,
   recalcularCronogramaRestante,
 } from "@/lib/plr-automatico";
 
@@ -85,22 +84,6 @@ export async function cancelarCampanhaAction(id: string): Promise<{ error?: stri
       ? "Campanha removida — nada tinha sido lançado ainda."
       : `Campanha cancelada — ${resultado.diasPendentesRemovidos} dia(s) pendente(s) removido(s). Os dias já lançados continuam no histórico.`,
   };
-}
-
-/** Exclui o registro da campanha por completo, mesmo que já tenha dias processados — o
- *  histórico financeiro real (Distribuições e créditos já gerados) nunca é tocado, só some da
- *  lista de campanhas. */
-export async function excluirCampanhaAction(id: string): Promise<{ error?: string }> {
-  const admin = await requireAdmin();
-  const resultado = await excluirCampanhaPlrAutomatica(id);
-  if (resultado.error) return { error: resultado.error };
-
-  await prisma.logAuditoria.create({
-    data: { userId: admin.id, acao: "excluir_campanha_plr_automatica", detalhes: id },
-  });
-
-  revalidatePath("/restrito/plr-automatico");
-  return {};
 }
 
 /** Regera o cronograma dos dias ainda não processados de uma campanha (ex: depois de uma

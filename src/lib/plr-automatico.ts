@@ -293,24 +293,18 @@ export async function cancelarCampanhaPlrAutomatica(id: string): Promise<Resulta
 }
 
 /**
- * Exclui o REGISTRO da campanha por completo — todos os CampanhaPlrDia, processados ou não, e a
- * própria CampanhaPlrAutomatica. Diferente de cancelar: nunca preserva os dias já processados
- * NESSE registro, mas isso é seguro porque a campanha/dia é só o agendamento — cada dia
- * processado já virou uma DistribuicaoMensal (e os créditos reais que ela gerou) de verdade,
- * independente, que essa exclusão NUNCA toca (CampanhaPlrDia.distribuicaoId é `ON DELETE SET
- * NULL` do lado da DistribuicaoMensal, não o contrário). Só some da lista de campanhas — o
- * histórico financeiro real (Distribuições, créditos) continua intacto e auditável.
+ * Exclui o registro da campanha — mas NUNCA o que já foi lançado. Um dia processado já virou uma
+ * Distribuição real (créditos já podem ter se movido); apagar o CampanhaPlrDia dele destruiria
+ * essa referência/auditoria, então:
+ * - Nenhum dia processado ainda: remove a campanha inteira (CampanhaPlrDia é `ON DELETE CASCADE`
+ *   a partir da CampanhaPlrAutomatica, então os dois somem juntos — seguro aqui porque não há
+ *   nada lançado pra perder).
+ * - Algum dia já processado: como o cascade impediria excluir só os dias pendentes mantendo a
+ *   campanha (excluir a campanha levaria os processados junto), a campanha continua existindo —
+ *   só desativa e remove os dias AINDA pendentes, exatamente como cancelar.
  */
-export async function excluirCampanhaPlrAutomatica(id: string): Promise<{ error?: string }> {
-  const campanha = await prisma.campanhaPlrAutomatica.findUnique({ where: { id } });
-  if (!campanha) return { error: "Campanha não encontrada." };
-
-  await prisma.$transaction([
-    prisma.campanhaPlrDia.deleteMany({ where: { campanhaId: id } }),
-    prisma.campanhaPlrAutomatica.delete({ where: { id } }),
-  ]);
-
-  return {};
+export async function excluirCampanhaPlrAutomatica(id: string): Promise<ResultadoCancelamento> {
+  return cancelarCampanhaPlrAutomatica(id);
 }
 
 /**
