@@ -388,6 +388,18 @@ function horaAtualBrasilia(): string {
   }).format(new Date());
 }
 
+/** "Hoje" no calendário de Brasília, como meia-noite UTC — comparável direto com
+ *  CampanhaPlrDia.data (sempre gravada como meia-noite UTC representando um dia de calendário).
+ *  Comparar a elegibilidade de um dia contra `new Date()` (o instante UTC bruto) faz um dia virar
+ *  "chegado" até 3h antes dele começar de fato em Brasília — meia-noite UTC cai às 21h de Brasília
+ *  do dia ANTERIOR. Isso já aconteceu de verdade: numa recuperação depois do cron ficar parado, o
+ *  dia seguinte (que só devia liberar no horário configurado DELE, no dia certo) foi processado
+ *  junto com o dia atual, na mesma rodada, horas antes do horário configurado valer pra ele. */
+function hojeBrasiliaComoUtcMidnight(): Date {
+  const hojeStr = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+  return new Date(`${hojeStr}T00:00:00.000Z`);
+}
+
 /**
  * Rodada do motor automático — chamada pelo cron (ver api/cron/plr-automatico) E como fallback
  * de toda página administrativa (ver restrito/layout.tsx), pelo mesmo motivo do incentivo de
@@ -396,8 +408,10 @@ function horaAtualBrasilia(): string {
  * ÚNICA forma do PLR automático funcionar — foi exatamente isso que aconteceu numa campanha real
  * (dias vencidos ficaram "pendente" pra sempre até alguém notar e rodar manualmente). Pra cada
  * campanha ativa, materializa (cria a Distribuição de fato, reaproveitando `criarDistribuicao`)
- * todo dia que: já chegou (data <= hoje), o horário configurado da campanha já passou (horário
- * de Brasília) e ainda não foi processado. Só age se ConfiguracaoSistema.modoPLR = AUTOMATICO.
+ * todo dia que: já chegou no calendário de Brasília (data <= hoje, comparado no fuso de Brasília —
+ * não contra o instante UTC bruto, que faria um dia "chegar" até 3h cedo demais), o horário
+ * configurado da campanha já passou (horário de Brasília) e ainda não foi processado. Só age se
+ * ConfiguracaoSistema.modoPLR = AUTOMATICO.
  *
  * Duas camadas de proteção contra lançar o mesmo dia duas vezes:
  * 1. Reivindicação atômica — marca `processadoEm` ANTES de criar a Distribuição (via update
@@ -418,13 +432,14 @@ export async function processarDiasPendentes(): Promise<{ processados: number; e
   }
 
   const agora = new Date();
+  const hojeBrasilia = hojeBrasiliaComoUtcMidnight();
   const horaAtual = horaAtualBrasilia();
   const erros: string[] = [];
   let processados = 0;
 
   const campanhas = await prisma.campanhaPlrAutomatica.findMany({
     where: { ativa: true },
-    include: { dias: { where: { processadoEm: null, data: { lte: agora } } } },
+    include: { dias: { where: { processadoEm: null, data: { lte: hojeBrasilia } } } },
   });
 
   for (const campanha of campanhas) {

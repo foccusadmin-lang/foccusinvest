@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from "vitest";
 import { prisma } from "@/lib/prisma";
 import {
   criarCampanhaPlrAutomatica,
@@ -21,13 +21,19 @@ import { sincronizarDistribuicoesDoUsuario } from "@/lib/distribuicao";
 // (passado) — mas alguns testes precisam de uma mistura real de dia-já-chegado e
 // dia-ainda-não-chegado (`data <= agora`, a checagem de elegibilidade em
 // processarDiasPendentes, compara contra o relógio de verdade). Pra esses, o teste usa
-// `vi.setSystemTime(ANCORA)` pra fazer o próprio "agora" da produção virar a âncora durante o
+// `vi.setSystemTime(AGORA_FAKE)` pra fazer o próprio "agora" da produção virar a âncora durante o
 // teste — os mesmos offsets abaixo então produzem passado/presente/futuro de verdade, sem
 // depender do relógio real (e sem chance de colidir com a campanha real de setembro/2026).
 const ANCORA = new Date(Date.UTC(2015, 0, 10));
 function diaAncora(offsetDias: number): Date {
   return new Date(ANCORA.getTime() + offsetDias * 86400000);
 }
+// Instante fake pra vi.setSystemTime — meio-dia de Brasília do MESMO dia-calendário da ANCORA
+// (meia-noite UTC pura resolveria pro dia ANTERIOR em Brasília, já que Brasília = UTC-3;
+// processarDiasPendentes agora compara elegibilidade contra o calendário de Brasília, não contra
+// o instante UTC bruto — ver hojeBrasiliaComoUtcMidnight em plr-automatico.ts). Isso faz
+// diaAncora(0) bater exatamente com o "hoje" que a produção enxerga durante o teste.
+const AGORA_FAKE = new Date(ANCORA.getTime() + 15 * 3600000);
 
 // `processarDiasPendentes` chama `criarDistribuicao` SEM `userIds` (por design: PLR automático
 // de verdade aplica a TODOS os investidores elegíveis). Rodar isso contra o banco compartilhado
@@ -66,6 +72,28 @@ describe("PLR automático — campanha e motor de processamento", () => {
   let investidorId: string;
   let campanhaIds: string[];
   let distribuicaoIds: string[];
+
+  // criarCampanhaPlrAutomatica desativa TODA campanha ativa (é a regra de negócio: só uma
+  // campanha ativa por vez, de propósito, não tem escopo por data). Isso já desativou de verdade
+  // uma campanha real em produção — cada teste que cria uma campanha (e são a maioria) apaga a
+  // atividade de qualquer campanha real que esteja rodando no banco compartilhado no momento.
+  // Snapshot antes da suite inteira e restaura no fim, pra devolver o estado real exatamente como
+  // estava, não importa quantas campanhas de teste rodem no meio do caminho.
+  let campanhasReaisAtivasAntes: string[];
+
+  beforeAll(async () => {
+    const ativas = await prisma.campanhaPlrAutomatica.findMany({ where: { ativa: true }, select: { id: true } });
+    campanhasReaisAtivasAntes = ativas.map((c) => c.id);
+  });
+
+  afterAll(async () => {
+    if (campanhasReaisAtivasAntes.length > 0) {
+      await prisma.campanhaPlrAutomatica.updateMany({
+        where: { id: { in: campanhasReaisAtivasAntes } },
+        data: { ativa: true },
+      });
+    }
+  });
 
   beforeEach(async () => {
     const stamp = `${Date.now()}.${Math.random().toString(36).slice(2)}`;
@@ -153,7 +181,7 @@ describe("PLR automático — campanha e motor de processamento", () => {
     // Precisa de um "amanhã" de verdade (dia que ainda não chegou) — trava o relógio na âncora
     // pra isso valer sem depender (nem colidir com) o relógio real. Ver comentário da ANCORA.
     vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(ANCORA);
+    vi.setSystemTime(AGORA_FAKE);
     const ontem = diaAncora(-1);
     const amanha = diaAncora(1);
 
@@ -190,6 +218,39 @@ describe("PLR automático — campanha e motor de processamento", () => {
     await prisma.$transaction((tx) => sincronizarDistribuicoesDoUsuario(tx, investidorId));
     const creditos = await prisma.creditoCarteira.findMany({ where: { userId: investidorId, tipo: "RENDIMENTO" } });
     expect(creditos.length).toBeGreaterThan(0);
+  });
+
+  it("não materializa o dia seguinte só porque a meia-noite UTC dele já passou — respeita o calendário de Brasília, não o instante UTC bruto", async () => {
+    // Reproduz o bug de verdade: CampanhaPlrDia.data é gravada como meia-noite UTC representando
+    // um dia de calendário. Meia-noite UTC do dia D+1 acontece às 21h de Brasília do dia D — então
+    // comparar elegibilidade contra o instante UTC bruto (em vez do calendário de Brasília) fazia
+    // o dia D+1 "chegar" 3h cedo demais. Trava o relógio às 22h de Brasília do dia 0 (já passou a
+    // meia-noite UTC do dia 1, mas em Brasília ainda é dia 0) e confere que só o dia 0 é elegível.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(diaAncora(1).getTime() + 1 * 3600000)); // 01:00 UTC do dia 1 = 22h Brasília do dia 0
+
+    const resultado = await criarCampanhaPlrAutomatica({
+      percentualTotal: 0.3, // período de 3 dias, máximo possível é 1,35%
+      periodoInicio: diaAncora(0),
+      periodoFim: diaAncora(2),
+      horarioLancamento: "00:00", // já passou, qualquer hora do dia
+      criadoPorId: adminId,
+    });
+    campanhaIds.push(resultado.campanhaId!);
+
+    const { processados, erros } = await processarDiasPendentes();
+    expect(erros).toEqual([]);
+    expect(processados).toBe(1); // só o dia 0 — o dia 1 ainda não chegou no calendário de Brasília
+
+    const dias = await prisma.campanhaPlrDia.findMany({
+      where: { campanhaId: resultado.campanhaId! },
+      orderBy: { data: "asc" },
+    });
+    for (const d of dias) if (d.distribuicaoId) distribuicaoIds.push(d.distribuicaoId);
+
+    expect(dias[0].processadoEm).not.toBeNull(); // dia 0
+    expect(dias[1].processadoEm).toBeNull(); // dia 1 — não deveria ter processado ainda
+    expect(dias[2].processadoEm).toBeNull(); // dia 2
   });
 
   it("rodar processarDiasPendentes duas vezes não duplica a Distribuição do mesmo dia (idempotência)", async () => {
@@ -400,7 +461,7 @@ describe("PLR automático — campanha e motor de processamento", () => {
   it("recalcularCronogramaRestante regenera só os dias pendentes, preservando os já processados e a soma total", async () => {
     // Precisa de uma mistura real de dias já chegados e ainda não chegados — ver comentário da ANCORA.
     vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(ANCORA);
+    vi.setSystemTime(AGORA_FAKE);
     const inicio = diaAncora(-2); // começou há 2 dias
     const fim = diaAncora(5); // termina daqui a 5 dias (8 dias no total)
 
@@ -493,7 +554,7 @@ describe("PLR automático — campanha e motor de processamento", () => {
     it("preserva os dias já processados e remove só os pendentes quando parte da campanha já rodou", async () => {
       // Precisa de uma mistura real de dias já chegados e ainda não chegados — ver comentário da ANCORA.
       vi.useFakeTimers({ toFake: ["Date"] });
-      vi.setSystemTime(ANCORA);
+      vi.setSystemTime(AGORA_FAKE);
       const inicio = diaAncora(-1); // "ontem" (relativo à âncora)
       const fim = diaAncora(3);
       const resultado = await criarCampanhaPlrAutomatica({
