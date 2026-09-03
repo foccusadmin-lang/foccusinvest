@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { AdminNav } from "@/components/admin/admin-nav";
 import { liberarIncentivoAutomaticoSeNecessario } from "@/lib/incentivo-lideranca";
+import { processarDiasPendentes } from "@/lib/plr-automatico";
 
 export default async function RestritoLayout({
   children,
@@ -17,6 +18,13 @@ export default async function RestritoLayout({
   // Vercel continue falhando. Idempotente, best-effort, nunca quebra a navegação.
   await liberarIncentivoAutomaticoSeNecessario().catch((e) =>
     console.error("Falha no fallback do incentivo de liderança automático:", e)
+  );
+
+  // Mesma proteção pro PLR automático — sem isso, um cron que falha silenciosamente deixava uma
+  // campanha inteira presa em "pendente" (aconteceu de verdade). Idempotente (cada dia só
+  // processado uma vez), best-effort, nunca quebra a navegação.
+  await processarDiasPendentes().catch((e) =>
+    console.error("Falha no fallback do PLR automático:", e)
   );
 
   return (

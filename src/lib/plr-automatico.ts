@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { criarDistribuicao, SemCapitalElegivelError } from "@/lib/distribuicao";
+import { getConfiguracao } from "@/lib/configuracao";
 
 /**
  * Faixas diárias (% do capital) por tipo de dia — exatamente como definido pelo usuário: dias
@@ -388,23 +389,34 @@ function horaAtualBrasilia(): string {
 }
 
 /**
- * Rodada do motor automático — chamada pelo cron (ver api/cron/plr-automatico). Pra cada
+ * Rodada do motor automático — chamada pelo cron (ver api/cron/plr-automatico) E como fallback
+ * de toda página administrativa (ver restrito/layout.tsx), pelo mesmo motivo do incentivo de
+ * liderança automático: um cron da Vercel que falha silenciosamente (CRON_SECRET não configurado,
+ * plano sem a frequência necessária, deploy que não pegou o vercel.json etc.) não pode ser a
+ * ÚNICA forma do PLR automático funcionar — foi exatamente isso que aconteceu numa campanha real
+ * (dias vencidos ficaram "pendente" pra sempre até alguém notar e rodar manualmente). Pra cada
  * campanha ativa, materializa (cria a Distribuição de fato, reaproveitando `criarDistribuicao`)
  * todo dia que: já chegou (data <= hoje), o horário configurado da campanha já passou (horário
- * de Brasília) e ainda não foi processado.
+ * de Brasília) e ainda não foi processado. Só age se ConfiguracaoSistema.modoPLR = AUTOMATICO.
  *
  * Duas camadas de proteção contra lançar o mesmo dia duas vezes:
  * 1. Reivindicação atômica — marca `processadoEm` ANTES de criar a Distribuição (via update
  *    condicional que só afeta a linha se ela ainda estiver com processadoEm null), fechando a
- *    janela de corrida de duas rodadas do cron acontecendo ao mesmo tempo. Se `criarDistribuicao`
- *    falhar depois da reivindicação (erro inesperado, não SemCapitalElegivel), desfaz a
- *    reivindicação pra tentar de novo na próxima rodada.
+ *    janela de corrida de duas rodadas acontecendo ao mesmo tempo (cron + fallback, ou duas
+ *    páginas carregadas juntas). Se `criarDistribuicao` falhar depois da reivindicação (erro
+ *    inesperado, não SemCapitalElegivel), desfaz a reivindicação pra tentar de novo na próxima
+ *    rodada.
  * 2. Checagem entre campanhas — antes de criar uma Distribuição nova, confere se já existe uma
  *    "PLR automático" pra aquela data exata (de QUALQUER campanha, não só a atual). Se existir
  *    (ex: duas campanhas com período sobreposto), reaproveita a Distribuição já criada em vez de
  *    duplicar — auto-corrige sozinho, sem precisar de intervenção manual.
  */
-export async function processarDiasPendentes(): Promise<{ processados: number; erros: string[] }> {
+export async function processarDiasPendentes(): Promise<{ processados: number; erros: string[]; pulou?: string }> {
+  const configuracao = await getConfiguracao();
+  if (configuracao.modoPLR !== "AUTOMATICO") {
+    return { processados: 0, erros: [], pulou: "modo manual" };
+  }
+
   const agora = new Date();
   const horaAtual = horaAtualBrasilia();
   const erros: string[] = [];

@@ -1,7 +1,17 @@
 import "dotenv/config";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { salvarBenchmark, excluirBenchmark, obterComparativoRentabilidade } from "@/lib/indices-mercado";
+
+// `obterComparativoRentabilidade` soma TODAS as DistribuicaoMensal reais do "mês atual" (sem
+// nenhum escopo por usuário de teste — é o ponto dela, refletir dado real de verdade). Isso já
+// causou testes falhando de verdade: uma campanha real de PLR automático passou a lançar
+// Distribuição real pro mês corrente pela primeira vez nesta sessão, e os totais exatos que
+// estes testes esperavam pro "mês atual" pararam de bater. `obterComparativoRentabilidade` e o
+// helper `primeiroDiaMesAtual` abaixo usam `new Date()` internamente — travar o relógio numa
+// data segura e bem no passado faz os dois concordarem sobre um "mês atual" que nunca teve (e
+// nunca vai ter) nenhuma Distribuição real de verdade, sem mudar nada do que cada teste afirma.
+const MES_SEGURO = new Date(Date.UTC(2015, 5, 15));
 
 describe("Rentabilidade vs Índices — comparativo factual", () => {
   let adminId: string;
@@ -9,7 +19,10 @@ describe("Rentabilidade vs Índices — comparativo factual", () => {
   let benchmarkIds: string[];
 
   beforeEach(async () => {
+    // Gera o stamp (precisa ser único de verdade) ANTES de travar o relógio.
     const stamp = `${Date.now()}.${Math.random().toString(36).slice(2)}`;
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(MES_SEGURO);
     const admin = await prisma.user.create({
       data: {
         email: `teste.indices.admin.${stamp}@example.com`,
@@ -24,6 +37,7 @@ describe("Rentabilidade vs Índices — comparativo factual", () => {
   });
 
   afterEach(async () => {
+    vi.useRealTimers();
     await prisma.distribuicaoMensal.deleteMany({ where: { id: { in: distribuicaoIds } } });
     await prisma.benchmarkMercado.deleteMany({ where: { id: { in: benchmarkIds } } });
     await prisma.user.deleteMany({ where: { id: adminId } });

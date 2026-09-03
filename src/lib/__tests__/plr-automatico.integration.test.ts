@@ -12,6 +12,23 @@ import {
 } from "@/lib/plr-automatico";
 import { sincronizarDistribuicoesDoUsuario } from "@/lib/distribuicao";
 
+// Âncora fixa, bem no passado — nunca "hoje" nem qualquer data próxima. A checagem de
+// sobreposição em criarCampanhaPlrAutomatica só considera candidatas cujo período toca o
+// período pedido, então um período todo em 2015 nunca esbarra em nenhuma campanha REAL do banco
+// compartilhado (já aconteceu: uma campanha real ativa em setembro/2026 fez
+// `criarCampanhaPlrAutomatica` rejeitar testes que usavam `new Date()`, porque o dia já tinha
+// sido lançado de verdade pra ela). Isso resolve testes que só precisam de um dia "já chegado"
+// (passado) — mas alguns testes precisam de uma mistura real de dia-já-chegado e
+// dia-ainda-não-chegado (`data <= agora`, a checagem de elegibilidade em
+// processarDiasPendentes, compara contra o relógio de verdade). Pra esses, o teste usa
+// `vi.setSystemTime(ANCORA)` pra fazer o próprio "agora" da produção virar a âncora durante o
+// teste — os mesmos offsets abaixo então produzem passado/presente/futuro de verdade, sem
+// depender do relógio real (e sem chance de colidir com a campanha real de setembro/2026).
+const ANCORA = new Date(Date.UTC(2015, 0, 10));
+function diaAncora(offsetDias: number): Date {
+  return new Date(ANCORA.getTime() + offsetDias * 86400000);
+}
+
 // `processarDiasPendentes` chama `criarDistribuicao` SEM `userIds` (por design: PLR automático
 // de verdade aplica a TODOS os investidores elegíveis). Rodar isso contra o banco compartilhado
 // (dev/prod) sem essa trava já vazou crédito real pra um investidor de verdade nesta sessão — a
@@ -21,6 +38,19 @@ import { sincronizarDistribuicoesDoUsuario } from "@/lib/distribuicao";
 // nenhuma outra lógica real (atomicidade da reivindicação, dedupe entre campanhas, gate de
 // horário — tudo isso continua batendo direto no banco de verdade).
 const investidoresElegiveisDeTeste = vi.hoisted(() => ({ ids: [] as string[] }));
+
+// processarDiasPendentes agora só age se ConfiguracaoSistema.modoPLR = AUTOMATICO — mockado em
+// vez de flipar a linha real no banco compartilhado (o mesmo risco de before: um admin de
+// verdade carregando uma página administrativa durante o teste, com o fallback em
+// restrito/layout.tsx, poderia acabar processando uma campanha real enquanto o teste segura o
+// modo em automático).
+vi.mock("@/lib/configuracao", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@/lib/configuracao")>();
+  return {
+    ...original,
+    getConfiguracao: async () => ({ ...(await original.getConfiguracao()), modoPLR: "AUTOMATICO" }),
+  };
+});
 
 vi.mock("@/lib/distribuicao", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/distribuicao")>();
@@ -61,6 +91,7 @@ describe("PLR automático — campanha e motor de processamento", () => {
   });
 
   afterEach(async () => {
+    vi.useRealTimers(); // rede de segurança — no-op se o teste não tiver usado fake timers
     investidoresElegiveisDeTeste.ids = [];
     await prisma.distribuicaoParticipante.deleteMany({ where: { distribuicaoId: { in: distribuicaoIds } } });
     await prisma.campanhaPlrDia.deleteMany({ where: { campanhaId: { in: campanhaIds } } });
@@ -72,8 +103,8 @@ describe("PLR automático — campanha e motor de processamento", () => {
   });
 
   it("cria a campanha com o cronograma diário já gravado, somando exatamente o percentual total", async () => {
-    const inicio = new Date(Date.now() - 4 * 86400000);
-    const fim = new Date(Date.now() + 2 * 86400000);
+    const inicio = diaAncora(-4);
+    const fim = diaAncora(2);
 
     const resultado = await criarCampanhaPlrAutomatica({
       percentualTotal: 3,
@@ -93,7 +124,7 @@ describe("PLR automático — campanha e motor de processamento", () => {
   });
 
   it("criar uma nova campanha desativa a anterior automaticamente", async () => {
-    const hoje = new Date();
+    const hoje = diaAncora(0);
     const r1 = await criarCampanhaPlrAutomatica({
       percentualTotal: 0.5, // período de 2 dias, máximo possível é 0,90%
       periodoInicio: hoje,
@@ -119,8 +150,12 @@ describe("PLR automático — campanha e motor de processamento", () => {
   });
 
   it("processarDiasPendentes materializa (cria Distribuição) só o que já chegou e cujo horário já passou, e credita o investidor", async () => {
-    const ontem = new Date(Date.now() - 86400000);
-    const amanha = new Date(Date.now() + 86400000);
+    // Precisa de um "amanhã" de verdade (dia que ainda não chegou) — trava o relógio na âncora
+    // pra isso valer sem depender (nem colidir com) o relógio real. Ver comentário da ANCORA.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(ANCORA);
+    const ontem = diaAncora(-1);
+    const amanha = diaAncora(1);
 
     const resultado = await criarCampanhaPlrAutomatica({
       percentualTotal: 0.3, // período de 1 dia, máximo possível é 0,45% // período de 3 dias, máximo possível é 1,35%
@@ -158,7 +193,7 @@ describe("PLR automático — campanha e motor de processamento", () => {
   });
 
   it("rodar processarDiasPendentes duas vezes não duplica a Distribuição do mesmo dia (idempotência)", async () => {
-    const hoje = new Date();
+    const hoje = diaAncora(0);
     const resultado = await criarCampanhaPlrAutomatica({
       percentualTotal: 0.3, // período de 1 dia, máximo possível é 0,45%
       periodoInicio: hoje,
@@ -201,10 +236,14 @@ describe("PLR automático — campanha e motor de processamento", () => {
         ? `${String(horaAtual).padStart(2, "0")}:${String(minutoAtual + 5).padStart(2, "0")}`
         : `${String(Math.min(horaAtual + 1, 23)).padStart(2, "0")}:59`;
 
+    // O período em si usa a âncora segura (só precisa ser um dia "já chegado" — não precisa ser
+    // literalmente hoje pra testar o gate de horário); só o horário-limite acima usa o relógio
+    // real, que é o que este teste de fato quer exercitar.
+    const diaCampanha = diaAncora(0);
     const resultado = await criarCampanhaPlrAutomatica({
       percentualTotal: 0.3, // período de 1 dia, máximo possível é 0,45%
-      periodoInicio: agora,
-      periodoFim: agora,
+      periodoInicio: diaCampanha,
+      periodoFim: diaCampanha,
       horarioLancamento: horarioTexto,
       criadoPorId: adminId,
     });
@@ -218,7 +257,7 @@ describe("PLR automático — campanha e motor de processamento", () => {
   });
 
   it("desativarCampanhaPlrAutomatica impede que o motor continue processando os dias pendentes dela", async () => {
-    const hoje = new Date();
+    const hoje = diaAncora(0);
     const resultado = await criarCampanhaPlrAutomatica({
       percentualTotal: 0.3, // período de 1 dia, máximo possível é 0,45%
       periodoInicio: hoje,
@@ -234,7 +273,7 @@ describe("PLR automático — campanha e motor de processamento", () => {
   });
 
   it("duas rodadas do cron ao mesmo tempo (concorrência) não duplicam a Distribuição do mesmo dia", async () => {
-    const hoje = new Date();
+    const hoje = diaAncora(0);
     const resultado = await criarCampanhaPlrAutomatica({
       percentualTotal: 0.3, // período de 1 dia, máximo possível é 0,45%
       periodoInicio: hoje,
@@ -256,7 +295,7 @@ describe("PLR automático — campanha e motor de processamento", () => {
   });
 
   it("recusa criar uma campanha cujo período sobrepõe dias já lançados por outra campanha", async () => {
-    const hoje = new Date();
+    const hoje = diaAncora(0);
     const r1 = await criarCampanhaPlrAutomatica({
       percentualTotal: 0.3, // período de 1 dia, máximo possível é 0,45%
       periodoInicio: hoje,
@@ -282,7 +321,7 @@ describe("PLR automático — campanha e motor de processamento", () => {
   });
 
   it("permite criar uma campanha sobreposta a outra que ainda não chegou a lançar nenhum dia (correção antes de rodar)", async () => {
-    const amanha = new Date(Date.now() + 86400000);
+    const amanha = diaAncora(1);
     const r1 = await criarCampanhaPlrAutomatica({
       percentualTotal: 0.3, // período de 1 dia, máximo possível é 0,45%
       periodoInicio: amanha,
@@ -291,7 +330,7 @@ describe("PLR automático — campanha e motor de processamento", () => {
       criadoPorId: adminId,
     });
     campanhaIds.push(r1.campanhaId!);
-    // Não roda processarDiasPendentes — nada foi lançado ainda (a data é amanhã).
+    // Não roda processarDiasPendentes — nada foi lançado ainda (o teste em si nunca chama).
 
     const r2 = await criarCampanhaPlrAutomatica({
       percentualTotal: 0.4, // período de 1 dia, máximo possível é 0,45%
@@ -305,7 +344,7 @@ describe("PLR automático — campanha e motor de processamento", () => {
   });
 
   it("se já existir uma Distribuição 'PLR automático' pra data (estado legado inconsistente), reaproveita em vez de duplicar", async () => {
-    const hoje = new Date();
+    const hoje = diaAncora(0);
 
     // Simula um estado inconsistente pré-existente: uma Distribuição "PLR automático" pra hoje,
     // sem vínculo com nenhuma campanha (como se tivesse sobrado de uma versão anterior do motor).
@@ -343,8 +382,8 @@ describe("PLR automático — campanha e motor de processamento", () => {
   });
 
   it("recusa criar campanha cujo percentual total passa do máximo possível com o teto de 0,45%/dia", async () => {
-    const inicio = new Date();
-    const fim = new Date(inicio.getTime() + 4 * 86400000); // 5 dias, máximo 2,25%
+    const inicio = diaAncora(0);
+    const fim = diaAncora(4); // 5 dias, máximo 2,25%
 
     const resultado = await criarCampanhaPlrAutomatica({
       percentualTotal: 3, // passa do máximo possível (2,25%)
@@ -359,8 +398,11 @@ describe("PLR automático — campanha e motor de processamento", () => {
   });
 
   it("recalcularCronogramaRestante regenera só os dias pendentes, preservando os já processados e a soma total", async () => {
-    const inicio = new Date(Date.now() - 2 * 86400000); // começou há 2 dias
-    const fim = new Date(Date.now() + 5 * 86400000); // termina daqui a 5 dias (8 dias no total)
+    // Precisa de uma mistura real de dias já chegados e ainda não chegados — ver comentário da ANCORA.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(ANCORA);
+    const inicio = diaAncora(-2); // começou há 2 dias
+    const fim = diaAncora(5); // termina daqui a 5 dias (8 dias no total)
 
     const resultado = await criarCampanhaPlrAutomatica({
       percentualTotal: 2,
@@ -407,7 +449,7 @@ describe("PLR automático — campanha e motor de processamento", () => {
   });
 
   it("recalcularCronogramaRestante recusa quando todos os dias já foram processados", async () => {
-    const hoje = new Date();
+    const hoje = diaAncora(0);
     const resultado = await criarCampanhaPlrAutomatica({
       percentualTotal: 0.3,
       periodoInicio: hoje,
@@ -427,8 +469,8 @@ describe("PLR automático — campanha e motor de processamento", () => {
 
   describe("cancelarCampanhaPlrAutomatica", () => {
     it("remove a campanha por completo quando nenhum dia foi processado ainda", async () => {
-      const inicio = new Date();
-      const fim = new Date(inicio.getTime() + 3 * 86400000);
+      const inicio = diaAncora(0);
+      const fim = diaAncora(3);
       const resultado = await criarCampanhaPlrAutomatica({
         percentualTotal: 1,
         periodoInicio: inicio,
@@ -449,8 +491,11 @@ describe("PLR automático — campanha e motor de processamento", () => {
     });
 
     it("preserva os dias já processados e remove só os pendentes quando parte da campanha já rodou", async () => {
-      const inicio = new Date(Date.now() - 86400000); // ontem
-      const fim = new Date(Date.now() + 3 * 86400000);
+      // Precisa de uma mistura real de dias já chegados e ainda não chegados — ver comentário da ANCORA.
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(ANCORA);
+      const inicio = diaAncora(-1); // "ontem" (relativo à âncora)
+      const fim = diaAncora(3);
       const resultado = await criarCampanhaPlrAutomatica({
         percentualTotal: 1,
         periodoInicio: inicio,
@@ -491,7 +536,7 @@ describe("PLR automático — campanha e motor de processamento", () => {
 
   describe("excluirCampanhaPlrAutomatica", () => {
     it("nunca apaga um dia já processado (nem o CampanhaPlrDia, nem a Distribuição real) — mesma trava de cancelar", async () => {
-      const hoje = new Date();
+      const hoje = diaAncora(0);
       const resultado = await criarCampanhaPlrAutomatica({
         percentualTotal: 0.3,
         periodoInicio: hoje,
@@ -527,8 +572,8 @@ describe("PLR automático — campanha e motor de processamento", () => {
     });
 
     it("remove a campanha por completo quando nenhum dia foi processado ainda", async () => {
-      const inicio = new Date();
-      const fim = new Date(inicio.getTime() + 2 * 86400000);
+      const inicio = diaAncora(0);
+      const fim = diaAncora(2);
       const resultado = await criarCampanhaPlrAutomatica({
         percentualTotal: 0.5,
         periodoInicio: inicio,
