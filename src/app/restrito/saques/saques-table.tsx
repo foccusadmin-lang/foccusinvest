@@ -361,7 +361,7 @@ function Tabela({
                   </td>
                   <td className="px-4 py-3 font-semibold text-foreground">
                     {formatMoeda(s.valor, s.moeda as "BRL")}
-                    {s.emergencial && s.valorBruto != null && s.taxaAntecipacao != null && (
+                    {s.valorBruto != null && s.taxaAntecipacao != null && (
                       <p className="mt-0.5 text-[11px] font-normal text-amber-300">
                         Bruto {formatMoeda(s.valorBruto)} · Taxa Antecipação -{formatMoeda(s.taxaAntecipacao)}
                       </p>

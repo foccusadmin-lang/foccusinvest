@@ -20,10 +20,13 @@ type Usuario = {
 
 const TIPOS = [
   { valor: "CAPITAL", label: "Capital Principal" },
+  { valor: "CAPITAL_CARENCIA", label: "Capital em carência (taxa de 15%)", soSaque: true },
   { valor: "RENDIMENTO", label: "PLR / Rendimento disponível" },
   { valor: "BONUS", label: "Bônus de indicação" },
   { valor: "INCENTIVO_LIDERANCA", label: "Incentivo de liderança", soLider: true },
 ] as const;
+
+const TAXA_SAQUE_CARENCIA = 0.15;
 
 export function AjusteSaldoButton({ usuario }: { usuario: Usuario }) {
   const [aberto, setAberto] = useState(false);
@@ -52,7 +55,11 @@ function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () 
   const router = useRouter();
   const processado = useRef(false);
 
-  const tiposDisponiveis = TIPOS.filter((t) => !("soLider" in t && t.soLider) || usuario.ehLider);
+  const tiposDisponiveis = TIPOS.filter(
+    (t) =>
+      (!("soLider" in t && t.soLider) || usuario.ehLider) &&
+      (!("soSaque" in t && t.soSaque) || operacao === "SAQUE")
+  );
 
   useEffect(() => {
     if (state?.sucesso && !processado.current) {
@@ -68,6 +75,14 @@ function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () 
     setTipos((atual) =>
       atual.includes(valor) ? atual.filter((t) => t !== valor) : [...atual, valor]
     );
+  }
+
+  // "Capital em carência" só existe em Saque — sair dessa operação com ele marcado deixaria o
+  // checkbox escondido mas ainda contando no estado (o input nem existe mais no DOM pra
+  // desmarcar sozinho no submit).
+  function mudarOperacao(nova: typeof operacao) {
+    setOperacao(nova);
+    if (nova !== "SAQUE") setTipos((atual) => atual.filter((t) => t !== "CAPITAL_CARENCIA"));
   }
 
   return (
@@ -151,7 +166,7 @@ function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () 
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 <button
                   type="button"
-                  onClick={() => setOperacao("ADICIONAR")}
+                  onClick={() => mudarOperacao("ADICIONAR")}
                   className={`rounded-lg py-2 text-xs font-semibold transition sm:text-sm ${
                     operacao === "ADICIONAR"
                       ? "bg-emerald-500/20 text-emerald-300"
@@ -162,7 +177,7 @@ function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () 
                 </button>
                 <button
                   type="button"
-                  onClick={() => setOperacao("DEFINIR")}
+                  onClick={() => mudarOperacao("DEFINIR")}
                   className={`rounded-lg py-2 text-xs font-semibold transition sm:text-sm ${
                     operacao === "DEFINIR"
                       ? "bg-sky-500/20 text-sky-300"
@@ -173,7 +188,7 @@ function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () 
                 </button>
                 <button
                   type="button"
-                  onClick={() => setOperacao("SAQUE")}
+                  onClick={() => mudarOperacao("SAQUE")}
                   className={`rounded-lg py-2 text-xs font-semibold transition sm:text-sm ${
                     operacao === "SAQUE"
                       ? "bg-amber-500/20 text-amber-300"
@@ -184,7 +199,7 @@ function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () 
                 </button>
                 <button
                   type="button"
-                  onClick={() => setOperacao("APAGAR")}
+                  onClick={() => mudarOperacao("APAGAR")}
                   className={`rounded-lg py-2 text-xs font-semibold transition sm:text-sm ${
                     operacao === "APAGAR" ? "bg-red-500/20 text-red-300" : "bg-white/5 text-muted"
                   }`}
@@ -196,7 +211,10 @@ function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () 
                 <p className="mt-2 text-xs text-muted">
                   Use pra ajudar quem tem dificuldade de sacar sozinho no app. Ignora a carência
                   do Capital (libera antes do prazo) e não tem restrição de dia ou horário — só
-                  segue o modo automático/manual configurado.
+                  segue o modo automático/manual configurado. &ldquo;Capital em carência&rdquo;
+                  desconta o valor cheio do cliente, mas gera o Pix já com 15% de taxa de
+                  antecipação descontada — os 15% retidos viram fundo de caixa, creditados na
+                  conta da Foccus Administradora.
                 </p>
               )}
             </div>
@@ -229,14 +247,29 @@ function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () 
                         {t.label}
                       </label>
                       {selecionado && operacao !== "APAGAR" && (
-                        <MoneyInput
-                          name={`valor_${t.valor}`}
-                          value={valores[t.valor] ?? ""}
-                          onValueChange={(v) => setValores((atual) => ({ ...atual, [t.valor]: v }))}
-                          placeholder="0,00"
-                          required
-                          className="mt-2 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground outline-none focus:border-gold/60"
-                        />
+                        <>
+                          <MoneyInput
+                            name={`valor_${t.valor}`}
+                            value={valores[t.valor] ?? ""}
+                            onValueChange={(v) => setValores((atual) => ({ ...atual, [t.valor]: v }))}
+                            placeholder="0,00"
+                            required
+                            className="mt-2 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground outline-none focus:border-gold/60"
+                          />
+                          {t.valor === "CAPITAL_CARENCIA" &&
+                            (() => {
+                              const bruto = Number((valores[t.valor] ?? "").replace(/\./g, "").replace(",", ".")) || 0;
+                              if (bruto <= 0) return null;
+                              const taxa = bruto * TAXA_SAQUE_CARENCIA;
+                              const liquido = bruto - taxa;
+                              return (
+                                <p className="mt-1.5 text-xs text-amber-300/90">
+                                  Desconta {formatMoeda(bruto)} do capital do cliente · Pix gerado: {formatMoeda(liquido)}{" "}
+                                  (taxa de {formatMoeda(taxa)})
+                                </p>
+                              );
+                            })()}
+                        </>
                       )}
                     </div>
                   );
@@ -244,7 +277,7 @@ function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () 
               </div>
               {operacao === "DEFINIR" && tipos.length > 0 && (
                 <span className="mt-2 block text-xs text-muted">
-                  "Definir" ajusta o saldo pra esse valor exato — pode aumentar ou diminuir.
+                  &ldquo;Definir&rdquo; ajusta o saldo pra esse valor exato — pode aumentar ou diminuir.
                   A redução só usa saldo livre (não reservado num saque em andamento).
                 </span>
               )}

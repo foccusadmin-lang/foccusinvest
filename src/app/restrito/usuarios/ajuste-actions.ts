@@ -17,6 +17,7 @@ import {
   reservarIncentivoLiderancaParaSaque,
 } from "@/lib/incentivo-lideranca";
 import { prepararDadosSaquePix, obterSnapshotInvestidor } from "@/lib/saque-pix";
+import { arredondarParaCentavos } from "@/lib/valor-centavos";
 
 export type AjusteSaldoState = { error?: string; sucesso?: string } | undefined;
 
@@ -24,10 +25,21 @@ const EPSILON = 0.005;
 const ORIGEM_AJUSTE = "Ajuste manual (admin)";
 const LABEL_TIPO: Record<string, string> = {
   CAPITAL: "Capital Principal",
+  CAPITAL_CARENCIA: "Capital em carência (taxa de 15%)",
   RENDIMENTO: "PLR / Rendimento disponível",
   BONUS: "Bônus de indicação",
   INCENTIVO_LIDERANCA: "Incentivo de liderança",
 };
+
+/** Taxa de saque de carência: só existe no saque assistido (admin), pra sacar capital que ainda
+ *  não terminou a carência. O valor digitado pelo admin é descontado INTEGRALMENTE do capital do
+ *  investidor, mas o Pix gerado (o que o cliente de fato recebe) já sai com 15% a menos — a
+ *  diferença é a taxa por antecipar o saque. Essa taxa retida vira fundo de caixa do próprio
+ *  sistema: creditada como RENDIMENTO na conta da Foccus Administradora (ver
+ *  EMAIL_ADMINISTRADORA), além de ficar registrada em SolicitacaoSaque.valorBruto/
+ *  taxaAntecipacao e no LogAuditoria. */
+const TAXA_SAQUE_CARENCIA = 0.15;
+const EMAIL_ADMINISTRADORA = "foccusadmin@gmail.com";
 
 function parseValor(raw: FormDataEntryValue | null): number {
   const texto = String(raw ?? "").trim().replace(/\./g, "").replace(",", ".");
@@ -163,29 +175,39 @@ async function ajustarCredito(
 /** Saque feito pelo admin em nome do investidor — pra ajudar quem tem dificuldade de mexer no
  *  app sozinho. Ignora a carência do Capital (libera o valor antes do prazo por decisão do
  *  admin) e não tem restrição de dia/horário — pode ser feito a qualquer momento. Só respeita o
- *  modo automático/manual configurado pra saques. */
+ *  modo automático/manual configurado pra saques.
+ *
+ *  CAPITAL_CARENCIA é uma variação de CAPITAL: o valor digitado é o valor BRUTO, descontado
+ *  integralmente do capital do investidor, mas o Pix gerado (o que o cliente recebe) já sai
+ *  líquido, com 15% de taxa de antecipação — mesmo padrão de valorBruto/taxaAntecipacao já usado
+ *  no saque de emergência (ver lib/emergencia.ts), só que aplicado ao Capital em vez do
+ *  Rendimento, e sem exigir uma liberação de emergência prévia. */
 async function realizarSaqueAssistido(
   userId: string,
-  tipo: "CAPITAL" | "RENDIMENTO" | "BONUS" | "INCENTIVO_LIDERANCA",
+  tipo: "CAPITAL" | "CAPITAL_CARENCIA" | "RENDIMENTO" | "BONUS" | "INCENTIVO_LIDERANCA",
   valor: number,
   chavePixTexto: string,
   chavePixTipo: string
 ): Promise<string | null> {
   const config = await getConfiguracao();
-  const automatico =
-    tipo === "CAPITAL" ? config.modoSaqueCapital === "AUTOMATICO" : config.modoSaqueRendimento === "AUTOMATICO";
+  const ehCapital = tipo === "CAPITAL" || tipo === "CAPITAL_CARENCIA";
+  const automatico = ehCapital ? config.modoSaqueCapital === "AUTOMATICO" : config.modoSaqueRendimento === "AUTOMATICO";
 
   // Incentivo de liderança some da carteira do investidor exatamente como um saque de
   // rendimento — só a origem do crédito consumido é diferente (ver reservarIncentivoLideranca-
-  // ParaSaque). O registro em SolicitacaoSaque usa tipo RENDIMENTO porque não existe um tipo de
-  // saque próprio pra isso — a distinção fica no crédito de origem, não no saque em si.
-  const tipoSaque = tipo === "INCENTIVO_LIDERANCA" ? "RENDIMENTO" : tipo;
+  // ParaSaque). CAPITAL_CARENCIA grava como CAPITAL (a distinção fica em valorBruto/
+  // taxaAntecipacao, não num tipo de saque próprio no banco).
+  const tipoSaque = tipo === "INCENTIVO_LIDERANCA" ? "RENDIMENTO" : ehCapital ? "CAPITAL" : tipo;
+
+  const valorBruto = valor;
+  const taxaAntecipacao = tipo === "CAPITAL_CARENCIA" ? arredondarParaCentavos(valorBruto * TAXA_SAQUE_CARENCIA) : 0;
+  const valorAPagar = tipo === "CAPITAL_CARENCIA" ? arredondarParaCentavos(valorBruto - taxaAntecipacao) : valor;
 
   const { nome: investidorNome, email: investidorEmail } = await obterSnapshotInvestidor(userId);
   const preparo = await prepararDadosSaquePix({
     investidorNome,
     investidorEmail,
-    valor,
+    valor: valorAPagar,
     chavePixTexto,
     chavePixTipo,
   });
@@ -200,6 +222,7 @@ async function realizarSaqueAssistido(
           tipo: tipoSaque,
           valor: dados.valorFinal,
           moeda: "BRL",
+          ...(tipo === "CAPITAL_CARENCIA" ? { valorBruto, taxaAntecipacao } : {}),
           investidorNome: dados.investidorNome,
           investidorEmail: dados.investidorEmail,
           chavePixOriginal: dados.chavePixOriginal,
@@ -212,19 +235,38 @@ async function realizarSaqueAssistido(
         },
       });
 
-      if (tipo === "CAPITAL") {
-        await reservarCapitalParaSaqueAdmin(tx, userId, dados.valorFinal, saque.id);
+      if (ehCapital) {
+        // Reserva o valor BRUTO (integral) — quem sai da carteira do investidor é o valor cheio,
+        // não o valor já descontado que vai ser pago via Pix.
+        await reservarCapitalParaSaqueAdmin(tx, userId, valorBruto, saque.id);
       } else if (tipo === "INCENTIVO_LIDERANCA") {
         await reservarIncentivoLiderancaParaSaque(tx, userId, dados.valorFinal, saque.id);
       } else {
         await reservarCreditosParaSaque(tx, userId, dados.valorFinal, tipo, saque.id);
       }
 
+      // Os 15% retidos viram fundo de caixa do sistema — creditados na conta da Foccus
+      // Administradora, com rastro de qual investidor gerou a taxa.
+      if (tipo === "CAPITAL_CARENCIA" && taxaAntecipacao > EPSILON) {
+        const administradora = await tx.user.findFirst({ where: { email: EMAIL_ADMINISTRADORA } });
+        if (administradora) {
+          await tx.creditoCarteira.create({
+            data: {
+              userId: administradora.id,
+              tipo: "RENDIMENTO",
+              valor: taxaAntecipacao,
+              moeda: "BRL",
+              origem: `Taxa de saque de carência — ${investidorNome}`,
+            },
+          });
+        }
+      }
+
       // Modo automático só antecipa a reserva/débito — nunca marca como PAGO sozinho: o
       // pagamento via Pix continua exigindo confirmação manual do admin no app do banco (ver
       // restrito/saques/actions.ts), mesmo nesse saque assistido feito pelo próprio admin.
       if (automatico) {
-        if (tipo === "CAPITAL") {
+        if (ehCapital) {
           await tx.aplicacao.updateMany({
             where: { solicitacaoSaqueId: saque.id },
             data: { status: "RETIRADA" },
@@ -282,7 +324,13 @@ export async function ajustarSaldoUsuario(
 
     const valoresSaque = new Map<string, number>();
     for (const tipo of tipos) {
-      if (tipo !== "CAPITAL" && tipo !== "RENDIMENTO" && tipo !== "BONUS" && tipo !== "INCENTIVO_LIDERANCA") {
+      if (
+        tipo !== "CAPITAL" &&
+        tipo !== "CAPITAL_CARENCIA" &&
+        tipo !== "RENDIMENTO" &&
+        tipo !== "BONUS" &&
+        tipo !== "INCENTIVO_LIDERANCA"
+      ) {
         return { error: "Tipo de saldo inválido pra saque." };
       }
       const valor = parseValor(formData.get(`valor_${tipo}`));
@@ -296,7 +344,7 @@ export async function ajustarSaldoUsuario(
       const valor = valoresSaque.get(tipo)!;
       const erro = await realizarSaqueAssistido(
         userId,
-        tipo as "CAPITAL" | "RENDIMENTO" | "BONUS" | "INCENTIVO_LIDERANCA",
+        tipo as "CAPITAL" | "CAPITAL_CARENCIA" | "RENDIMENTO" | "BONUS" | "INCENTIVO_LIDERANCA",
         valor,
         chavePix,
         chavePixTipo
@@ -305,7 +353,15 @@ export async function ajustarSaldoUsuario(
     }
 
     const resumoSaque = tipos
-      .map((tipo) => `${LABEL_TIPO[tipo] ?? tipo}: ${formatMoeda(valoresSaque.get(tipo)!)}`)
+      .map((tipo) => {
+        const valorDigitado = valoresSaque.get(tipo)!;
+        if (tipo === "CAPITAL_CARENCIA") {
+          const taxa = arredondarParaCentavos(valorDigitado * TAXA_SAQUE_CARENCIA);
+          const liquido = arredondarParaCentavos(valorDigitado - taxa);
+          return `${LABEL_TIPO[tipo]}: ${formatMoeda(valorDigitado)} → paga ${formatMoeda(liquido)} (taxa ${formatMoeda(taxa)})`;
+        }
+        return `${LABEL_TIPO[tipo] ?? tipo}: ${formatMoeda(valorDigitado)}`;
+      })
       .join(", ");
 
     await prisma.logAuditoria.create({
