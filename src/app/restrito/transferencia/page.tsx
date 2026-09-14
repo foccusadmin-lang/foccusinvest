@@ -16,7 +16,7 @@ export default async function RestritoTransferenciaPage() {
     }),
     prisma.aplicacao.groupBy({
       by: ["userId"],
-      where: { status: "CONFIRMADA" },
+      where: { status: "CONFIRMADA", moeda: { not: "USDT" } },
       _sum: { valor: true },
     }),
   ]);

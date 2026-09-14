@@ -27,9 +27,12 @@ export default async function RestritoUsuariosPage() {
     liberacoesAtivas,
     incentivoLiderancaPorUsuario,
   ] = await Promise.all([
+    // USDT fica de fora de todas essas contas de capital em R$ — saldo separado, nunca somado no
+    // mesmo total (e a lista de aplicações elegíveis pra saque de emergência só sabe pagar via
+    // Pix, então também não pode incluir lotes em USDT).
     prisma.aplicacao.groupBy({
       by: ["userId"],
-      where: { status: { in: ["CONFIRMADA", "SAQUE_SOLICITADO"] } },
+      where: { status: { in: ["CONFIRMADA", "SAQUE_SOLICITADO"] }, moeda: { not: "USDT" } },
       _sum: { valor: true },
     }),
     prisma.creditoCarteira.groupBy({
@@ -39,16 +42,16 @@ export default async function RestritoUsuariosPage() {
     }),
     prisma.aplicacao.groupBy({
       by: ["userId"],
-      where: { status: "CONFIRMADA", liberaEm: { lte: agora } },
+      where: { status: "CONFIRMADA", liberaEm: { lte: agora }, moeda: { not: "USDT" } },
       _sum: { valor: true },
     }),
     prisma.aplicacao.groupBy({
       by: ["userId"],
-      where: { status: "CONFIRMADA", liberaEm: { gt: agora } },
+      where: { status: "CONFIRMADA", liberaEm: { gt: agora }, moeda: { not: "USDT" } },
       _sum: { valor: true },
     }),
     prisma.aplicacao.findMany({
-      where: { status: "CONFIRMADA" },
+      where: { status: "CONFIRMADA", moeda: { not: "USDT" } },
       select: { id: true, userId: true, valor: true, criadoEm: true, liberaEm: true },
       orderBy: { criadoEm: "asc" },
     }),

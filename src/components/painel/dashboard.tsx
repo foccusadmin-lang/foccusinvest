@@ -15,6 +15,11 @@ export type ResumoFinanceiro = {
   capitalPrincipal: number;
   capitalCarencia: number;
   capitalDisponivel: number;
+  // Saldo em USDT — totalmente separado do capital em R$ acima, nunca somado no mesmo total.
+  capitalPrincipalUsdt: number;
+  capitalCarenciaUsdt: number;
+  capitalDisponivelUsdt: number;
+  aportesEmAnaliseUsdt: number;
   distribuicoesAcumuladas: number;
   distribuicoesDisponiveis: number;
   bonusIndicacao: number;
@@ -168,6 +173,23 @@ export function PainelDashboard({
             />
           )}
         </section>
+
+        {(resumo.capitalPrincipalUsdt > 0 || resumo.aportesEmAnaliseUsdt > 0) && (
+          <section className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <SummaryCard
+              tone="gold"
+              icon={<IconWallet width={18} height={18} />}
+              label="Capital (USDT)"
+              value={formatMoeda(resumo.capitalPrincipalUsdt, "USDT")}
+              hint="Saldo separado do capital em R$ — não entra na mesma soma"
+            />
+            <MiniStat label="Disponível p/ saque (USDT)" value={formatMoeda(resumo.capitalDisponivelUsdt, "USDT")} />
+            <MiniStat label="Em carência (USDT)" value={formatMoeda(resumo.capitalCarenciaUsdt, "USDT")} />
+            {resumo.aportesEmAnaliseUsdt > 0 && (
+              <MiniStat label="Aporte em análise (USDT)" value={formatMoeda(resumo.aportesEmAnaliseUsdt, "USDT")} />
+            )}
+          </section>
+        )}
 
         <section className="mt-6 flex flex-col justify-between gap-4 rounded-2xl border border-border bg-surface p-5 sm:flex-row sm:items-center">
           <div>

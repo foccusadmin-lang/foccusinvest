@@ -29,6 +29,7 @@ export default async function RestritoPainelPage() {
     aplicacoesAtivas,
     saquesAtivos,
     aportesAguardando,
+    capitalUsdtAgregado,
     creditosRendimento,
     creditosDoMesPorUsuario,
     distribuicoesAtivas,
@@ -36,12 +37,19 @@ export default async function RestritoPainelPage() {
   ] = await Promise.all([
     prisma.user.count({ where: { perfil: { not: "ADMIN" } } }),
     prisma.user.count({ where: { statusCadastro: "PENDENTE", perfil: { not: "ADMIN" } } }),
+    // USDT é um saldo separado — nunca somado no mesmo total que o capital em R$ (mistura de
+    // moedas não tem sentido financeiro). Filtrado aqui na origem pra também não distorcer a
+    // rentabilidade do período abaixo, que usa esse mesmo capital em R$ como base.
     prisma.aplicacao.findMany({
-      where: { status: { in: ["CONFIRMADA", "SAQUE_SOLICITADO"] } },
+      where: { status: { in: ["CONFIRMADA", "SAQUE_SOLICITADO"] }, moeda: { not: "USDT" } },
       omit: { comprovante: true },
     }),
     prisma.solicitacaoSaque.findMany({ where: { status: { in: ["SOLICITADO", "AGUARDANDO_PAGAMENTO"] } } }),
     prisma.aplicacao.count({ where: { status: "AGUARDANDO_APROVACAO" } }),
+    prisma.aplicacao.aggregate({
+      where: { status: { in: ["CONFIRMADA", "SAQUE_SOLICITADO"] }, moeda: "USDT" },
+      _sum: { valor: true },
+    }),
     prisma.creditoCarteira.aggregate({ where: { tipo: "RENDIMENTO" }, _sum: { valor: true } }),
     prisma.creditoCarteira.groupBy({
       by: ["userId"],
@@ -57,6 +65,7 @@ export default async function RestritoPainelPage() {
   ]);
 
   const capitalTotal = aplicacoesAtivas.reduce((acc, a) => acc + a.valor, 0);
+  const capitalTotalUsdt = capitalUsdtAgregado._sum.valor ?? 0;
   const capitalEmCarencia = aplicacoesAtivas
     .filter((a) => a.status === "CONFIRMADA" && a.liberaEm > agora)
     .reduce((acc, a) => acc + a.valor, 0);
@@ -149,6 +158,15 @@ export default async function RestritoPainelPage() {
           value={`${rentabilidadePeriodo > 0 ? "+" : ""}${rentabilidadePeriodo.toFixed(2)}%`}
           hint="Creditado este mês (Distribuições + PLR Individual)"
         />
+        {capitalTotalUsdt > 0 && (
+          <SummaryCard
+            tone="neutral"
+            icon={<IconWallet width={18} height={18} />}
+            label="Capital (USDT)"
+            value={formatMoeda(capitalTotalUsdt, "USDT")}
+            hint="Saldo separado do capital em R$ — não entra na mesma soma"
+          />
+        )}
       </section>
 
       <p className="mb-3 mt-8 text-xs font-semibold uppercase tracking-[0.15em] text-muted">

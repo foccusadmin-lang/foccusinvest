@@ -3,9 +3,18 @@
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
 
-/** QR Code + "Pix Copia e Cola" pra um payload Pix já pronto (ver lib/pix.ts). Gera a imagem no
- *  navegador (sem round-trip pro servidor) e dá um botão de copiar o código completo. */
-export function PixQrCode({ payload }: { payload: string }) {
+/** QR Code + botão de copiar pra qualquer payload de texto — Pix "Copia e Cola" (ver lib/pix.ts)
+ *  por padrão, mas também usado pra um endereço de carteira USDT (só passando textos diferentes).
+ *  Gera a imagem no navegador (sem round-trip pro servidor). */
+export function PixQrCode({
+  payload,
+  instrucao = "Escaneie com o app do seu banco, ou use o código Pix Copia e Cola abaixo.",
+  textoCopiar = "Copiar código Pix (Copia e Cola)",
+}: {
+  payload: string;
+  instrucao?: string;
+  textoCopiar?: string;
+}) {
   const [imagemUrl, setImagemUrl] = useState<string | null>(null);
   const [copiado, setCopiado] = useState(false);
 
@@ -38,15 +47,13 @@ export function PixQrCode({ payload }: { payload: string }) {
           <span className="text-xs text-black/50">Gerando QR Code...</span>
         )}
       </div>
-      <p className="text-center text-xs text-muted">
-        Escaneie com o app do seu banco, ou use o código Pix Copia e Cola abaixo.
-      </p>
+      <p className="text-center text-xs text-muted">{instrucao}</p>
       <button
         type="button"
         onClick={copiarCodigo}
         className="w-full rounded-lg bg-gold/20 px-3 py-2 text-xs font-semibold text-gold-light hover:bg-gold/30"
       >
-        {copiado ? "Código copiado!" : "Copiar código Pix (Copia e Cola)"}
+        {copiado ? "Copiado!" : textoCopiar}
       </button>
     </div>
   );

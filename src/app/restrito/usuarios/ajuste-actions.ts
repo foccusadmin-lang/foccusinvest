@@ -47,10 +47,11 @@ function parseValor(raw: FormDataEntryValue | null): number {
 }
 
 /** Reduz o capital "livre" (lotes CONFIRMADA, não reservados num saque em andamento),
- *  consumindo os lotes mais antigos primeiro e apagando os que zerarem. */
+ *  consumindo os lotes mais antigos primeiro e apagando os que zerarem. Exclui USDT — esse
+ *  ajuste só mexe no capital em R$, saldo separado do capital em USDT. */
 async function reduzirCapital(userId: string, valorReduzir: number): Promise<string | null> {
   const lotes = await prisma.aplicacao.findMany({
-    where: { userId, status: "CONFIRMADA" },
+    where: { userId, status: "CONFIRMADA", moeda: { not: "USDT" } },
     orderBy: { criadoEm: "asc" },
     omit: { comprovante: true },
   });
@@ -89,7 +90,7 @@ async function ajustarCapital(userId: string, valor: number, operacao: string): 
   }
 
   const atual = await prisma.aplicacao.aggregate({
-    where: { userId, status: { in: ["CONFIRMADA", "SAQUE_SOLICITADO"] } },
+    where: { userId, status: { in: ["CONFIRMADA", "SAQUE_SOLICITADO"] }, moeda: { not: "USDT" } },
     _sum: { valor: true },
   });
   const valorAtual = atual._sum.valor ?? 0;

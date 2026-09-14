@@ -52,9 +52,10 @@ export async function aplicarPlrIndividual(
     return { error: "A data do lançamento não pode ser no futuro." };
   }
 
+  // USDT fica de fora — saldo separado do capital em R$, sem regra própria de PLR ainda.
   const capitaisPorUsuario = await prisma.aplicacao.groupBy({
     by: ["userId"],
-    where: { userId: { in: userIds }, status: { in: ["CONFIRMADA", "SAQUE_SOLICITADO"] } },
+    where: { userId: { in: userIds }, status: { in: ["CONFIRMADA", "SAQUE_SOLICITADO"] }, moeda: { not: "USDT" } },
     _sum: { valor: true },
   });
   const capitalPorId = new Map(capitaisPorUsuario.map((c) => [c.userId, c._sum.valor ?? 0]));

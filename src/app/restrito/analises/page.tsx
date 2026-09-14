@@ -62,7 +62,11 @@ export default async function RestritoAnalisesPage() {
       select: { createdAt: true },
     }),
     prisma.aplicacao.findMany({
-      where: { criadoEm: { gte: seisMesesAtras }, status: { in: ["CONFIRMADA", "SAQUE_SOLICITADO"] } },
+      where: {
+        criadoEm: { gte: seisMesesAtras },
+        status: { in: ["CONFIRMADA", "SAQUE_SOLICITADO"] },
+        moeda: { not: "USDT" },
+      },
       select: { criadoEm: true, valor: true },
     }),
     prisma.solicitacaoSaque.groupBy({ by: ["status"], _sum: { valor: true }, _count: true }),

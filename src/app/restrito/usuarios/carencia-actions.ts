@@ -37,8 +37,10 @@ export async function ajustarCarenciaUsuario(
   const usuario = await prisma.user.findUnique({ where: { id: userId } });
   if (!usuario) return { error: "Usuário não encontrado." };
 
+  // USDT fica de fora — saldo separado do capital em R$; redistribuir junto destruiria a moeda
+  // original do lote (as faixas recriadas abaixo sempre saem em R$).
   const lotes = await prisma.aplicacao.findMany({
-    where: { userId, status: "CONFIRMADA" },
+    where: { userId, status: "CONFIRMADA", moeda: { not: "USDT" } },
     orderBy: { criadoEm: "asc" },
     omit: { comprovante: true },
   });

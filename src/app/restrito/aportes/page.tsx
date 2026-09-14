@@ -14,7 +14,9 @@ export default async function RestritoAportesPage() {
       where: { status: "AGUARDANDO_APROVACAO" },
       include: { user: { select: { name: true, email: true } } },
       orderBy: { criadoEm: "asc" },
-      omit: { comprovante: true, comprovanteHash: true },
+      // comprovanteHash não é mais só um hash de dedup interno — em aportes USDT (moeda="USDT")
+      // é o TXID de verdade, exibido pro admin conferir no BscScan antes de aprovar.
+      omit: { comprovante: true },
     }),
     prisma.aplicacao.findMany({
       where: { status: { in: ["CONFIRMADA", "REJEITADA"] }, origem: "NOVA_APLICACAO" },

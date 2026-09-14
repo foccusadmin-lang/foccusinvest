@@ -300,9 +300,10 @@ export async function liberarIncentivoParaTodosLideres(
   const liderIds = lideres.map((l) => l.id);
   if (liderIds.length === 0) return { creditados: 0, total: 0 };
 
+  // USDT fica de fora — saldo separado do capital em R$, sem regra própria de incentivo ainda.
   const capitaisPorLider = await prisma.aplicacao.groupBy({
     by: ["userId"],
-    where: { userId: { in: liderIds }, status: { in: ["CONFIRMADA", "SAQUE_SOLICITADO"] } },
+    where: { userId: { in: liderIds }, status: { in: ["CONFIRMADA", "SAQUE_SOLICITADO"] }, moeda: { not: "USDT" } },
     _sum: { valor: true },
   });
   const capitalPorId = new Map(capitaisPorLider.map((c) => [c.userId, c._sum.valor ?? 0]));
@@ -456,7 +457,7 @@ export async function listarLideres(): Promise<LiderResumo[]> {
   const [capitais, creditos] = await Promise.all([
     prisma.aplicacao.groupBy({
       by: ["userId"],
-      where: { userId: { in: ids }, status: { in: ["CONFIRMADA", "SAQUE_SOLICITADO"] } },
+      where: { userId: { in: ids }, status: { in: ["CONFIRMADA", "SAQUE_SOLICITADO"] }, moeda: { not: "USDT" } },
       _sum: { valor: true },
     }),
     prisma.creditoCarteira.findMany({

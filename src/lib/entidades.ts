@@ -88,7 +88,7 @@ export async function checarRequisitosAtivacao(entidadeId: string): Promise<Requ
   if (!entidade.termosAceitos) pendencias.push("Termos e contrato ainda não aceitos pela entidade.");
 
   const capital = await prisma.aplicacao.aggregate({
-    where: { userId: entidade.userId, status: { in: ["CONFIRMADA", "SAQUE_SOLICITADO"] } },
+    where: { userId: entidade.userId, status: { in: ["CONFIRMADA", "SAQUE_SOLICITADO"] }, moeda: { not: "USDT" } },
     _sum: { valor: true },
   });
   const saldoAtual = capital._sum.valor ?? 0;

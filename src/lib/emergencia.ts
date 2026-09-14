@@ -16,11 +16,13 @@ export type AplicacaoElegivel = {
 };
 
 /** Lotes (Aplicacao) do investidor ainda com capital de fato disponível pra liberação —
- *  CONFIRMADA (nem em saque em andamento, nem já retirada). */
+ *  CONFIRMADA (nem em saque em andamento, nem já retirada). Exclui USDT — o saque de emergência
+ *  só sabe pagar via Pix (R$); sem esse filtro, o admin poderia acabar liberando um lote em USDT
+ *  pra um saque que só gera Pix. */
 export async function listarAplicacoesElegiveis(userId: string): Promise<AplicacaoElegivel[]> {
   const agora = new Date();
   const lotes = await prisma.aplicacao.findMany({
-    where: { userId, status: "CONFIRMADA" },
+    where: { userId, status: "CONFIRMADA", moeda: { not: "USDT" } },
     orderBy: { criadoEm: "asc" },
     omit: { comprovante: true },
   });

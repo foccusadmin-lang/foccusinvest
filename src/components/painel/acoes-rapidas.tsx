@@ -22,6 +22,7 @@ import { LABEL_TIPO_CHAVE_PIX, type TipoChavePixForm } from "@/lib/pix-chave";
 import type { CategoriaBem } from "@prisma/client";
 import {
   criarAplicacao,
+  criarAplicacaoUsdt,
   solicitarSaqueCapital,
   solicitarSaqueRendimento,
   solicitarSaqueRendimentoPorFonte,
@@ -32,6 +33,7 @@ import {
   definirReaplicacaoAutomatica,
   type AcaoState,
 } from "@/app/painel/actions";
+import { USDT_REDE, USDT_ENDERECO } from "@/lib/deposito-usdt";
 import {
   DESCONTO_RENDIMENTO_EMERGENCIAL,
   estimarSaqueEmergencial,
@@ -372,11 +374,19 @@ function NovaAplicacaoModal({
   primeiroAporteElegivelIndicacao: boolean;
   codigoIndicadorFixo: string | null;
 }) {
-  const [state, action, pending] = useActionState(criarAplicacao, undefined);
+  const [metodo, setMetodo] = useState<"PIX" | "USDT">("PIX");
+  const [statePix, actionPix, pendingPix] = useActionState(criarAplicacao, undefined);
+  const [stateUsdt, actionUsdt, pendingUsdt] = useActionState(criarAplicacaoUsdt, undefined);
+  const state = metodo === "PIX" ? statePix : stateUsdt;
+  const action = metodo === "PIX" ? actionPix : actionUsdt;
+  const pending = metodo === "PIX" ? pendingPix : pendingUsdt;
+
   const [etapa, setEtapa] = useState<"valor" | "pagamento">("valor");
   const [valorTexto, setValorTexto] = useState("");
+  const [txidTexto, setTxidTexto] = useState("");
   const [codigoIndicador, setCodigoIndicador] = useState(codigoIndicadorFixo ?? "");
   const [copiado, setCopiado] = useState(false);
+  const [enderecoCopiado, setEnderecoCopiado] = useState(false);
   const router = useRouter();
   const processado = useRef(false);
 
@@ -397,9 +407,16 @@ function NovaAplicacaoModal({
     });
   }
 
+  function copiarEnderecoUsdt() {
+    navigator.clipboard.writeText(USDT_ENDERECO).then(() => {
+      setEnderecoCopiado(true);
+      setTimeout(() => setEnderecoCopiado(false), 2000);
+    });
+  }
+
   const valorNumerico = Number(valorTexto.replace(/\./g, "").replace(",", ".")) || 0;
   const payloadPix =
-    valorNumerico > 0
+    metodo === "PIX" && valorNumerico > 0
       ? gerarPayloadPix({
           chave: PIX_CHAVE.replace(/\D/g, ""),
           beneficiario: PIX_BENEFICIARIO,
@@ -407,6 +424,7 @@ function NovaAplicacaoModal({
           valor: valorNumerico,
         })
       : "";
+  const valorMinimoOk = metodo === "PIX" ? valorNumerico >= 50 : valorNumerico > 0;
 
   return (
     <div
@@ -429,8 +447,31 @@ function NovaAplicacaoModal({
           </p>
         ) : etapa === "valor" ? (
           <>
-            <p className="mt-1 text-sm text-muted">
-              Informe o valor que você quer aplicar. Mínimo de R$ 50,00.
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setMetodo("PIX")}
+                className={`rounded-lg py-2 text-xs font-semibold transition sm:text-sm ${
+                  metodo === "PIX" ? "bg-gold/20 text-gold-light" : "bg-white/5 text-muted"
+                }`}
+              >
+                Pix (R$)
+              </button>
+              <button
+                type="button"
+                onClick={() => setMetodo("USDT")}
+                className={`rounded-lg py-2 text-xs font-semibold transition sm:text-sm ${
+                  metodo === "USDT" ? "bg-gold/20 text-gold-light" : "bg-white/5 text-muted"
+                }`}
+              >
+                USDT ({USDT_REDE.split(" ")[0]})
+              </button>
+            </div>
+
+            <p className="mt-3 text-sm text-muted">
+              {metodo === "PIX"
+                ? "Informe o valor que você quer aplicar. Mínimo de R$ 50,00."
+                : "Informe o valor em USDT que você vai enviar. O saldo em USDT fica separado do seu saldo em R$."}
             </p>
 
             <div className="mt-4 rounded-xl border border-border bg-surface-2 p-3">
@@ -456,7 +497,9 @@ function NovaAplicacaoModal({
 
             <div className="mt-4 space-y-4">
               <label className="block text-sm">
-                <span className="mb-1 block font-medium text-foreground/90">Valor (R$)</span>
+                <span className="mb-1 block font-medium text-foreground/90">
+                  {metodo === "PIX" ? "Valor (R$)" : "Valor (USDT)"}
+                </span>
                 <MoneyInput
                   value={valorTexto}
                   onValueChange={setValorTexto}
@@ -466,12 +509,12 @@ function NovaAplicacaoModal({
                 />
               </label>
 
-              {codigoIndicacao && (
+              {metodo === "PIX" && codigoIndicacao && (
                 <p className="text-xs text-muted">
                   Seu código de indicação: <span className="font-semibold text-gold-light">{codigoIndicacao}</span>
                 </p>
               )}
-              {primeiroAporteElegivelIndicacao && codigoIndicadorFixo && (
+              {metodo === "PIX" && primeiroAporteElegivelIndicacao && codigoIndicadorFixo && (
                 <div className="rounded-lg border border-gold/30 bg-gold/10 px-3 py-2">
                   <span className="block text-xs font-medium text-gold-light">
                     Você foi indicado por
@@ -484,7 +527,7 @@ function NovaAplicacaoModal({
                   </span>
                 </div>
               )}
-              {primeiroAporteElegivelIndicacao && !codigoIndicadorFixo && (
+              {metodo === "PIX" && primeiroAporteElegivelIndicacao && !codigoIndicadorFixo && (
                 <label className="block text-sm">
                   <span className="mb-1 block font-medium text-foreground/90">
                     Código de quem te indicou (opcional)
@@ -502,6 +545,11 @@ function NovaAplicacaoModal({
                   </span>
                 </label>
               )}
+              {metodo === "USDT" && (
+                <p className="text-xs text-muted">
+                  Bônus de indicação ainda não se aplica a depósitos em USDT.
+                </p>
+              )}
 
               <div className="flex gap-2">
                 <Button
@@ -516,7 +564,7 @@ function NovaAplicacaoModal({
                   type="button"
                   variant="gold"
                   className="flex-1"
-                  disabled={!valorTexto.trim() || valorNumerico < 50}
+                  disabled={!valorTexto.trim() || !valorMinimoOk}
                   onClick={() => setEtapa("pagamento")}
                 >
                   Continuar
@@ -524,7 +572,7 @@ function NovaAplicacaoModal({
               </div>
             </div>
           </>
-        ) : (
+        ) : metodo === "PIX" ? (
           <>
             <p className="mt-1 text-sm text-muted">
               Pague via Pix e envie o comprovante. Assim que o admin confirmar, o valor entra na
@@ -589,6 +637,88 @@ function NovaAplicacaoModal({
                 </Button>
                 <Button type="submit" variant="gold" className="flex-1" disabled={pending}>
                   {pending ? "Enviando..." : "Enviar comprovante"}
+                </Button>
+              </div>
+            </form>
+          </>
+        ) : (
+          <>
+            <p className="mt-1 text-sm text-muted">
+              Envie o USDT pro endereço abaixo e informe o hash da transação (TXID). Assim que o
+              admin confirmar na blockchain, o valor entra na sua carteira em USDT (separado do
+              saldo em R$), com carência de 90 dias. Sem contrato automático por e-mail ainda pra
+              esse método.
+            </p>
+
+            <div className="mt-4 rounded-xl border border-gold/30 bg-surface-2 p-4">
+              <p className="text-xs text-muted">Valor a enviar</p>
+              <p className="text-lg font-bold text-gold-light">
+                {valorNumerico.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} USDT
+              </p>
+
+              <div className="mt-3 border-t border-border pt-3">
+                <PixQrCode
+                  payload={USDT_ENDERECO}
+                  instrucao={`Escaneie com sua carteira/exchange (rede ${USDT_REDE}), ou copie o endereço abaixo.`}
+                  textoCopiar="Copiar endereço da carteira"
+                />
+              </div>
+
+              <div className="mt-3 border-t border-border pt-3">
+                <p className="text-xs text-muted">Rede: {USDT_REDE}</p>
+                <p className="mt-1 text-xs text-muted">Endereço da carteira</p>
+                <div className="mt-1 flex items-center gap-2">
+                  <code className="flex-1 truncate rounded-lg bg-black/30 px-2 py-1.5 text-sm text-foreground">
+                    {USDT_ENDERECO}
+                  </code>
+                  <button
+                    type="button"
+                    onClick={copiarEnderecoUsdt}
+                    className="shrink-0 rounded-lg bg-gold/20 px-3 py-1.5 text-xs font-semibold text-gold-light hover:bg-gold/30"
+                  >
+                    {enderecoCopiado ? "Copiado!" : "Copiar"}
+                  </button>
+                </div>
+                <p className="mt-2 text-xs text-red-300/90">
+                  Envie só USDT na rede {USDT_REDE}. Enviar em outra rede ou outro token pode
+                  perder o valor.
+                </p>
+              </div>
+            </div>
+
+            <form action={action} className="mt-4 space-y-4">
+              <input type="hidden" name="valor" value={valorTexto} />
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium text-foreground/90">
+                  Hash da transação (TXID)
+                </span>
+                <input
+                  name="txid"
+                  type="text"
+                  value={txidTexto}
+                  onChange={(e) => setTxidTexto(e.target.value.trim())}
+                  placeholder="0x..."
+                  required
+                  className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground outline-none focus:border-gold/60"
+                />
+                <span className="mt-1 block text-xs text-muted">
+                  Encontrado no seu app/exchange logo após o envio, ou no BscScan.
+                </span>
+              </label>
+
+              {state?.error && <p className="text-sm text-red-400">{state.error}</p>}
+
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="flex-1 border border-border/60"
+                  onClick={() => setEtapa("valor")}
+                >
+                  Voltar
+                </Button>
+                <Button type="submit" variant="gold" className="flex-1" disabled={pending || !txidTexto}>
+                  {pending ? "Enviando..." : "Registrar depósito"}
                 </Button>
               </div>
             </form>

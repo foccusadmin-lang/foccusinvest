@@ -18,7 +18,7 @@ export default async function RestritoReaplicacoesPage() {
     }),
     prisma.aplicacao.groupBy({
       by: ["userId"],
-      where: { status: { in: ["CONFIRMADA", "SAQUE_SOLICITADO"] } },
+      where: { status: { in: ["CONFIRMADA", "SAQUE_SOLICITADO"] }, moeda: { not: "USDT" } },
       _sum: { valor: true },
     }),
     prisma.creditoCarteira.groupBy({

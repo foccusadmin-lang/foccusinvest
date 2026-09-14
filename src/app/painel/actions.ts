@@ -253,6 +253,75 @@ export async function criarAplicacao(
   };
 }
 
+/**
+ * Depósito em USDT (rede BEP20) — mesma ideia do aporte via Pix, mas sem verificação automática
+ * on-chain (não há integração com nenhuma exchange/gateway): o investidor informa o hash da
+ * transação (TXID) como comprovante, e o admin confere manualmente no BscScan antes de aprovar
+ * (ver restrito/aportes). Por isso sempre cai em AGUARDANDO_APROVACAO, mesmo com o modo
+ * automático de aprovação de aportes ligado — esse modo só vale pra Pix, que já tem outras
+ * camadas de checagem (hash do comprovante, teto de valor).
+ *
+ * Cria com `moeda: "USDT"` — um saldo TOTALMENTE separado do capital em R$ (nunca somado no
+ * mesmo total, ver getResumoCarteira). Não gera contrato nem credita bônus de indicação ainda:
+ * o texto do contrato (valorPorExtenso) é em português pra "reais", não serve pra USDT sem
+ * revisão jurídica própria — fica pra uma entrega futura.
+ */
+export async function criarAplicacaoUsdt(
+  _prevState: AcaoState,
+  formData: FormData
+): Promise<AcaoState> {
+  let userId: string;
+  try {
+    userId = await requireUserId();
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+
+  const valor = parseValor(formData.get("valor"));
+  if (!valor || valor <= 0 || Number.isNaN(valor)) {
+    return { error: "Informe um valor válido." };
+  }
+
+  const txid = String(formData.get("txid") ?? "").trim();
+  if (!txid) {
+    return { error: "Informe o hash da transação (TXID) do envio em USDT." };
+  }
+
+  // TXID é único na blockchain — se já existe em QUALQUER aporte (de qualquer investidor) ainda
+  // não rejeitado, é reenvio duplicado (mesmo usuário) ou tentativa de reivindicar a transação de
+  // outra pessoa (usuário diferente).
+  const duplicado = await prisma.aplicacao.findFirst({
+    where: { moeda: "USDT", comprovanteHash: txid, status: { not: "REJEITADA" } },
+    select: { userId: true },
+  });
+  if (duplicado) {
+    revalidatePath("/painel");
+    return {
+      aviso:
+        duplicado.userId === userId
+          ? "Esse hash de transação já foi enviado antes. Por segurança, essa tentativa não criou um novo aporte — confira o status em Histórico."
+          : "Esse hash de transação já está associado a outro aporte. Se você acha que isso é um engano, entre em contato com o suporte.",
+    };
+  }
+
+  await prisma.aplicacao.create({
+    data: {
+      userId,
+      valor,
+      moeda: "USDT",
+      status: "AGUARDANDO_APROVACAO",
+      liberaEm: calcularLiberacao(),
+      comprovanteHash: txid,
+    },
+  });
+
+  revalidatePath("/painel");
+  revalidatePath("/restrito/aportes");
+  return {
+    sucesso: `Depósito de ${valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} USDT registrado! Assim que o admin confirmar a transação na blockchain, o valor entra na sua carteira (separado do saldo em R$), com carência de 90 dias.`,
+  };
+}
+
 const CATEGORIAS_BEM: CategoriaBem[] = ["IMOVEL", "AUTOMOVEL", "ELETRONICO"];
 
 /** Solicita um aporte em bem (imóvel/automóvel/eletrônico) em vez de Pix — não exige comprovante

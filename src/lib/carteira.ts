@@ -72,9 +72,20 @@ export async function getResumoCarteira(userId: string): Promise<ResumoFinanceir
   let valoresReaplicados = 0;
   let aportesEmAnalise = 0;
 
+  // USDT é um saldo totalmente separado do capital em R$ — nunca somado no mesmo total (uma
+  // mistura de moedas não tem sentido financeiro). Mesma lógica de status/carência do capital em
+  // R$ acima, só que somada à parte.
+  let capitalPrincipalUsdt = 0;
+  let capitalCarenciaUsdt = 0;
+  let capitalDisponivelUsdt = 0;
+  let aportesEmAnaliseUsdt = 0;
+
   for (const ap of aplicacoes) {
+    const usdt = ap.moeda === "USDT";
+
     if (ap.status === "AGUARDANDO_APROVACAO") {
-      aportesEmAnalise += ap.valor;
+      if (usdt) aportesEmAnaliseUsdt += ap.valor;
+      else aportesEmAnalise += ap.valor;
       continue;
     }
     if (ap.status === "REJEITADA") continue;
@@ -84,13 +95,21 @@ export async function getResumoCarteira(userId: string): Promise<ResumoFinanceir
     // como pago no final. Antes da aprovação, ainda soma aqui (o "Em processamento"/"Saques
     // pendentes" já mostra o valor reservado separadamente).
     if (ap.status !== "RETIRADA") {
-      capitalPrincipal += ap.valor;
-      if (ap.status === "CONFIRMADA") {
-        if (ap.liberaEm > agora) capitalCarencia += ap.valor;
-        else capitalDisponivel += ap.valor;
+      if (usdt) {
+        capitalPrincipalUsdt += ap.valor;
+        if (ap.status === "CONFIRMADA") {
+          if (ap.liberaEm > agora) capitalCarenciaUsdt += ap.valor;
+          else capitalDisponivelUsdt += ap.valor;
+        }
+      } else {
+        capitalPrincipal += ap.valor;
+        if (ap.status === "CONFIRMADA") {
+          if (ap.liberaEm > agora) capitalCarencia += ap.valor;
+          else capitalDisponivel += ap.valor;
+        }
       }
     }
-    if (ap.origem === "REAPLICACAO" || ap.origem === "REAPLICACAO_AUTOMATICA") {
+    if (!usdt && (ap.origem === "REAPLICACAO" || ap.origem === "REAPLICACAO_AUTOMATICA")) {
       valoresReaplicados += ap.valor;
     }
   }
@@ -132,7 +151,7 @@ export async function getResumoCarteira(userId: string): Promise<ResumoFinanceir
     .reduce((acc, s) => acc + s.valor, 0);
 
   const proximaLote = aplicacoes
-    .filter((ap) => ap.status === "CONFIRMADA" && ap.liberaEm > agora)
+    .filter((ap) => ap.status === "CONFIRMADA" && ap.liberaEm > agora && ap.moeda !== "USDT")
     .sort((a, b) => a.liberaEm.getTime() - b.liberaEm.getTime())[0];
 
   /** Rentabilidade do período (mês corrente, horário de Brasília) — soma o que foi creditado
@@ -171,6 +190,10 @@ export async function getResumoCarteira(userId: string): Promise<ResumoFinanceir
     capitalPrincipal,
     capitalCarencia,
     capitalDisponivel,
+    capitalPrincipalUsdt,
+    capitalCarenciaUsdt,
+    capitalDisponivelUsdt,
+    aportesEmAnaliseUsdt,
     distribuicoesAcumuladas: distribuicoesAcumuladasLiquido,
     distribuicoesDisponiveis,
     bonusIndicacao,
@@ -190,7 +213,9 @@ export async function getResumoCarteira(userId: string): Promise<ResumoFinanceir
 /**
  * Reserva lotes de capital liberado (fora de carência) para uma solicitação de saque,
  * dividindo lotes quando necessário. Deve ser chamada dentro de uma transação já aberta
- * pelo chamador (não abre transação própria, para evitar transações aninhadas).
+ * pelo chamador (não abre transação própria, para evitar transações aninhadas). Exclui lotes em
+ * USDT — o saque via Pix só sabe pagar em R$; sem esse filtro, um investidor com as duas moedas
+ * correria o risco de ter USDT reservado (e depois pago em R$!) por um saque de capital comum.
  */
 export async function reservarCapitalParaSaque(
   tx: TxClient,
@@ -199,7 +224,7 @@ export async function reservarCapitalParaSaque(
   solicitacaoSaqueId: string
 ): Promise<void> {
   const disponiveis = await tx.aplicacao.findMany({
-    where: { userId, status: "CONFIRMADA", liberaEm: { lte: new Date() } },
+    where: { userId, status: "CONFIRMADA", liberaEm: { lte: new Date() }, moeda: { not: "USDT" } },
     orderBy: { criadoEm: "asc" },
     omit: { comprovante: true },
   });
@@ -243,7 +268,8 @@ export async function reservarCapitalParaSaque(
  * Igual a `reservarCapitalParaSaque`, mas ignora a carência de 90 dias — usado só no saque
  * assistido do admin (ajuda quem tem dificuldade de sacar sozinho), que pode liberar o capital
  * antes do prazo por decisão do próprio admin, em qualquer dia/horário. Consome os lotes mais
- * antigos primeiro, estejam ou não liberados.
+ * antigos primeiro, estejam ou não liberados. Exclui USDT pelo mesmo motivo de
+ * `reservarCapitalParaSaque` — esse saque só sabe pagar em R$.
  */
 export async function reservarCapitalParaSaqueAdmin(
   tx: TxClient,
@@ -252,7 +278,7 @@ export async function reservarCapitalParaSaqueAdmin(
   solicitacaoSaqueId: string
 ): Promise<void> {
   const lotes = await tx.aplicacao.findMany({
-    where: { userId, status: "CONFIRMADA" },
+    where: { userId, status: "CONFIRMADA", moeda: { not: "USDT" } },
     orderBy: { criadoEm: "asc" },
     omit: { comprovante: true },
   });
@@ -439,11 +465,14 @@ export async function reaplicarAutomaticamenteSeNecessario(tx: TxClient, userId:
  *  o resto da carteira) até atingir `valor`, dividindo o último lote se necessário. Não olha
  *  carência (o admin pode transferir capital ainda em carência, igual já podia ajustar/apagar
  *  saldo manualmente) nem lotes já reservados num saque em andamento (esses não entram na
- *  busca, então nunca são tocados). Lança SaldoInsuficienteError se a origem não tiver capital
- *  livre suficiente. */
+ *  busca, então nunca são tocados). Exclui lotes em USDT — saldo separado do capital em R$, sem
+ *  nenhum dos chamadores dessa função (transferência, reaplicação, cobrança de serviço) sabendo
+ *  lidar com ele ainda; sem esse filtro, um usuário com capital em ambas as moedas correria o
+ *  risco real de ter USDT consumido por engano numa operação que era pra mexer só em R$. Lança
+ *  SaldoInsuficienteError se a origem não tiver capital livre (em R$) suficiente. */
 export async function reduzirCapitalLivre(tx: TxClient, userId: string, valor: number): Promise<void> {
   const lotes = await tx.aplicacao.findMany({
-    where: { userId, status: "CONFIRMADA" },
+    where: { userId, status: "CONFIRMADA", moeda: { not: "USDT" } },
     orderBy: { criadoEm: "asc" },
   });
 

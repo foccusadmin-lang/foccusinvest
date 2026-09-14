@@ -95,7 +95,12 @@ export async function confirmarAporte(
       },
     });
 
-    if (codigoIndicador) {
+    // Bônus de indicação é sempre 5% do valor do aporte, creditado em BRL — não faz sentido pra
+    // um aporte em USDT ainda (misturaria moedas), e não tem cotação nem regra definida pra isso.
+    // Aporte USDT nunca credita bônus, em nenhum modo, até esse recurso ganhar suporte próprio.
+    const ehUsdt = aplicacao.moeda === "USDT";
+
+    if (codigoIndicador && !ehUsdt) {
       // Código digitado (primeiro aporte, ou já fixado — ver painel/page.tsx): sempre credita e
       // fixa o vínculo de indicação, em qualquer modo.
       await creditarBonusIndicacaoPorCodigo(tx, {
@@ -104,7 +109,7 @@ export async function confirmarAporte(
         aportanteUserId: aplicacao.userId,
         valorAporte: valorFinal,
       });
-    } else if (config.modoBonusIndicacao === "AUTOMATICO") {
+    } else if (config.modoBonusIndicacao === "AUTOMATICO" && !ehUsdt) {
       // Sem código nesse aporte (não é o primeiro) — no modo automático, libera sozinho usando
       // o vínculo de indicação já fixado no cadastro. No modo manual, fica pra o admin liberar
       // depois pelo botão em Aportes (ver liberarBonusIndicacaoManual).

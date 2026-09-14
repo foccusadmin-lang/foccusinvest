@@ -17,7 +17,7 @@ export default async function RestritoPlrIndividualPage() {
     }),
     prisma.aplicacao.groupBy({
       by: ["userId"],
-      where: { status: { in: ["CONFIRMADA", "SAQUE_SOLICITADO"] } },
+      where: { status: { in: ["CONFIRMADA", "SAQUE_SOLICITADO"] }, moeda: { not: "USDT" } },
       _sum: { valor: true },
     }),
     // Sem corte por data — cada lançamento já guarda a própria data (a escolhida no

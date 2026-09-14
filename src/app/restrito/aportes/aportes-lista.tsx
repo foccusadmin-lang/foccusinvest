@@ -8,10 +8,12 @@ import { AprovarRejeitarAporte } from "./comprovante-actions";
 import { AvaliarAporteBemButton } from "./avaliar-bem-actions";
 import { IndicacaoRetroativaButton } from "./indicacao-retroativa-button";
 import { LiberarBonusButton } from "./liberar-bonus-button";
+import { linkBscScan } from "@/lib/deposito-usdt";
 
 export type AportePendente = {
   id: string;
   valor: number;
+  moeda: string;
   criadoEm: Date;
   user: { name: string | null; email: string };
   categoriaBem: CategoriaBem | null;
@@ -19,11 +21,15 @@ export type AportePendente = {
   valorDeclarado: number | null;
   dataAgendamento: Date | null;
   aporteDuplicadoDeId: string | null;
+  // Pra aporte em USDT (moeda="USDT"), esse campo não é um hash de dedup interno — é o TXID de
+  // verdade que o investidor informou, pra conferir no BscScan antes de aprovar.
+  comprovanteHash: string | null;
 };
 
 export type AporteRecente = {
   id: string;
   valor: number;
+  moeda: string;
   status: string;
   motivoRejeicao: string | null;
   aprovadoEm: Date | null;
@@ -32,6 +38,7 @@ export type AporteRecente = {
   temIndicador: boolean;
   bonusJaCreditado: boolean;
   categoriaBem: CategoriaBem | null;
+  comprovanteHash: string | null;
 };
 
 function combinaBusca(nome: string | null, email: string, termo: string): boolean {
@@ -123,6 +130,11 @@ export function AportesLista({
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="font-semibold text-foreground">{a.user.name ?? a.user.email}</p>
+                    {a.moeda === "USDT" && (
+                      <span className="rounded-full bg-teal-500/15 px-2 py-0.5 text-[10px] font-semibold text-teal-300">
+                        USDT
+                      </span>
+                    )}
                     {a.aporteDuplicadoDeId && (
                       <span
                         title={`Mesmo valor e mesmo comprovante do aporte ${a.aporteDuplicadoDeId}`}
@@ -133,18 +145,30 @@ export function AportesLista({
                     )}
                   </div>
                   <p className="text-xs text-muted">{a.user.email}</p>
-                  <p className="mt-1 text-lg font-bold text-gold-light">{formatMoeda(a.valor)}</p>
+                  <p className="mt-1 text-lg font-bold text-gold-light">{formatMoeda(a.valor, a.moeda === "USDT" ? "USDT" : "BRL")}</p>
                   <p className="text-xs text-muted">Enviado em {formatData(a.criadoEm)}</p>
                 </div>
                 <div className="flex flex-col items-start gap-2 sm:items-end">
-                  <a
-                    href={`/restrito/aportes/${a.id}/comprovante`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="rounded-lg bg-sky-500/15 px-3 py-1 text-xs font-semibold text-sky-300 hover:bg-sky-500/25"
-                  >
-                    Ver comprovante
-                  </a>
+                  {a.moeda === "USDT" ? (
+                    <a
+                      href={linkBscScan(a.comprovanteHash ?? "")}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="rounded-lg bg-teal-500/15 px-3 py-1 text-xs font-semibold text-teal-300 hover:bg-teal-500/25"
+                      title={a.comprovanteHash ?? ""}
+                    >
+                      Ver TXID no BscScan
+                    </a>
+                  ) : (
+                    <a
+                      href={`/restrito/aportes/${a.id}/comprovante`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="rounded-lg bg-sky-500/15 px-3 py-1 text-xs font-semibold text-sky-300 hover:bg-sky-500/25"
+                    >
+                      Ver comprovante
+                    </a>
+                  )}
                   <AprovarRejeitarAporte id={a.id} />
                 </div>
               </div>
@@ -180,7 +204,7 @@ export function AportesLista({
                 <tr key={a.id} className="bg-surface">
                   <td className="px-4 py-3 text-foreground">{a.user.name ?? a.user.email}</td>
                   <td className="px-4 py-3 font-semibold text-gold-light">
-                    {formatMoeda(a.valor)}
+                    {formatMoeda(a.valor, a.moeda === "USDT" ? "USDT" : "BRL")}
                   </td>
                   <td className="px-4 py-3">
                     {a.status === "CONFIRMADA" ? (
@@ -202,6 +226,16 @@ export function AportesLista({
                   <td className="px-4 py-3">
                     {a.categoriaBem ? (
                       <span className="text-xs text-muted">—</span>
+                    ) : a.moeda === "USDT" ? (
+                      <a
+                        href={linkBscScan(a.comprovanteHash ?? "")}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="rounded-lg bg-teal-500/15 px-3 py-1 text-xs font-semibold text-teal-300 hover:bg-teal-500/25"
+                        title={a.comprovanteHash ?? ""}
+                      >
+                        Ver TXID
+                      </a>
                     ) : (
                       <a
                         href={`/restrito/aportes/${a.id}/comprovante`}

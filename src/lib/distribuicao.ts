@@ -44,8 +44,10 @@ export async function criarDistribuicao(params: {
     const elegiveis = usuarios
       .map((u) => ({
         userId: u.id,
+        // USDT é um saldo separado do capital em R$ (nunca somado no mesmo total) — fica de fora
+        // do capital elegível pra PLR/Distribuição, que ainda só sabe calcular em R$.
         capital: u.aplicacoes
-          .filter((a) => a.status === "CONFIRMADA" || a.status === "SAQUE_SOLICITADO")
+          .filter((a) => (a.status === "CONFIRMADA" || a.status === "SAQUE_SOLICITADO") && a.moeda !== "USDT")
           .reduce((acc, a) => acc + a.valor, 0),
       }))
       .filter((u) => u.capital > 0);

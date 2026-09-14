@@ -61,6 +61,9 @@ export async function adicionarIndicacaoRetroativa(
   if (aplicacao.status !== "CONFIRMADA") {
     return { error: "Só é possível adicionar indicação em aportes já confirmados." };
   }
+  if (aplicacao.moeda === "USDT") {
+    return { error: "Bônus de indicação ainda não se aplica a aportes em USDT." };
+  }
 
   const resultado = await prisma.$transaction((tx) =>
     creditarBonusIndicacaoPorCodigo(tx, {
@@ -99,6 +102,9 @@ export async function liberarBonusIndicacaoManual(
   if (!aplicacao) return { error: "Aporte não encontrado." };
   if (aplicacao.status !== "CONFIRMADA") {
     return { error: "Só é possível liberar bônus em aportes já confirmados." };
+  }
+  if (aplicacao.moeda === "USDT") {
+    return { error: "Bônus de indicação ainda não se aplica a aportes em USDT." };
   }
 
   const resultado = await prisma.$transaction((tx) =>
