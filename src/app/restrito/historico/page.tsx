@@ -28,35 +28,59 @@ export default async function RestritoHistoricoPage({
   const { q } = await searchParams;
   const busca = (q ?? "").trim();
 
-  const filtroUsuario = busca
-    ? { user: { OR: [{ name: { contains: busca, mode: "insensitive" as const } }, { email: { contains: busca, mode: "insensitive" as const } }] } }
-    : {};
+  // Busca por nome precisa cobrir os TRÊS lugares onde um nome pode estar — `User.name` (vem do
+  // login Google, mas fica NULO em quem foi cadastrado por outro caminho, ex: criado direto pelo
+  // admin) e o nome de verdade em PessoaFisica/PessoaJuridica (sempre preenchido no cadastro
+  // completo). Buscar só por `User.name` deixava invisível qualquer investidor com esse campo
+  // nulo — confirmado em produção: 15 contas reais, todas com nome completo cadastrado, mas
+  // `User.name` nulo, ficavam impossíveis de achar pelo nome no Histórico (só pelo e-mail).
+  const buscaPorNome = (busca: string) => ({
+    OR: [
+      { name: { contains: busca, mode: "insensitive" as const } },
+      { email: { contains: busca, mode: "insensitive" as const } },
+      { pessoaFisica: { nomeCompleto: { contains: busca, mode: "insensitive" as const } } },
+      { pessoaJuridica: { razaoSocial: { contains: busca, mode: "insensitive" as const } } },
+    ],
+  });
+  const filtroUsuario = busca ? { user: buscaPorNome(busca) } : {};
   const limite = busca ? 500 : 50;
+
+  const selectUsuario = {
+    name: true,
+    email: true,
+    pessoaFisica: { select: { nomeCompleto: true } },
+    pessoaJuridica: { select: { razaoSocial: true } },
+  };
+  /** Mesma ordem de prioridade usada em restrito/usuarios: nome de verdade do cadastro primeiro,
+   *  só cai pro `User.name` (login Google) ou e-mail se não tiver PessoaFisica/PessoaJuridica. */
+  function nomeExibicao(u: { name: string | null; email: string; pessoaFisica: { nomeCompleto: string } | null; pessoaJuridica: { razaoSocial: string } | null }): string {
+    return u.pessoaFisica?.nomeCompleto ?? u.pessoaJuridica?.razaoSocial ?? u.name ?? u.email;
+  }
 
   const [aplicacoes, saques, creditos, distribuicoes] = await Promise.all([
     prisma.aplicacao.findMany({
       where: filtroUsuario,
-      include: { user: { select: { name: true, email: true } } },
+      include: { user: { select: selectUsuario } },
       orderBy: { criadoEm: "desc" },
       take: limite,
       omit: { comprovante: true },
     }),
     prisma.solicitacaoSaque.findMany({
       where: filtroUsuario,
-      include: { user: { select: { name: true, email: true } } },
+      include: { user: { select: selectUsuario } },
       orderBy: { criadoEm: "desc" },
       take: limite,
     }),
     prisma.creditoCarteira.findMany({
       where: filtroUsuario,
-      include: { user: { select: { name: true, email: true } } },
+      include: { user: { select: selectUsuario } },
       orderBy: { criadoEm: "desc" },
       take: limite,
     }),
     busca
       ? Promise.resolve([])
       : prisma.distribuicaoMensal.findMany({
-          include: { criadoPor: { select: { name: true, email: true } } },
+          include: { criadoPor: { select: selectUsuario } },
           orderBy: { criadoEm: "desc" },
           take: limite,
         }),
@@ -76,7 +100,7 @@ export default async function RestritoHistoricoPage({
               : a.origem === "TRANSFERENCIA"
                 ? "Transferência recebida"
                 : "Aplicação",
-      usuario: a.user.name ?? a.user.email,
+      usuario: nomeExibicao(a.user),
       valor: a.valor,
       detalhe: `Status: ${a.status}`,
       cor: "text-gold-light",
@@ -85,7 +109,7 @@ export default async function RestritoHistoricoPage({
       id: `sq-${s.id}`,
       data: s.criadoEm,
       tipo: `Saque · ${s.tipo === "CAPITAL" ? "Capital" : "Rendimento"}`,
-      usuario: s.user.name ?? s.user.email,
+      usuario: nomeExibicao(s.user),
       valor: -s.valor,
       detalhe: `Status: ${s.status}`,
       cor: "text-red-300",
@@ -94,7 +118,7 @@ export default async function RestritoHistoricoPage({
       id: `cr-${c.id}`,
       data: c.criadoEm,
       tipo: c.tipo === "RENDIMENTO" ? "Crédito de rendimento" : "Crédito de bônus",
-      usuario: c.user.name ?? c.user.email,
+      usuario: nomeExibicao(c.user),
       valor: c.valor,
       detalhe: c.origem,
       cor: "text-emerald-300",
@@ -103,7 +127,7 @@ export default async function RestritoHistoricoPage({
       id: `di-${d.id}`,
       data: d.criadoEm,
       tipo: "Distribuição lançada",
-      usuario: d.criadoPor.name ?? d.criadoPor.email,
+      usuario: nomeExibicao(d.criadoPor),
       valor: d.valorTotal,
       detalhe: `${d.percentual}% · ${formatData(d.periodoInicio)} a ${formatData(d.periodoFim)}`,
       cor: "text-sky-300",
@@ -116,12 +140,7 @@ export default async function RestritoHistoricoPage({
   let investidoresDestacados: ResumoInvestidor[] = [];
   if (busca) {
     const usuariosEncontrados = await prisma.user.findMany({
-      where: {
-        OR: [
-          { name: { contains: busca, mode: "insensitive" } },
-          { email: { contains: busca, mode: "insensitive" } },
-        ],
-      },
+      where: buscaPorNome(busca),
       include: { pessoaFisica: true, pessoaJuridica: true },
       take: 10,
     });
