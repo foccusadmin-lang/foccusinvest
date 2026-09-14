@@ -58,13 +58,13 @@ const statusLabel: Record<string, { label: string; className: string }> = {
 export function PainelDashboard({
   usuario,
   resumo,
-  janelaSaqueRendimentoAberta,
+  janelaSaqueAberta,
   vitrineOperacao,
   comparativoRentabilidade,
 }: {
   usuario: PainelUsuario;
   resumo: ResumoFinanceiro;
-  janelaSaqueRendimentoAberta: boolean;
+  janelaSaqueAberta: boolean;
   vitrineOperacao?: VitrineOperacaoProps | null;
   comparativoRentabilidade?: PontoComparativoClient[];
 }) {
@@ -223,7 +223,7 @@ export function PainelDashboard({
           primeiroNome={usuario.primeiroNome}
           saldoParaReaplicar={resumo.distribuicoesDisponiveis + resumo.bonusIndicacao}
           bonusDisponivel={resumo.bonusIndicacao}
-          janelaSaqueRendimentoAberta={janelaSaqueRendimentoAberta}
+          janelaSaqueAberta={janelaSaqueAberta}
           verificado={usuario.statusCadastro === "APROVADO"}
           capitalPrincipal={resumo.capitalPrincipal}
           capitalDisponivel={resumo.capitalDisponivel}

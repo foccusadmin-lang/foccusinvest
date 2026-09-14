@@ -10,7 +10,7 @@
     },
     {
       "path": "/api/cron/plr-automatico",
-      "schedule": "45 22 * * *"
+      "schedule": "45 22 * * 1-5"
     }
   ]
 }

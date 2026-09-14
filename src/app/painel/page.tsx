@@ -3,7 +3,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { PainelDashboard } from "@/components/painel/dashboard";
 import { getResumoCarteira } from "@/lib/carteira";
-import { janelaSaqueRendimentoAberta } from "@/lib/janela-saque";
+import { janelaSaqueAberta } from "@/lib/janela-saque";
 import { obterLiberacaoAtivaDoUsuario } from "@/lib/emergencia";
 import { getConfiguracao } from "@/lib/configuracao";
 import { obterVitrineOperacaoAtiva } from "@/lib/estrategia";
@@ -86,7 +86,7 @@ export default async function PainelPage() {
         reaplicacaoAutomatica: user.reaplicacaoAutomatica,
       }}
       resumo={resumo}
-      janelaSaqueRendimentoAberta={janelaSaqueRendimentoAberta()}
+      janelaSaqueAberta={janelaSaqueAberta()}
       vitrineOperacao={
         vitrineOperacao
           ? {

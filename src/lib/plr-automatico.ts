@@ -3,24 +3,28 @@ import { criarDistribuicao, SemCapitalElegivelError } from "@/lib/distribuicao";
 import { getConfiguracao } from "@/lib/configuracao";
 
 /**
- * Faixas diárias (% do capital) por tipo de dia — exatamente como definido pelo usuário: dias
- * úteis comuns têm rendimento moderado, sexta tem o pico da semana, fim de semana fica mais
- * baixo. Usadas pra sortear o cronograma de uma campanha inteira na criação (ver
- * gerarCronogramaDiario). Não inventar outros números — só os que foram dados.
+ * Faixas diárias (% do capital) por tipo de dia útil — exatamente como definido pelo usuário:
+ * dias úteis comuns têm rendimento moderado, sexta tem o pico da semana. Usadas pra sortear o
+ * cronograma de uma campanha inteira na criação (ver gerarCronogramaDiario). Não inventar outros
+ * números — só os que foram dados.
+ *
+ * Fim de semana NÃO gera rendimento — motor roda estritamente em dias úteis (decisão explícita
+ * do usuário, revendo a faixa mais baixa de fim de semana que existia antes). `listarDias`
+ * exclui sábado/domingo por completo do cronograma: eles nunca viram CampanhaPlrDia, então nunca
+ * são elegíveis a processamento — o cron da Vercel também só dispara de segunda a sexta (ver
+ * vercel.json), mas isso aqui é a garantia de verdade, já que o fallback em restrito/layout.tsx
+ * roda em qualquer dia da semana.
  */
 export const FAIXA_SEGUNDA_A_QUINTA = { min: 0.1, max: 0.16 };
 export const FAIXA_SEXTA = { min: 0.27, max: 0.33 };
-export const FAIXA_FIM_DE_SEMANA = { min: 0.05, max: 0.08 };
 
 /** Teto absoluto por dia quando o PLR está no modo automático — nenhum dia do cronograma pode
  *  passar disso, nem mesmo pra absorver resíduo de arredondamento (fixado pelo usuário). */
 export const LIMITE_MAXIMO_DIARIO = 0.45;
 
 function faixaDoDia(data: Date): { min: number; max: number } {
-  const diaSemana = data.getUTCDay(); // 0=domingo, 5=sexta, 6=sábado
-  if (diaSemana === 5) return FAIXA_SEXTA;
-  if (diaSemana === 0 || diaSemana === 6) return FAIXA_FIM_DE_SEMANA;
-  return FAIXA_SEGUNDA_A_QUINTA;
+  const diaSemana = data.getUTCDay(); // 5=sexta
+  return diaSemana === 5 ? FAIXA_SEXTA : FAIXA_SEGUNDA_A_QUINTA;
 }
 
 function sortearNaFaixa(faixa: { min: number; max: number }): number {
@@ -31,14 +35,22 @@ function arredondar2(valor: number): number {
   return Math.round(valor * 100) / 100;
 }
 
+/** Só dias úteis (segunda a sexta) — sábado e domingo nunca entram no cronograma. */
 function listarDias(periodoInicio: Date, periodoFim: Date): Date[] {
   const dias: Date[] = [];
   const cursor = new Date(periodoInicio);
   while (cursor <= periodoFim) {
-    dias.push(new Date(cursor));
+    const diaSemana = cursor.getUTCDay();
+    if (diaSemana !== 0 && diaSemana !== 6) dias.push(new Date(cursor));
     cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
   return dias;
+}
+
+/** Quantos dias úteis existem entre duas datas (inclusive) — usado pra checar viabilidade do
+ *  percentual total contra o teto diário, já que fim de semana não conta mais. */
+function contarDiasUteis(periodoInicio: Date, periodoFim: Date): number {
+  return listarDias(periodoInicio, periodoFim).length;
 }
 
 export type DiaCronograma = { data: Date; percentual: number };
@@ -203,11 +215,14 @@ export async function criarCampanhaPlrAutomatica(
   if (periodoFim < periodoInicio) return { error: "A data fim não pode ser antes da data início." };
   if (!validarHorario(horarioLancamento)) return { error: "Informe um horário válido (HH:MM)." };
 
-  const qtdDias = Math.floor((periodoFim.getTime() - periodoInicio.getTime()) / 86400000) + 1;
-  const maximoPossivel = qtdDias * LIMITE_MAXIMO_DIARIO;
+  const qtdDiasUteis = contarDiasUteis(periodoInicio, periodoFim);
+  if (qtdDiasUteis === 0) {
+    return { error: "Esse período não tem nenhum dia útil (o motor não gera rendimento no fim de semana)." };
+  }
+  const maximoPossivel = qtdDiasUteis * LIMITE_MAXIMO_DIARIO;
   if (percentualTotal > maximoPossivel) {
     return {
-      error: `Com o teto de ${LIMITE_MAXIMO_DIARIO}% por dia, o máximo possível em ${qtdDias} dia(s) é ${maximoPossivel.toFixed(2)}% — reduza o percentual total ou aumente o período.`,
+      error: `Com o teto de ${LIMITE_MAXIMO_DIARIO}% por dia, o máximo possível em ${qtdDiasUteis} dia(s) útil(eis) desse período é ${maximoPossivel.toFixed(2)}% — reduza o percentual total ou aumente o período.`,
     };
   }
 

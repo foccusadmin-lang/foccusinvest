@@ -91,7 +91,7 @@ const MINIMO_REAPLICACAO = 100;
 export function AcoesRapidas({
   primeiroNome,
   saldoParaReaplicar,
-  janelaSaqueRendimentoAberta,
+  janelaSaqueAberta,
   verificado,
   capitalPrincipal,
   capitalDisponivel,
@@ -114,7 +114,7 @@ export function AcoesRapidas({
 }: {
   primeiroNome: string;
   saldoParaReaplicar: number;
-  janelaSaqueRendimentoAberta: boolean;
+  janelaSaqueAberta: boolean;
   verificado: boolean;
   capitalPrincipal: number;
   capitalDisponivel: number;
@@ -138,8 +138,8 @@ export function AcoesRapidas({
   const [aberto, setAberto] = useState<TipoAcao | null>(null);
   const reaplicarDesativado = saldoParaReaplicar < MINIMO_REAPLICACAO;
 
-  const saqueCapitalDesativado = !verificado;
-  const saqueRendimentoDesativado = !verificado || !janelaSaqueRendimentoAberta;
+  const saqueCapitalDesativado = !verificado || !janelaSaqueAberta;
+  const saqueRendimentoDesativado = !verificado || !janelaSaqueAberta;
   const dicaNaoVerificado =
     "Disponível após completar o cadastro e ser verificado pelo administrador";
 
@@ -160,7 +160,7 @@ export function AcoesRapidas({
             variant="outline"
             className="w-full cursor-not-allowed opacity-50"
             disabled
-            title={dicaNaoVerificado}
+            title={!verificado ? dicaNaoVerificado : "Disponível às sextas-feiras, das 07h às 18h30"}
           >
             <IconArrowDown width={16} height={16} /> Saque de capital
           </Button>
@@ -175,7 +175,7 @@ export function AcoesRapidas({
             variant="outline"
             className="w-full cursor-not-allowed opacity-50"
             disabled
-            title={!verificado ? dicaNaoVerificado : "Disponível às sextas-feiras, das 08h às 18h30"}
+            title={!verificado ? dicaNaoVerificado : "Disponível às sextas-feiras, das 07h às 18h30"}
           >
             <IconArrowDown width={16} height={16} /> Saque de rendimentos
           </Button>
@@ -217,8 +217,8 @@ export function AcoesRapidas({
         {!verificado && (
           <>Saques liberados após o cadastro ser verificado pelo administrador. </>
         )}
-        Saque de rendimentos disponível às sextas-feiras, 08h-18h30 (horário de Brasília) · reaplicação
-        liberada automaticamente ao acumular {formatMoeda(MINIMO_REAPLICACAO)}.
+        Saques (capital e rendimentos) disponíveis às sextas-feiras, 07h-18h30 (horário de Brasília) ·
+        reaplicação liberada automaticamente ao acumular {formatMoeda(MINIMO_REAPLICACAO)}.
       </p>
 
       <section className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -1725,7 +1725,7 @@ function SaqueRendimentoLiderModal({
         </h3>
         <p className="mt-1 text-sm text-muted">
           Escolha as fontes que quer sacar — total, parcial ou individualmente. Disponível às
-          sextas-feiras, 08h-18h30.
+          sextas-feiras, 07h-18h30.
         </p>
 
         {state?.sucesso ? (

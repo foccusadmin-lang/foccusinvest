@@ -22,7 +22,7 @@ import {
   type FonteSaqueRendimento,
 } from "@/lib/incentivo-lideranca";
 import { getConfiguracao } from "@/lib/configuracao";
-import { janelaSaqueRendimentoAberta, MENSAGEM_JANELA_FECHADA } from "@/lib/janela-saque";
+import { janelaSaqueAberta, MENSAGEM_JANELA_FECHADA } from "@/lib/janela-saque";
 import { valorPorExtenso } from "@/lib/valor-extenso";
 import { enviarEmailContrato } from "@/lib/email";
 import { guardarCodigoIndicadorPendente, creditarBonusIndicacaoPorCodigo } from "@/lib/indicacao";
@@ -366,6 +366,10 @@ export async function solicitarSaqueCapital(
     return { error: (e as Error).message };
   }
 
+  if (!janelaSaqueAberta()) {
+    return { error: MENSAGEM_JANELA_FECHADA };
+  }
+
   const valor = parseValor(formData.get("valor"));
   if (!valor || valor <= 0 || Number.isNaN(valor)) {
     return { error: "Informe um valor válido." };
@@ -460,7 +464,7 @@ export async function solicitarSaqueRendimento(
     return { error: (e as Error).message };
   }
 
-  if (!janelaSaqueRendimentoAberta()) {
+  if (!janelaSaqueAberta()) {
     return { error: MENSAGEM_JANELA_FECHADA };
   }
 
@@ -556,7 +560,7 @@ export async function solicitarSaqueRendimentoPorFonte(
     return { error: (e as Error).message };
   }
 
-  if (!janelaSaqueRendimentoAberta()) {
+  if (!janelaSaqueAberta()) {
     return { error: MENSAGEM_JANELA_FECHADA };
   }
 

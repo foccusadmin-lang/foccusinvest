@@ -46,15 +46,16 @@ COMO FUNCIONA A PLATAFORMA
 3. Capital
    - Soma de todos os aportes confirmados. Fica "em carência" até completar 90 dias da aprovação; depois disso
      fica "disponível para saque".
-   - Saque de capital: só depois da carência de 90 dias e com cadastro Verificado. Pode ser feito em qualquer
-     dia/horário, via chave Pix informada na hora. Fica pendente até o admin aprovar e pagar.
+   - Saque de capital: só depois da carência de 90 dias e com cadastro Verificado. Só é permitido às
+     SEXTAS-FEIRAS, das 07h às 18h30 (horário de Brasília) — fora desse horário o botão fica bloqueado.
+     Via chave Pix informada na hora. Fica pendente até o admin aprovar e pagar.
 
 4. Rendimentos / PLR (Participação nos Lucros)
    - O admin lança periodicamente um resultado (percentual sobre o capital elegível de cada investidor).
      Esse valor é creditado dia a dia (diluído ao longo do período), não tudo de uma vez.
    - Rendimento fica disponível assim que creditado (não tem carência) — aparece em "Rend. disponível" e no
      card "Rendimentos" do Resumo.
-   - Saque de rendimento: só é permitido às SEXTAS-FEIRAS, das 08h às 18h30 (horário de Brasília). Fora
+   - Saque de rendimento: só é permitido às SEXTAS-FEIRAS, das 07h às 18h30 (horário de Brasília). Fora
      desse horário o botão fica bloqueado. Exige cadastro Verificado.
    - Reaplicar: junta o rendimento disponível (e bônus, e incentivo de liderança se for líder) e cria um
      novo lote de Capital, com nova carência de 90 dias. Valor mínimo de R$ 100,00 pra reaplicar. Líderes têm

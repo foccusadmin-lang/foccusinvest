@@ -1,6 +1,6 @@
 import { PainelDashboard } from "@/components/painel/dashboard";
 import { ultimasSextas } from "@/lib/datas";
-import { janelaSaqueRendimentoAberta } from "@/lib/janela-saque";
+import { janelaSaqueAberta } from "@/lib/janela-saque";
 
 export default function PreviewPainelPage() {
   const sextas = ultimasSextas(8);
@@ -33,7 +33,7 @@ export default function PreviewPainelPage() {
         proximaLiberacao: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
         historicoRendimentos: sextas.map((data, i) => ({ data, valor: valores[i] })),
       }}
-      janelaSaqueRendimentoAberta={janelaSaqueRendimentoAberta()}
+      janelaSaqueAberta={janelaSaqueAberta()}
       vitrineOperacao={{
         nome: "Estratégia WEM",
         moedas: "USD, EUR, XAU (Ouro)",

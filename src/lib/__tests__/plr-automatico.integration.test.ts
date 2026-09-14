@@ -24,9 +24,25 @@ import { sincronizarDistribuicoesDoUsuario } from "@/lib/distribuicao";
 // `vi.setSystemTime(AGORA_FAKE)` pra fazer o próprio "agora" da produção virar a âncora durante o
 // teste — os mesmos offsets abaixo então produzem passado/presente/futuro de verdade, sem
 // depender do relógio real (e sem chance de colidir com a campanha real de setembro/2026).
-const ANCORA = new Date(Date.UTC(2015, 0, 10));
-function diaAncora(offsetDias: number): Date {
-  return new Date(ANCORA.getTime() + offsetDias * 86400000);
+//
+// ANCORA é uma segunda-feira (2015-01-12) de propósito, e `diaAncora` pula fim de semana ao
+// contar os offsets — o motor de PLR automático não gera mais nenhum dia de cronograma pra
+// sábado/domingo (decisão explícita do usuário: roda estritamente em dias úteis), então um
+// offset "de calendário" poderia cair num dia que nunca vira CampanhaPlrDia nenhum. Cada
+// diaAncora(N) é sempre o N-ésimo dia ÚTIL a partir da âncora (pra trás se N for negativo) — os
+// comentários "X dias" espalhados pelos testes abaixo continuam corretos, porque a contagem
+// "offset final − offset inicial + 1" é a mesma seja em dias corridos ou em dias úteis.
+const ANCORA = new Date(Date.UTC(2015, 0, 12));
+function diaAncora(offsetDiasUteis: number): Date {
+  let resultado = new Date(ANCORA);
+  const passo = offsetDiasUteis >= 0 ? 1 : -1;
+  let restante = Math.abs(offsetDiasUteis);
+  while (restante > 0) {
+    resultado = new Date(resultado.getTime() + passo * 86400000);
+    const diaSemana = resultado.getUTCDay();
+    if (diaSemana !== 0 && diaSemana !== 6) restante--;
+  }
+  return resultado;
 }
 // Instante fake pra vi.setSystemTime — meio-dia de Brasília do MESMO dia-calendário da ANCORA
 // (meia-noite UTC pura resolveria pro dia ANTERIOR em Brasília, já que Brasília = UTC-3;
@@ -156,7 +172,7 @@ describe("PLR automático — campanha e motor de processamento", () => {
     const r1 = await criarCampanhaPlrAutomatica({
       percentualTotal: 0.5, // período de 2 dias, máximo possível é 0,90%
       periodoInicio: hoje,
-      periodoFim: new Date(hoje.getTime() + 86400000),
+      periodoFim: diaAncora(1),
       horarioLancamento: "00:00",
       criadoPorId: adminId,
     });
@@ -165,7 +181,7 @@ describe("PLR automático — campanha e motor de processamento", () => {
     const r2 = await criarCampanhaPlrAutomatica({
       percentualTotal: 0.8,
       periodoInicio: hoje,
-      periodoFim: new Date(hoje.getTime() + 86400000),
+      periodoFim: diaAncora(1),
       horarioLancamento: "00:00",
       criadoPorId: adminId,
     });

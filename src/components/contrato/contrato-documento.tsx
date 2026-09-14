@@ -174,7 +174,7 @@ export function ContratoDocumento({
         </p>
         <p className="mt-2">
           5.2. Atualmente, os pedidos de saque são processados <strong>às sextas-feiras</strong>,
-          das <strong>08h00 às 18h00 (horário de Brasília)</strong>.
+          das <strong>07h00 às 18h30 (horário de Brasília)</strong>.
         </p>
         <p className="mt-2">
           5.3. A CONTRATADA poderá alterar o calendário operacional mediante comunicação prévia
