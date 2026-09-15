@@ -115,6 +115,7 @@ export async function reservarIncentivoLiderancaParaSaque(
           valor: cheio.valor - valorRestanteNaLinha,
           moeda: cheio.moeda,
           origem: cheio.origem,
+          criadoEm: cheio.criadoEm,
           solicitacaoSaqueId,
         },
       });
@@ -186,6 +187,7 @@ export async function reaplicarSaldoPorFonte(
             valor: cheio.valor - valorRestanteNaLinha,
             moeda: cheio.moeda,
             origem: cheio.origem,
+            criadoEm: cheio.criadoEm,
             utilizadoEm: new Date(),
           },
         });
@@ -271,6 +273,7 @@ export async function reservarSaqueRendimentoPorFonte(
             valor: cheio.valor - valorRestanteNaLinha,
             moeda: cheio.moeda,
             origem: cheio.origem,
+            criadoEm: cheio.criadoEm,
             solicitacaoSaqueId,
           },
         });

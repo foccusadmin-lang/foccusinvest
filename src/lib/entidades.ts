@@ -162,6 +162,7 @@ export async function debitarSaldoDisponivelParaDoacao(
           valor: cheio.valor - valorRestanteNaLinha,
           moeda: cheio.moeda,
           origem: cheio.origem,
+          criadoEm: cheio.criadoEm,
           utilizadoEm: new Date(),
         },
       });

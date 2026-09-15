@@ -413,6 +413,7 @@ export async function reaplicarSaldoDisponivel(
             valor: cheio.valor - valorRestanteNaLinha,
             moeda: cheio.moeda,
             origem: cheio.origem,
+            criadoEm: cheio.criadoEm,
             utilizadoEm: new Date(),
           },
         });
@@ -567,6 +568,7 @@ export async function debitarSaldoParaServico(
             valor: cheio.valor - valorRestanteNaLinha,
             moeda: cheio.moeda,
             origem: cheio.origem,
+            criadoEm: cheio.criadoEm,
             utilizadoEm: new Date(),
           },
         });
