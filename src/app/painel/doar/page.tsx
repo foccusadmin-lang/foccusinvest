@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { Logo } from "@/components/logo";
 import { getResumoCarteira } from "@/lib/carteira";
+import { usuarioTemServicoAtivo } from "@/lib/servicos-contratacao";
 import { EntidadesLista, type EntidadeCard } from "./entidades-lista";
 
 const TIPO_LABEL: Record<string, string> = {
@@ -18,6 +19,32 @@ const TIPO_LABEL: Record<string, string> = {
 export default async function DoarPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
+
+  const servicoAtivo = await usuarioTemServicoAtivo(session.user.id, "DOAR_ENTIDADE");
+  if (!servicoAtivo) {
+    return (
+      <div className="min-h-screen bg-background">
+        <header className="border-b border-border/80 bg-ink/80">
+          <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3 sm:px-6">
+            <Logo size={30} />
+            <Link href="/painel" className="text-sm text-muted hover:text-gold-light">
+              Voltar ao painel
+            </Link>
+          </div>
+        </header>
+        <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+          <h1 className="text-2xl font-bold text-foreground">Doar para uma entidade</h1>
+          <div className="mt-6 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-6 text-sm text-amber-200">
+            Esse serviço ainda não foi contratado. Contrate &ldquo;Doar para uma entidade&rdquo; em{" "}
+            <Link href="/painel/servicos" className="font-semibold text-gold-light underline hover:text-gold">
+              Pacotes de Serviços
+            </Link>{" "}
+            pra ver e apoiar entidades verificadas na plataforma.
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   const [entidades, resumo] = await Promise.all([
     prisma.entidade.findMany({

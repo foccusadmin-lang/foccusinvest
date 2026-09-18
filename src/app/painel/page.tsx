@@ -8,6 +8,7 @@ import { obterLiberacaoAtivaDoUsuario } from "@/lib/emergencia";
 import { getConfiguracao } from "@/lib/configuracao";
 import { obterVitrineOperacaoAtiva } from "@/lib/estrategia";
 import { obterComparativoRentabilidade } from "@/lib/indices-mercado";
+import { usuarioTemServicoAtivo } from "@/lib/servicos-contratacao";
 
 export default async function PainelPage() {
   const session = await auth();
@@ -38,6 +39,7 @@ export default async function PainelPage() {
 
   const resumo = await getResumoCarteira(user.id);
   const liberacaoEmergencial = await obterLiberacaoAtivaDoUsuario(user.id);
+  const reaplicacaoAutomaticaServicoAtivo = await usuarioTemServicoAtivo(user.id, "REAPLICACAO_AUTOMATICA");
   const configuracao = await getConfiguracao();
   const vitrineOperacao = await obterVitrineOperacaoAtiva();
   const comparativoRentabilidade = await obterComparativoRentabilidade(6);
@@ -84,6 +86,7 @@ export default async function PainelPage() {
         indicadosDiretos,
         aplicacaoBensAtiva: configuracao.aplicacaoBensAtiva,
         reaplicacaoAutomatica: user.reaplicacaoAutomatica,
+        reaplicacaoAutomaticaServicoAtivo,
       }}
       resumo={resumo}
       janelaSaqueAberta={janelaSaqueAberta()}

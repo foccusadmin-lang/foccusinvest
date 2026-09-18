@@ -450,6 +450,15 @@ export async function reaplicarAutomaticamenteSeNecessario(tx: TxClient, userId:
   const user = await tx.user.findUnique({ where: { id: userId }, select: { reaplicacaoAutomatica: true } });
   if (!user?.reaplicacaoAutomatica) return;
 
+  // A flag do usuário pode ficar "presa" em true se o serviço "Reaplicação automática" (Pacotes
+  // de Serviços) for desativado por algum caminho que não passe por desativarServico — checagem
+  // de novo aqui, no ponto que de fato executa, e não só no toggle que liga a flag.
+  const servicoAtivo = await tx.contratoServico.findFirst({
+    where: { userId, status: "ATIVO", servico: { codigo: "REAPLICACAO_AUTOMATICA" } },
+    select: { id: true },
+  });
+  if (!servicoAtivo) return;
+
   const creditos = await tx.creditoCarteira.findMany({
     where: { userId, tipo: { in: ["RENDIMENTO", "BONUS"] }, utilizadoEm: null, solicitacaoSaqueId: null },
   });

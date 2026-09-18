@@ -7,6 +7,7 @@ import { reaplicarAutomaticamenteSeNecessario, VALOR_MINIMO_REAPLICACAO } from "
  *  apagada a cada teste (mesmo padrão dos demais testes de integração deste projeto). */
 describe("reaplicarAutomaticamenteSeNecessario", () => {
   let userId: string;
+  let servicoId: string;
 
   beforeEach(async () => {
     const user = await prisma.user.create({
@@ -18,16 +19,45 @@ describe("reaplicarAutomaticamenteSeNecessario", () => {
       },
     });
     userId = user.id;
+
+    // A execução automática exige o serviço "Reaplicação automática" (Pacotes de Serviços)
+    // ATIVO pro usuário — contrato de teste dedicado, igual ao padrão real de contratação.
+    const servico = await prisma.servicoPacote.upsert({
+      where: { codigo: "REAPLICACAO_AUTOMATICA" },
+      update: {},
+      create: { codigo: "REAPLICACAO_AUTOMATICA", nome: "Reaplicação automática", descricao: "Teste", tarifa: 6.58, ordem: 1 },
+    });
+    servicoId = servico.id;
   });
 
   afterEach(async () => {
+    await prisma.contratoServico.deleteMany({ where: { userId } });
     await prisma.aplicacao.deleteMany({ where: { userId } });
     await prisma.creditoCarteira.deleteMany({ where: { userId } });
     await prisma.logAuditoria.deleteMany({ where: { userId } });
     await prisma.user.delete({ where: { id: userId } });
   });
 
+  async function contratarServicoAtivo() {
+    await prisma.contratoServico.create({
+      data: { userId, servicoId, status: "ATIVO", formaContratacao: "INDIVIDUAL", contratadoEm: new Date(), ativadoEm: new Date() },
+    });
+  }
+
+  it("não faz nada se o serviço não foi contratado, mesmo com a opção ligada e saldo suficiente", async () => {
+    await prisma.user.update({ where: { id: userId }, data: { reaplicacaoAutomatica: true } });
+    await prisma.creditoCarteira.create({
+      data: { userId, tipo: "RENDIMENTO", valor: VALOR_MINIMO_REAPLICACAO + 50, moeda: "BRL", origem: "Teste" },
+    });
+
+    await prisma.$transaction((tx) => reaplicarAutomaticamenteSeNecessario(tx, userId));
+
+    const aplicacoes = await prisma.aplicacao.findMany({ where: { userId, origem: { in: ["REAPLICACAO", "REAPLICACAO_AUTOMATICA"] } } });
+    expect(aplicacoes.length).toBe(0);
+  });
+
   it("não faz nada se o investidor não ligou a opção, mesmo com saldo suficiente", async () => {
+    await contratarServicoAtivo();
     await prisma.creditoCarteira.create({
       data: { userId, tipo: "RENDIMENTO", valor: VALOR_MINIMO_REAPLICACAO + 50, moeda: "BRL", origem: "Teste" },
     });
@@ -39,6 +69,7 @@ describe("reaplicarAutomaticamenteSeNecessario", () => {
   });
 
   it("não faz nada se o saldo ainda não bateu o mínimo, mesmo com a opção ligada", async () => {
+    await contratarServicoAtivo();
     await prisma.user.update({ where: { id: userId }, data: { reaplicacaoAutomatica: true } });
     await prisma.creditoCarteira.create({
       data: { userId, tipo: "RENDIMENTO", valor: VALOR_MINIMO_REAPLICACAO - 10, moeda: "BRL", origem: "Teste" },
@@ -51,6 +82,7 @@ describe("reaplicarAutomaticamenteSeNecessario", () => {
   });
 
   it("reaplica sozinho o saldo (rendimento + bônus) quando a opção está ligada e o mínimo foi atingido", async () => {
+    await contratarServicoAtivo();
     await prisma.user.update({ where: { id: userId }, data: { reaplicacaoAutomatica: true } });
     await prisma.creditoCarteira.create({
       data: { userId, tipo: "RENDIMENTO", valor: 80, moeda: "BRL", origem: "Teste rendimento" },
@@ -77,6 +109,7 @@ describe("reaplicarAutomaticamenteSeNecessario", () => {
   });
 
   it("não reaplica duas vezes o mesmo saldo já usado numa chamada anterior", async () => {
+    await contratarServicoAtivo();
     await prisma.user.update({ where: { id: userId }, data: { reaplicacaoAutomatica: true } });
     await prisma.creditoCarteira.create({
       data: { userId, tipo: "RENDIMENTO", valor: 150, moeda: "BRL", origem: "Teste" },

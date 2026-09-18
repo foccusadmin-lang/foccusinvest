@@ -30,6 +30,7 @@ import type { CategoriaBem } from "@prisma/client";
 import { CARENCIA_MESES_PADRAO_BEM, calcularLiberacaoBem, LABEL_CATEGORIA_BEM } from "@/lib/bens";
 import { confirmarAporte } from "@/lib/aportes";
 import { prepararDadosSaquePix, obterSnapshotInvestidor } from "@/lib/saque-pix";
+import { usuarioTemServicoAtivo } from "@/lib/servicos-contratacao";
 
 // `aviso` é como `sucesso` (a operação foi registrada, não é um erro), mas pra casos que merecem
 // destaque visual de alerta em vez do verde de sucesso normal — hoje só o bloqueio de aporte
@@ -785,6 +786,15 @@ export async function solicitarSaqueEmergencia(
 export async function definirReaplicacaoAutomatica(ativa: boolean): Promise<{ error?: string }> {
   const session = await auth();
   if (!session?.user?.id) return { error: "Não autenticado." };
+
+  if (ativa) {
+    const temServicoAtivo = await usuarioTemServicoAtivo(session.user.id, "REAPLICACAO_AUTOMATICA");
+    if (!temServicoAtivo) {
+      return {
+        error: "Contrate o serviço \"Reaplicação automática\" em Pacotes de Serviços pra usar essa opção.",
+      };
+    }
+  }
 
   await prisma.user.update({
     where: { id: session.user.id },

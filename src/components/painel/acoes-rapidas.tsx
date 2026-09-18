@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Button, LinkButton } from "@/components/ui/button";
 import { MoneyInput } from "@/components/ui/money-input";
 import { IconPlus, IconArrowDown, IconRefresh, IconHeart, IconAlert, IconUsers, IconPackage, IconWhatsapp, IconHeadset } from "@/components/icons";
@@ -113,6 +114,7 @@ export function AcoesRapidas({
   bonusDisponivel,
   aplicacaoBensAtiva,
   reaplicacaoAutomatica,
+  reaplicacaoAutomaticaServicoAtivo,
 }: {
   primeiroNome: string;
   saldoParaReaplicar: number;
@@ -136,6 +138,7 @@ export function AcoesRapidas({
   bonusDisponivel: number;
   aplicacaoBensAtiva: boolean;
   reaplicacaoAutomatica: boolean;
+  reaplicacaoAutomaticaServicoAtivo: boolean;
 }) {
   const [aberto, setAberto] = useState<TipoAcao | null>(null);
   const reaplicarDesativado = saldoParaReaplicar < MINIMO_REAPLICACAO;
@@ -321,6 +324,7 @@ export function AcoesRapidas({
           bonusDisponivel={bonusDisponivel}
           moeda={moeda}
           reaplicacaoAutomaticaInicial={reaplicacaoAutomatica}
+          reaplicacaoAutomaticaServicoAtivo={reaplicacaoAutomaticaServicoAtivo}
         />
       )}
       {aberto === "saque-rendimento" && ehLider && (
@@ -351,6 +355,7 @@ export function AcoesRapidas({
             ehLider={ehLider}
             incentivoLiderancaDisponivel={incentivoLiderancaDisponivel}
             reaplicacaoAutomaticaInicial={reaplicacaoAutomatica}
+            reaplicacaoAutomaticaServicoAtivo={reaplicacaoAutomaticaServicoAtivo}
           />
         )}
     </>
@@ -1196,15 +1201,42 @@ function SaqueEmergenciaModal({
 /** Manual/Automático da reaplicação — quando Automático, o próprio investidor reaplica sozinho
  *  assim que o saldo disponível (rendimento + bônus) bater o mínimo, sem precisar clicar em
  *  "Reaplicar agora" toda vez (ver reaplicarAutomaticamenteSeNecessario, em lib/carteira.ts). */
-function ToggleReaplicacaoAutomatica({ ativaInicial }: { ativaInicial: boolean }) {
+function ToggleReaplicacaoAutomatica({
+  ativaInicial,
+  servicoAtivo,
+}: {
+  ativaInicial: boolean;
+  servicoAtivo: boolean;
+}) {
   const [ativa, setAtiva] = useState(ativaInicial);
+  const [erro, setErro] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   function alternar(novoValor: boolean) {
+    setErro(null);
     setAtiva(novoValor);
     startTransition(async () => {
-      await definirReaplicacaoAutomatica(novoValor);
+      const resultado = await definirReaplicacaoAutomatica(novoValor);
+      if (resultado.error) {
+        setAtiva(!novoValor);
+        setErro(resultado.error);
+      }
     });
+  }
+
+  if (!servicoAtivo) {
+    return (
+      <div className="rounded-xl border border-border bg-surface-2 p-3">
+        <span className="text-sm font-medium text-foreground/90">Reaplicação automática</span>
+        <p className="mt-1.5 text-xs text-muted">
+          Contrate o serviço &ldquo;Reaplicação automática&rdquo; em{" "}
+          <Link href="/painel/servicos" className="text-gold-light underline hover:text-gold">
+            Pacotes de Serviços
+          </Link>{" "}
+          pra ligar essa opção.
+        </p>
+      </div>
+    );
   }
 
   return (
@@ -1239,6 +1271,7 @@ function ToggleReaplicacaoAutomatica({ ativaInicial }: { ativaInicial: boolean }
           ? `Ligado: sempre que seu saldo disponível atingir ${formatMoeda(MINIMO_REAPLICACAO)} ou mais, reaplica sozinho — sem precisar clicar em "Reaplicar agora".`
           : `Desligado: você decide quando reaplicar, clicando em "Reaplicar agora".`}
       </p>
+      {erro && <p className="mt-1.5 text-xs text-red-400">{erro}</p>}
     </div>
   );
 }
@@ -1255,6 +1288,7 @@ function AcaoModal({
   ehLider,
   incentivoLiderancaDisponivel,
   reaplicacaoAutomaticaInicial,
+  reaplicacaoAutomaticaServicoAtivo,
 }: {
   tipo: TipoAcaoSimples;
   onClose: () => void;
@@ -1267,6 +1301,7 @@ function AcaoModal({
   ehLider: boolean;
   incentivoLiderancaDisponivel: number;
   reaplicacaoAutomaticaInicial: boolean;
+  reaplicacaoAutomaticaServicoAtivo: boolean;
 }) {
   const cfg = CONFIG[tipo];
   const [state, action, pending] = useActionState(cfg.action, undefined);
@@ -1366,7 +1401,10 @@ function AcaoModal({
 
         {tipo === "reaplicar" && (
           <div className="mt-3">
-            <ToggleReaplicacaoAutomatica ativaInicial={reaplicacaoAutomaticaInicial} />
+            <ToggleReaplicacaoAutomatica
+              ativaInicial={reaplicacaoAutomaticaInicial}
+              servicoAtivo={reaplicacaoAutomaticaServicoAtivo}
+            />
           </div>
         )}
 
@@ -1591,6 +1629,7 @@ function ReaplicarLiderModal({
   bonusDisponivel,
   moeda,
   reaplicacaoAutomaticaInicial,
+  reaplicacaoAutomaticaServicoAtivo,
 }: {
   onClose: () => void;
   plrDisponivel: number;
@@ -1598,6 +1637,7 @@ function ReaplicarLiderModal({
   bonusDisponivel: number;
   moeda: "BRL" | "USD" | "USDT";
   reaplicacaoAutomaticaInicial: boolean;
+  reaplicacaoAutomaticaServicoAtivo: boolean;
 }) {
   const [state, action, pending] = useActionState(reaplicarPorFonte, undefined);
   const router = useRouter();
@@ -1668,7 +1708,10 @@ function ReaplicarLiderModal({
         </p>
 
         <div className="mt-3">
-          <ToggleReaplicacaoAutomatica ativaInicial={reaplicacaoAutomaticaInicial} />
+          <ToggleReaplicacaoAutomatica
+            ativaInicial={reaplicacaoAutomaticaInicial}
+            servicoAtivo={reaplicacaoAutomaticaServicoAtivo}
+          />
         </div>
 
         {state?.sucesso ? (

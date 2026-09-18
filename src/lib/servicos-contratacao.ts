@@ -311,7 +311,10 @@ export async function contratarServicos(
  *  status individual muda e a funcionalidade correspondente passa a ficar oculta/bloqueada de
  *  novo. Efeito imediato. */
 export async function desativarServico(userId: string, servicoId: string): Promise<{ error?: string }> {
-  const contrato = await prisma.contratoServico.findUnique({ where: { userId_servicoId: { userId, servicoId } } });
+  const contrato = await prisma.contratoServico.findUnique({
+    where: { userId_servicoId: { userId, servicoId } },
+    include: { servico: true },
+  });
   if (!contrato) return { error: "Serviço não contratado." };
   if (contrato.status !== "ATIVO" && contrato.status !== "CONTRATADO_AGUARDANDO_ELEGIBILIDADE") {
     return { error: "Este serviço não está ativo." };
@@ -325,6 +328,13 @@ export async function desativarServico(userId: string, servicoId: string): Promi
         desativadoEm: new Date(),
       },
     });
+
+    // Reaplicação automática desliga junto — sem isso a flag do usuário ficava "ligada" mesmo
+    // sem o serviço, e a funcionalidade correspondente devia ficar oculta/bloqueada de novo.
+    if (contrato.servico.codigo === "REAPLICACAO_AUTOMATICA") {
+      await tx.user.update({ where: { id: userId }, data: { reaplicacaoAutomatica: false } });
+    }
+
     await tx.logAuditoria.create({
       data: { userId, acao: "servico_desativado", detalhes: `Serviço ${servicoId}` },
     });

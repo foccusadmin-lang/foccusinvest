@@ -6,6 +6,9 @@ import { prisma } from "@/lib/prisma";
 import { formatMoeda } from "@/lib/format";
 import { debitarSaldoDisponivelParaDoacao, creditarDoacaoNaEntidade } from "@/lib/entidades";
 import { SaldoInsuficienteError } from "@/lib/carteira";
+import { usuarioTemServicoAtivo } from "@/lib/servicos-contratacao";
+
+const ERRO_SERVICO_INATIVO = "Contrate o serviço \"Doar para uma entidade\" em Pacotes de Serviços pra doar.";
 
 export type DoacaoState = { error?: string; sucesso?: string } | undefined;
 
@@ -31,6 +34,9 @@ async function nomeDaEntidade(entidadeId: string): Promise<string> {
 export async function doarComSaldo(_prevState: DoacaoState, formData: FormData): Promise<DoacaoState> {
   const session = await auth();
   if (!session?.user?.id) return { error: "Não autenticado." };
+
+  const temServicoAtivo = await usuarioTemServicoAtivo(session.user.id, "DOAR_ENTIDADE");
+  if (!temServicoAtivo) return { error: ERRO_SERVICO_INATIVO };
 
   const entidadeId = String(formData.get("entidadeId") ?? "");
   const valor = parseValor(formData.get("valor"));
@@ -90,6 +96,9 @@ export async function criarDoacaoNovaAplicacao(
 ): Promise<DoacaoState> {
   const session = await auth();
   if (!session?.user?.id) return { error: "Não autenticado." };
+
+  const temServicoAtivo = await usuarioTemServicoAtivo(session.user.id, "DOAR_ENTIDADE");
+  if (!temServicoAtivo) return { error: ERRO_SERVICO_INATIVO };
 
   const entidadeId = String(formData.get("entidadeId") ?? "");
   const valor = parseValor(formData.get("valor"));
