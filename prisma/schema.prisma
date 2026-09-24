@@ -499,6 +499,13 @@ model SolicitacaoSaque {
   dataProgramadaPagamento DateTime?
   pagoEm                  DateTime?
 
+  // Só preenchido no saque de emergência self-service (capital em carência, ver
+  // executarSaqueEmergenciaCarencia em lib/emergencia.ts): data (15 dias úteis após a
+  // solicitação) a partir da qual, com o modo automático de saque de capital ligado, o cron
+  // libera sozinho (reserva já feita na criação, só falta o Pix — nunca marca como PAGO
+  // sozinho). No modo manual, é só informativo pro admin — ele pode confirmar antes ou depois.
+  liberacaoAutomaticaEm DateTime?
+
   // Chave de idempotência enviada pelo formulário — bloqueia duplicidade por clique repetido/
   // reenvio de rede (ver criarSolicitacaoSaquePix, em lib/saque-pix.ts).
   idempotencyKey String? @unique

@@ -2,6 +2,7 @@ import { auth } from "@/auth";
 import { AdminNav } from "@/components/admin/admin-nav";
 import { liberarIncentivoAutomaticoSeNecessario } from "@/lib/incentivo-lideranca";
 import { processarDiasPendentes } from "@/lib/plr-automatico";
+import { liberarSaquesEmergenciaCarenciaVencidos } from "@/lib/emergencia";
 
 export default async function RestritoLayout({
   children,
@@ -25,6 +26,12 @@ export default async function RestritoLayout({
   // processado uma vez), best-effort, nunca quebra a navegação.
   await processarDiasPendentes().catch((e) =>
     console.error("Falha no fallback do PLR automático:", e)
+  );
+
+  // Saque de emergência self-service (capital em carência) vencido em 15 dias úteis, no modo
+  // automático — mesma proteção contra cron silencioso. Idempotente, best-effort.
+  await liberarSaquesEmergenciaCarenciaVencidos().catch((e) =>
+    console.error("Falha no fallback da liberação do saque de emergência:", e)
   );
 
   return (

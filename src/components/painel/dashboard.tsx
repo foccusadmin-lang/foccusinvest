@@ -51,6 +51,7 @@ export type PainelUsuario = {
   aplicacaoBensAtiva?: boolean;
   reaplicacaoAutomatica?: boolean;
   reaplicacaoAutomaticaServicoAtivo?: boolean;
+  saqueEmergenciaServicoAtivo?: boolean;
 };
 
 const statusLabel: Record<string, { label: string; className: string }> = {
@@ -266,6 +267,7 @@ export function PainelDashboard({
           aplicacaoBensAtiva={usuario.aplicacaoBensAtiva ?? true}
           reaplicacaoAutomatica={usuario.reaplicacaoAutomatica ?? false}
           reaplicacaoAutomaticaServicoAtivo={usuario.reaplicacaoAutomaticaServicoAtivo ?? false}
+          saqueEmergenciaServicoAtivo={usuario.saqueEmergenciaServicoAtivo ?? false}
         />
 
         {vitrineOperacao && <VitrineOperacao {...vitrineOperacao} />}

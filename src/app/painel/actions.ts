@@ -14,7 +14,11 @@ import {
   SaldoInsuficienteError,
   VALOR_MINIMO_REAPLICACAO,
 } from "@/lib/carteira";
-import { obterLiberacaoAtivaDoUsuario, executarSaqueEmergencial } from "@/lib/emergencia";
+import {
+  obterLiberacaoAtivaDoUsuario,
+  executarSaqueEmergencial,
+  executarSaqueEmergenciaCarencia,
+} from "@/lib/emergencia";
 import {
   reaplicarSaldoPorFonte,
   type FonteReaplicacao,
@@ -778,6 +782,38 @@ export async function solicitarSaqueEmergencia(
   revalidatePath("/restrito/saques");
 
   return { sucesso: resultado.mensagem };
+}
+
+/** Saque de emergência self-service de capital em carência (serviço "Saque de emergência" ativo):
+ *  taxa de 15% e liberação em 15 dias úteis — regras em executarSaqueEmergenciaCarencia. */
+export async function solicitarSaqueEmergenciaCarencia(
+  _prevState: AcaoState,
+  formData: FormData
+): Promise<AcaoState> {
+  let userId: string;
+  try {
+    userId = await requireVerifiedUserId();
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+
+  const chavePixTexto = String(formData.get("chavePix") ?? "").trim();
+  const chavePixTipo = String(formData.get("chavePixTipo") ?? "").trim();
+  if (!chavePixTexto) return { error: "Informe a chave Pix para receber o saque." };
+
+  const resultado = await executarSaqueEmergenciaCarencia({
+    userId,
+    valorBruto: parseValor(formData.get("valor")),
+    chavePixTexto,
+    chavePixTipo,
+    idempotencyKey: String(formData.get("idempotencyKey") ?? "").trim() || null,
+  });
+  if (resultado.error) return { error: resultado.error };
+
+  revalidatePath("/painel");
+  revalidatePath("/painel/historico");
+  revalidatePath("/restrito/saques");
+  return { sucesso: resultado.sucesso };
 }
 
 /** Liga/desliga a reaplicação automática do próprio investidor — quando ligada, o saldo

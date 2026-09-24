@@ -50,6 +50,7 @@ export type SaqueLinha = {
   pixTxid: string | null;
   dataProgramadaPagamento: Date | null;
   pagoEm: Date | null;
+  liberacaoAutomaticaEm?: Date | null;
   user: { name: string | null; email: string };
   processadoPor: { name: string | null; email: string } | null;
 };
@@ -387,6 +388,12 @@ function Tabela({
                     {s.emergencial && s.motivoEmergencia && (
                       <p className="mt-1 max-w-[220px] text-xs text-red-200/80">
                         Motivo: {s.motivoEmergencia}
+                      </p>
+                    )}
+                    {s.liberacaoAutomaticaEm && s.status === "SOLICITADO" && (
+                      <p className="mt-1 max-w-[220px] text-xs text-amber-200/80">
+                        Prazo de 15 dias úteis: {formatData(s.liberacaoAutomaticaEm)} (automático libera
+                        nessa data; manual, confirme aqui)
                       </p>
                     )}
                     {s.processadoPor && (

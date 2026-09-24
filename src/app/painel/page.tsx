@@ -40,6 +40,7 @@ export default async function PainelPage() {
   const resumo = await getResumoCarteira(user.id);
   const liberacaoEmergencial = await obterLiberacaoAtivaDoUsuario(user.id);
   const reaplicacaoAutomaticaServicoAtivo = await usuarioTemServicoAtivo(user.id, "REAPLICACAO_AUTOMATICA");
+  const saqueEmergenciaServicoAtivo = await usuarioTemServicoAtivo(user.id, "SAQUE_EMERGENCIA");
   const configuracao = await getConfiguracao();
   const vitrineOperacao = await obterVitrineOperacaoAtiva();
   const comparativoRentabilidade = await obterComparativoRentabilidade(6);
@@ -87,6 +88,7 @@ export default async function PainelPage() {
         aplicacaoBensAtiva: configuracao.aplicacaoBensAtiva,
         reaplicacaoAutomatica: user.reaplicacaoAutomatica,
         reaplicacaoAutomaticaServicoAtivo,
+        saqueEmergenciaServicoAtivo,
       }}
       resumo={resumo}
       janelaSaqueAberta={janelaSaqueAberta()}

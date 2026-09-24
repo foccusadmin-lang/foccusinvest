@@ -1,11 +1,28 @@
 import { prisma } from "@/lib/prisma";
-import { reservarCreditosParaSaque, consumirFIFO, SaldoInsuficienteError, type TxClient } from "@/lib/carteira";
+import {
+  reservarCreditosParaSaque,
+  reservarCapitalParaSaqueAdmin,
+  getResumoCarteira,
+  consumirFIFO,
+  SaldoInsuficienteError,
+  type TxClient,
+} from "@/lib/carteira";
 import { getConfiguracao } from "@/lib/configuracao";
 import { estimarSaqueEmergencial } from "@/lib/emergencia-calculo";
 import { usuarioTemServicoAtivo } from "@/lib/servicos-contratacao";
+import { prepararDadosSaquePix, obterSnapshotInvestidor } from "@/lib/saque-pix";
+import { arredondarParaCentavos } from "@/lib/valor-centavos";
+import { adicionarDiasUteis } from "@/lib/datas";
+import { formatMoeda } from "@/lib/format";
+import { TAXA_SAQUE_CARENCIA, creditarTaxaSaqueCarencia } from "@/lib/taxa-saque-carencia";
 import type { TipoLiberacaoEmergencial } from "@prisma/client";
 
 const EPSILON = 0.005;
+
+/** Prazo (dias úteis) do saque de emergência self-service de capital em carência. */
+export const DIAS_UTEIS_LIBERACAO_EMERGENCIA_CARENCIA = 15;
+const MENSAGEM_PEDIDO_JA_ENVIADO =
+  "Esse pedido já tinha sido enviado — não foi duplicado. Confira o status em Histórico.";
 
 export type AplicacaoElegivel = {
   id: string;
@@ -401,4 +418,148 @@ export async function executarSaqueEmergencial(
       ? `Saque de emergência processado. Valor líquido: ${estimativa.valorLiquido.toFixed(2)}.`
       : `Saque de emergência solicitado. Valor líquido estimado: ${estimativa.valorLiquido.toFixed(2)}. Aguarde aprovação.`,
   };
+}
+
+export type SaqueEmergenciaCarenciaParams = {
+  userId: string;
+  valorBruto: number;
+  chavePixTexto: string;
+  chavePixTipo: string;
+  idempotencyKey: string | null;
+};
+
+/**
+ * Saque de emergência self-service: com o serviço "Saque de emergência" ATIVO, o investidor saca
+ * capital ainda em carência sem depender de uma liberação individual do admin. O valor BRUTO sai
+ * integralmente do capital, o Pix pago sai 15% menor (a taxa vira fundo de caixa) e a liberação
+ * leva 15 dias úteis: no modo manual o admin confirma em /restrito/saques; no automático o cron
+ * (liberarSaquesEmergenciaCarenciaVencidos) reserva/debita sozinho ao vencer o prazo — nunca marca
+ * como PAGO, o Pix continua sendo enviado/confirmado pelo admin. Sem restrição de dia/horário
+ * (saque de emergência existe pra contornar as regras normais).
+ */
+export async function executarSaqueEmergenciaCarencia(
+  params: SaqueEmergenciaCarenciaParams
+): Promise<{ error?: string; sucesso?: string }> {
+  const { userId, valorBruto, chavePixTexto, chavePixTipo, idempotencyKey } = params;
+
+  if (!valorBruto || valorBruto <= 0 || Number.isNaN(valorBruto)) {
+    return { error: "Informe um valor válido." };
+  }
+
+  const temServicoAtivo = await usuarioTemServicoAtivo(userId, "SAQUE_EMERGENCIA");
+  if (!temServicoAtivo) {
+    return { error: "Contrate o serviço \"Saque de emergência\" em Pacotes de Serviços pra usar essa opção." };
+  }
+
+  if (idempotencyKey) {
+    const existente = await prisma.solicitacaoSaque.findUnique({ where: { idempotencyKey } });
+    if (existente) return { sucesso: MENSAGEM_PEDIDO_JA_ENVIADO };
+  }
+
+  const resumo = await getResumoCarteira(userId);
+  if (valorBruto > resumo.capitalCarencia + EPSILON) {
+    return { error: "O valor não pode passar do seu capital ainda em carência." };
+  }
+
+  const taxaAntecipacao = arredondarParaCentavos(valorBruto * TAXA_SAQUE_CARENCIA);
+  const valorAPagar = arredondarParaCentavos(valorBruto - taxaAntecipacao);
+
+  const { nome: investidorNome, email: investidorEmail } = await obterSnapshotInvestidor(userId);
+  const preparo = await prepararDadosSaquePix({
+    investidorNome,
+    investidorEmail,
+    valor: valorAPagar,
+    chavePixTexto,
+    chavePixTipo,
+  });
+  if (!preparo.ok) return { error: preparo.error };
+  const dados = preparo.dados;
+
+  const liberacaoAutomaticaEm = adicionarDiasUteis(DIAS_UTEIS_LIBERACAO_EMERGENCIA_CARENCIA);
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const saque = await tx.solicitacaoSaque.create({
+        data: {
+          userId,
+          tipo: "CAPITAL",
+          valor: dados.valorFinal,
+          moeda: "BRL",
+          emergencial: true,
+          motivoEmergencia: "Saque de emergência (capital em carência) — serviço contratado",
+          valorBruto,
+          taxaAntecipacao,
+          liberacaoAutomaticaEm,
+          investidorNome: dados.investidorNome,
+          investidorEmail: dados.investidorEmail,
+          chavePixOriginal: dados.chavePixOriginal,
+          chavePixNormalizada: dados.chavePixNormalizada,
+          chavePixTipo: dados.chavePixTipo,
+          pixPayload: dados.pixPayload,
+          pixQrCodePng: dados.pixQrCodePng,
+          pixTxid: dados.pixTxid,
+          dataProgramadaPagamento: liberacaoAutomaticaEm,
+          idempotencyKey,
+        },
+      });
+      await reservarCapitalParaSaqueAdmin(tx, userId, valorBruto, saque.id);
+      await creditarTaxaSaqueCarencia(tx, investidorNome, taxaAntecipacao);
+      await tx.logAuditoria.create({
+        data: {
+          userId,
+          acao: "saque_emergencia_carencia_solicitado",
+          detalhes: `${saque.id} | bruto ${valorBruto.toFixed(2)} | taxa ${taxaAntecipacao.toFixed(2)} | liberação ${liberacaoAutomaticaEm.toISOString().slice(0, 10)}`,
+        },
+      });
+    });
+  } catch (e) {
+    if (e instanceof SaldoInsuficienteError) return { error: e.message };
+    if (idempotencyKey && typeof e === "object" && e !== null && (e as { code?: string }).code === "P2002") {
+      return { sucesso: MENSAGEM_PEDIDO_JA_ENVIADO };
+    }
+    throw e;
+  }
+
+  return {
+    sucesso: `Saque de emergência solicitado: você recebe ${formatMoeda(valorAPagar)} (valor ${formatMoeda(valorBruto)} menos taxa de 15% de ${formatMoeda(taxaAntecipacao)}). Liberação em até ${DIAS_UTEIS_LIBERACAO_EMERGENCIA_CARENCIA} dias úteis.`,
+  };
+}
+
+/** Modo automático de saque de capital: ao vencer os 15 dias úteis, o saque de emergência
+ *  self-service ainda SOLICITADO vira AGUARDANDO_PAGAMENTO (lotes reservados viram RETIRADA) —
+ *  mesmo passo de aprovarSaque, sem admin. No modo manual não faz nada. Idempotente (só pega
+ *  SOLICITADO); chamada pelo cron e como fallback do layout administrativo. */
+export async function liberarSaquesEmergenciaCarenciaVencidos(
+  agora: Date = new Date()
+): Promise<{ processados: number }> {
+  const config = await getConfiguracao();
+  if (config.modoSaqueCapital !== "AUTOMATICO") return { processados: 0 };
+
+  const vencidos = await prisma.solicitacaoSaque.findMany({
+    where: { status: "SOLICITADO", liberacaoAutomaticaEm: { not: null, lte: agora } },
+    select: { id: true, userId: true },
+  });
+
+  for (const saque of vencidos) {
+    await prisma.$transaction(async (tx) => {
+      const atualizado = await tx.solicitacaoSaque.updateMany({
+        where: { id: saque.id, status: "SOLICITADO" },
+        data: { status: "AGUARDANDO_PAGAMENTO" },
+      });
+      if (atualizado.count === 0) return;
+      await tx.aplicacao.updateMany({
+        where: { solicitacaoSaqueId: saque.id },
+        data: { status: "RETIRADA" },
+      });
+      await tx.logAuditoria.create({
+        data: {
+          userId: saque.userId,
+          acao: "saque_emergencia_carencia_liberado_automatico",
+          detalhes: saque.id,
+        },
+      });
+    });
+  }
+
+  return { processados: vencidos.length };
 }

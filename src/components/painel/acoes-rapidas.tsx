@@ -28,6 +28,7 @@ import {
   solicitarSaqueRendimento,
   solicitarSaqueRendimentoPorFonte,
   solicitarSaqueEmergencia,
+  solicitarSaqueEmergenciaCarencia,
   reaplicar,
   reaplicarPorFonte,
   solicitarAporteBem,
@@ -49,6 +50,7 @@ type TipoAcao =
   | "saque-rendimento"
   | "reaplicar"
   | "saque-emergencia"
+  | "saque-emergencia-carencia"
   | "painel-lider";
 type TipoAcaoSimples = "saque-capital" | "saque-rendimento" | "reaplicar";
 
@@ -115,6 +117,7 @@ export function AcoesRapidas({
   aplicacaoBensAtiva,
   reaplicacaoAutomatica,
   reaplicacaoAutomaticaServicoAtivo,
+  saqueEmergenciaServicoAtivo,
 }: {
   primeiroNome: string;
   saldoParaReaplicar: number;
@@ -139,6 +142,7 @@ export function AcoesRapidas({
   aplicacaoBensAtiva: boolean;
   reaplicacaoAutomatica: boolean;
   reaplicacaoAutomaticaServicoAtivo: boolean;
+  saqueEmergenciaServicoAtivo: boolean;
 }) {
   const [aberto, setAberto] = useState<TipoAcao | null>(null);
   const reaplicarDesativado = saldoParaReaplicar < MINIMO_REAPLICACAO;
@@ -263,12 +267,21 @@ export function AcoesRapidas({
           >
             <IconAlert width={16} height={16} /> Solicitar saque emergencial
           </Button>
+        ) : saqueEmergenciaServicoAtivo ? (
+          <Button
+            variant="ghost"
+            className="w-full justify-start border border-red-500/40 text-red-300 hover:bg-red-500/10"
+            onClick={() => setAberto("saque-emergencia-carencia")}
+            title="Saque do capital em carência — taxa de 15% e liberação em até 15 dias úteis."
+          >
+            <IconAlert width={16} height={16} /> Saque de emergência (ativado)
+          </Button>
         ) : (
           <Button
             variant="ghost"
             className="w-full cursor-not-allowed justify-start border border-border/60 opacity-60"
             disabled
-            title="Esta aplicação ainda está no período de carência. Para solicitar um saque emergencial, entre em contato com a administração."
+            title={'Contrate o serviço "Saque de emergência" em Pacotes de Serviços para liberar esta função.'}
           >
             <IconAlert width={16} height={16} /> Saque de emergência (bloqueado)
           </Button>
@@ -308,6 +321,13 @@ export function AcoesRapidas({
           moeda={moeda}
         />
       )}
+      {aberto === "saque-emergencia-carencia" && (
+        <SaqueEmergenciaCarenciaModal
+          onClose={() => setAberto(null)}
+          capitalCarencia={capitalCarencia}
+          moeda={moeda}
+        />
+      )}
       {aberto === "painel-lider" && (
         <PainelLiderModal
           onClose={() => setAberto(null)}
@@ -340,6 +360,7 @@ export function AcoesRapidas({
         aberto !== "aplicacao-bem" &&
         aberto !== "aplicacao-bem-bloqueada" &&
         aberto !== "saque-emergencia" &&
+        aberto !== "saque-emergencia-carencia" &&
         aberto !== "painel-lider" &&
         !(aberto === "reaplicar" && ehLider) &&
         !(aberto === "saque-rendimento" && ehLider) && (
@@ -1272,6 +1293,163 @@ function ToggleReaplicacaoAutomatica({
           : `Desligado: você decide quando reaplicar, clicando em "Reaplicar agora".`}
       </p>
       {erro && <p className="mt-1.5 text-xs text-red-400">{erro}</p>}
+    </div>
+  );
+}
+
+const TAXA_EMERGENCIA_CARENCIA = 0.15;
+
+/** Saque de emergência (serviço ativo): saca capital em carência com taxa de 15% e liberação em
+ *  15 dias úteis (ver executarSaqueEmergenciaCarencia, em lib/emergencia.ts). */
+function SaqueEmergenciaCarenciaModal({
+  onClose,
+  capitalCarencia,
+  moeda,
+}: {
+  onClose: () => void;
+  capitalCarencia: number;
+  moeda: "BRL" | "USD" | "USDT";
+}) {
+  const [state, action, pending] = useActionState(solicitarSaqueEmergenciaCarencia, undefined);
+  const [valorTexto, setValorTexto] = useState("");
+  const [tipoChave, setTipoChave] = useState<TipoChavePixForm | "">("");
+  const [idempotencyKey] = useState(() => crypto.randomUUID());
+  const router = useRouter();
+  const processado = useRef(false);
+
+  useEffect(() => {
+    if (state?.sucesso && !processado.current) {
+      processado.current = true;
+      router.refresh();
+      const timeout = setTimeout(onClose, 4000);
+      return () => clearTimeout(timeout);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state]);
+
+  const valor = Number(valorTexto.replace(/\./g, "").replace(",", ".")) || 0;
+  const taxa = Math.round(valor * TAXA_EMERGENCIA_CARENCIA * 100) / 100;
+  const liquido = Math.round((valor - taxa) * 100) / 100;
+  const excede = valor > capitalCarencia + 0.005;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="max-h-[90vh] w-full max-w-sm overflow-y-auto rounded-2xl border border-red-500/40 bg-surface p-6 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="flex items-center gap-2 text-lg font-semibold text-red-300">
+          <IconAlert width={18} height={18} /> Saque de emergência
+        </h3>
+        <p className="mt-1 text-sm text-muted">
+          Saque do capital que ainda está em carência. Taxa de 15% sobre o valor e liberação em até
+          15 dias úteis (com confirmação do administrador ou automática, conforme a configuração).
+        </p>
+
+        <div className="mt-4 rounded-xl border border-border bg-surface-2 p-3 text-center">
+          <p className="text-[10px] uppercase tracking-wider text-muted">Capital em carência</p>
+          <p className="text-sm font-semibold text-amber-300">{formatMoeda(capitalCarencia, moeda)}</p>
+        </div>
+
+        {state?.sucesso ? (
+          <p className="mt-6 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-300">
+            {state.sucesso}
+          </p>
+        ) : capitalCarencia <= 0 ? (
+          <p className="mt-6 rounded-lg border border-border bg-surface-2 p-3 text-sm text-muted">
+            Você não tem capital em carência no momento.
+          </p>
+        ) : (
+          <form action={action} className="mt-6 space-y-4">
+            <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium text-foreground/90">Valor a sacar (R$)</span>
+              <div className="flex gap-2">
+                <MoneyInput
+                  name="valor"
+                  value={valorTexto}
+                  onValueChange={setValorTexto}
+                  placeholder="0,00"
+                  required
+                  autoFocus
+                  className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-foreground outline-none focus:border-gold/60"
+                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    setValorTexto(
+                      capitalCarencia.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                    )
+                  }
+                  className="shrink-0 rounded-lg bg-sky-500/15 px-3 py-2 text-xs font-semibold text-sky-300 hover:bg-sky-500/25"
+                >
+                  Máximo
+                </button>
+              </div>
+              {excede && (
+                <span className="mt-1 block text-xs text-red-400">
+                  Esse valor passa do seu capital em carência.
+                </span>
+              )}
+            </label>
+
+            {valor > 0 && !excede && (
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
+                <div className="flex justify-between"><span>Valor debitado do capital</span><span>{formatMoeda(valor, moeda)}</span></div>
+                <div className="mt-1 flex justify-between"><span>Taxa de 15%</span><span>− {formatMoeda(taxa, moeda)}</span></div>
+                <div className="mt-1 flex justify-between font-semibold text-amber-100"><span>Você recebe</span><span>{formatMoeda(liquido, moeda)}</span></div>
+              </div>
+            )}
+
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium text-foreground/90">Tipo da chave Pix</span>
+              <select
+                name="chavePixTipo"
+                value={tipoChave}
+                onChange={(e) => setTipoChave(e.target.value as TipoChavePixForm)}
+                required
+                className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-foreground outline-none focus:border-gold/60"
+              >
+                <option value="" disabled>
+                  Selecione...
+                </option>
+                {(Object.keys(LABEL_TIPO_CHAVE_PIX) as TipoChavePixForm[]).map((t) => (
+                  <option key={t} value={t}>
+                    {LABEL_TIPO_CHAVE_PIX[t]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium text-foreground/90">Chave Pix</span>
+              <input
+                name="chavePix"
+                type="text"
+                required
+                className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-foreground outline-none focus:border-gold/60"
+              />
+              <span className="mt-1 block text-xs text-muted">
+                Confira com atenção — depois que o QR Code é gerado, pra corrigir a chave é preciso
+                cancelar esse pedido e abrir um novo.
+              </span>
+            </label>
+
+            {state?.error && <p className="text-sm text-red-400">{state.error}</p>}
+
+            <div className="flex gap-2">
+              <Button type="button" variant="ghost" className="flex-1 border border-border/60" onClick={onClose}>
+                Cancelar
+              </Button>
+              <Button type="submit" variant="gold" className="flex-1" disabled={pending || excede || valor <= 0}>
+                {pending ? "Enviando..." : "Solicitar saque"}
+              </Button>
+            </div>
+          </form>
+        )}
+      </div>
     </div>
   );
 }

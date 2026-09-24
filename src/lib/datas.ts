@@ -41,6 +41,27 @@ export function proximaSextaPagamento(pagarNaMesmaSexta: boolean, agora: Date = 
   return resultado;
 }
 
+/** Soma `quantidade` dias úteis (segunda a sexta, sem feriados) ao dia de Brasília de `agora`,
+ *  devolvendo o meio-dia de Brasília do dia resultante (mesma convenção de proximaSextaPagamento). */
+export function adicionarDiasUteis(quantidade: number, agora: Date = new Date()): Date {
+  const partes = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(agora);
+  const mapa = Object.fromEntries(partes.map((p) => [p.type, p.value]));
+  const cursor = new Date(`${mapa.year}-${mapa.month}-${mapa.day}T12:00:00-03:00`);
+
+  let restantes = quantidade;
+  while (restantes > 0) {
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+    const diaSemana = cursor.getUTCDay();
+    if (diaSemana !== 0 && diaSemana !== 6) restantes--;
+  }
+  return cursor;
+}
+
 export function ultimasSextas(quantidade: number): Date[] {
   const hoje = new Date();
   const diaSemana = hoje.getDay();

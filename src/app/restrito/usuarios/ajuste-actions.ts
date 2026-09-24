@@ -18,6 +18,7 @@ import {
 } from "@/lib/incentivo-lideranca";
 import { prepararDadosSaquePix, obterSnapshotInvestidor } from "@/lib/saque-pix";
 import { arredondarParaCentavos } from "@/lib/valor-centavos";
+import { TAXA_SAQUE_CARENCIA, creditarTaxaSaqueCarencia } from "@/lib/taxa-saque-carencia";
 
 export type AjusteSaldoState = { error?: string; sucesso?: string } | undefined;
 
@@ -30,16 +31,6 @@ const LABEL_TIPO: Record<string, string> = {
   BONUS: "Bônus de indicação",
   INCENTIVO_LIDERANCA: "Incentivo de liderança",
 };
-
-/** Taxa de saque de carência: só existe no saque assistido (admin), pra sacar capital que ainda
- *  não terminou a carência. O valor digitado pelo admin é descontado INTEGRALMENTE do capital do
- *  investidor, mas o Pix gerado (o que o cliente de fato recebe) já sai com 15% a menos — a
- *  diferença é a taxa por antecipar o saque. Essa taxa retida vira fundo de caixa do próprio
- *  sistema: creditada como RENDIMENTO na conta da Foccus Administradora (ver
- *  EMAIL_ADMINISTRADORA), além de ficar registrada em SolicitacaoSaque.valorBruto/
- *  taxaAntecipacao e no LogAuditoria. */
-const TAXA_SAQUE_CARENCIA = 0.15;
-const EMAIL_ADMINISTRADORA = "foccusadmin@gmail.com";
 
 function parseValor(raw: FormDataEntryValue | null): number {
   const texto = String(raw ?? "").trim().replace(/\./g, "").replace(",", ".");
@@ -246,21 +237,8 @@ async function realizarSaqueAssistido(
         await reservarCreditosParaSaque(tx, userId, dados.valorFinal, tipo, saque.id);
       }
 
-      // Os 15% retidos viram fundo de caixa do sistema — creditados na conta da Foccus
-      // Administradora, com rastro de qual investidor gerou a taxa.
-      if (tipo === "CAPITAL_CARENCIA" && taxaAntecipacao > EPSILON) {
-        const administradora = await tx.user.findFirst({ where: { email: EMAIL_ADMINISTRADORA } });
-        if (administradora) {
-          await tx.creditoCarteira.create({
-            data: {
-              userId: administradora.id,
-              tipo: "RENDIMENTO",
-              valor: taxaAntecipacao,
-              moeda: "BRL",
-              origem: `Taxa de saque de carência — ${investidorNome}`,
-            },
-          });
-        }
+      if (tipo === "CAPITAL_CARENCIA") {
+        await creditarTaxaSaqueCarencia(tx, investidorNome, taxaAntecipacao);
       }
 
       // Modo automático só antecipa a reserva/débito — nunca marca como PAGO sozinho: o
