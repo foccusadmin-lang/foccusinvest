@@ -11,6 +11,21 @@ export function inicioDoMesBrasilia(): Date {
   return new Date(`${ano}-${mes}-01T00:00:00-03:00`);
 }
 
+/** Início (00h00) e fim (23h59m59,999) do dia de Brasília de `agora`, em UTC — usado pra filtrar
+ *  "hoje" em relatórios (ex: relatório diário via Telegram, lib/relatorio-diario.ts). */
+export function limitesDoDiaBrasilia(agora: Date = new Date()): { inicio: Date; fim: Date } {
+  const partes = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(agora);
+  const mapa = Object.fromEntries(partes.map((p) => [p.type, p.value]));
+  const inicio = new Date(`${mapa.year}-${mapa.month}-${mapa.day}T00:00:00-03:00`);
+  const fim = new Date(`${mapa.year}-${mapa.month}-${mapa.day}T23:59:59.999-03:00`);
+  return { inicio, fim };
+}
+
 /** Próxima sexta-feira (no horário de Brasília) a partir de agora — usada como data programada
  *  de pagamento das solicitações de saque. Se hoje já for sexta, `pagarNaMesmaSexta` decide se
  *  conta a de hoje ou empurra pra semana seguinte (regra configurável pelo admin — ver

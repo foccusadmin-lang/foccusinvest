@@ -6,6 +6,7 @@ import { formatMoeda, formatData } from "@/lib/format";
 import { SummaryCard } from "@/components/painel/summary-card";
 import { IconWallet, IconTrendingUp, IconGift } from "@/components/icons";
 import { AjusteSaldoButton } from "@/app/restrito/usuarios/ajuste-modal";
+import { RelatorioTelegramButton } from "./relatorio-telegram-button";
 
 export const EMAIL_FUNDO_CAIXA = "foccusadmin@gmail.com";
 
@@ -80,10 +81,13 @@ export default async function RestritoFundoCaixaPage() {
   return (
     <div>
       <h1 className="text-2xl font-bold text-foreground">Fundo de Caixa</h1>
-      <p className="mt-1 text-sm text-muted">
-        Conferência e distribuição dos recursos que entram pra conta do sistema ({EMAIL_FUNDO_CAIXA}) — taxas
-        de saque de carência, descontos e outros lançamentos administrativos.
-      </p>
+      <div className="mt-1 flex flex-wrap items-start justify-between gap-3">
+        <p className="text-sm text-muted">
+          Conferência e distribuição dos recursos que entram pra conta do sistema ({EMAIL_FUNDO_CAIXA}) — taxas
+          de saque de carência, descontos e outros lançamentos administrativos.
+        </p>
+        <RelatorioTelegramButton />
+      </div>
 
       <section className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <SummaryCard
