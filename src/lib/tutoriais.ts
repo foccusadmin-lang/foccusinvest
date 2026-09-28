@@ -26,6 +26,10 @@ export const TUTORIAIS: Tutorial[] = [
     titulo: "Nova Aplicação — Passo a Passo",
     url: "https://www.youtube.com/watch?v=O0OcM3EfBeY&list=PLGkCY-jhKN0s",
   },
+  {
+    titulo: "Pacote de Serviços — Foccus",
+    url: "https://www.youtube.com/watch?v=RJ77XaJo60E&list=PLGkCY-jhKN0s",
+  },
 ];
 
 /** Extrai o ID do vídeo tanto de links normais (watch?v=) quanto de Shorts (shorts/), pra montar
