@@ -1,11 +1,11 @@
 /** Meio-dia (horário de Brasília) do dia 1 do mês corrente — usado como corte pra "rentabilidade
  *  do período", pra não depender do fuso do servidor. */
-export function inicioDoMesBrasilia(): Date {
+export function inicioDoMesBrasilia(agora: Date = new Date()): Date {
   const partes = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Sao_Paulo",
     year: "numeric",
     month: "2-digit",
-  }).formatToParts(new Date());
+  }).formatToParts(agora);
   const ano = partes.find((p) => p.type === "year")!.value;
   const mes = partes.find((p) => p.type === "month")!.value;
   return new Date(`${ano}-${mes}-01T00:00:00-03:00`);
@@ -24,6 +24,22 @@ export function limitesDoDiaBrasilia(agora: Date = new Date()): { inicio: Date; 
   const inicio = new Date(`${mapa.year}-${mapa.month}-${mapa.day}T00:00:00-03:00`);
   const fim = new Date(`${mapa.year}-${mapa.month}-${mapa.day}T23:59:59.999-03:00`);
   return { inicio, fim };
+}
+
+/** Segunda-feira (00h00, Brasília) da semana de `agora`, em UTC. */
+export function inicioDaSemanaBrasilia(agora: Date = new Date()): Date {
+  const partes = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(agora);
+  const mapa = Object.fromEntries(partes.map((p) => [p.type, p.value]));
+  const hoje = new Date(`${mapa.year}-${mapa.month}-${mapa.day}T00:00:00-03:00`);
+  const diaSemana = hoje.getUTCDay(); // 0=domingo
+  const diasDesdeSegunda = (diaSemana + 6) % 7;
+  hoje.setUTCDate(hoje.getUTCDate() - diasDesdeSegunda);
+  return hoje;
 }
 
 /** Próxima sexta-feira (no horário de Brasília) a partir de agora — usada como data programada

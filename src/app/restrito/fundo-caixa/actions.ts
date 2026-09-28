@@ -15,8 +15,8 @@ export async function testarRelatorioDiarioTelegram(): Promise<{ error?: string;
     return { error: "TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID não configurados neste ambiente." };
   }
 
-  const relatorio = await calcularRelatorioDiario();
-  await enviarMensagemTelegram(formatarRelatorioDiario(relatorio));
+  const { inicio, resumo } = await calcularRelatorioDiario();
+  await enviarMensagemTelegram(formatarRelatorioDiario(inicio, resumo));
 
   return { sucesso: "Relatório enviado pro Telegram — confira o chat do bot." };
 }
