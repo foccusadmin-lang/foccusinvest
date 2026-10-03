@@ -35,6 +35,7 @@ import { CARENCIA_MESES_PADRAO_BEM, calcularLiberacaoBem, LABEL_CATEGORIA_BEM } 
 import { confirmarAporte } from "@/lib/aportes";
 import { prepararDadosSaquePix, obterSnapshotInvestidor } from "@/lib/saque-pix";
 import { usuarioTemServicoAtivo } from "@/lib/servicos-contratacao";
+import { notificarSaqueCapitalSolicitado, mensagemSaqueCapitalRecebido } from "@/lib/notificacoes";
 
 // `aviso` é como `sucesso` (a operação foi registrada, não é um erro), mas pra casos que merecem
 // destaque visual de alerta em vez do verde de sucesso normal — hoje só o bloqueio de aporte
@@ -520,11 +521,12 @@ export async function solicitarSaqueCapital(
     throw e;
   }
 
+  // Best-effort (nunca lança): o pedido já está salvo, o aviso por e-mail/WhatsApp é um extra.
+  await notificarSaqueCapitalSolicitado(userId, dados.valorFinal);
+
   revalidatePath("/painel");
   revalidatePath("/restrito/saques");
-  return {
-    sucesso: `Saque de ${formatMoeda(dados.valorFinal)} solicitado. Pagamento via Pix programado para ${formatData(dados.dataProgramadaPagamento)}, após conferência do administrador.`,
-  };
+  return { sucesso: mensagemSaqueCapitalRecebido(dados.valorFinal) };
 }
 
 export async function solicitarSaqueRendimento(

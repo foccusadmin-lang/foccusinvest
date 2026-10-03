@@ -89,6 +89,21 @@ export async function notificarAporteConfirmado(userId: string, valor: number): 
   );
 }
 
+/** Texto do aviso de pedido de saque de capital recebido — mesmo texto na tela (sucesso da
+ *  solicitação) e no e-mail/WhatsApp, pra o investidor ver exatamente a mesma mensagem. */
+export function mensagemSaqueCapitalRecebido(valor: number): string {
+  return `Pedido de saque de ${formatMoeda(valor)} recebido com sucesso! Fique tranquilo: seu pedido já está em andamento. O processamento leva até 15 dias para que o valor esteja totalmente liberado na sua conta. E a boa notícia é que, até o momento da liberação, o seu capital continua rendendo normalmente!`;
+}
+
+export async function notificarSaqueCapitalSolicitado(userId: string, valor: number): Promise<void> {
+  await notificarOperacao(
+    userId,
+    "Pedido de saque recebido — Foccus Invest",
+    "Pedido de saque recebido ✅",
+    (nome) => `Olá, ${nome}! ${mensagemSaqueCapitalRecebido(valor)}`
+  );
+}
+
 export async function notificarSaquePago(
   userId: string,
   tipo: "CAPITAL" | "RENDIMENTO" | "BONUS",
