@@ -145,6 +145,9 @@ export async function reaplicarSaldoPorFonte(
   itens: { fonte: FonteReaplicacao; valor: number }[]
 ): Promise<void> {
   let totalReaplicado = 0;
+  // Linhas consumidas por inteiro vão num único updateMany no fim (um UPDATE por linha estourava o
+  // tempo da transação em contas com dezenas de créditos diários).
+  const idsConsumidos: string[] = [];
 
   for (const item of itens) {
     if (item.valor <= EPSILON) continue;
@@ -175,7 +178,7 @@ export async function reaplicarSaldoPorFonte(
       disponiveis,
       item.valor,
       async (credito) => {
-        await tx.creditoCarteira.update({ where: { id: credito.id }, data: { utilizadoEm: new Date() } });
+        idsConsumidos.push(credito.id);
       },
       async (credito, _valorConsumido, valorRestanteNaLinha) => {
         const cheio = await tx.creditoCarteira.findUniqueOrThrow({ where: { id: credito.id } });
@@ -203,6 +206,13 @@ export async function reaplicarSaldoPorFonte(
 
   if (totalReaplicado <= EPSILON) {
     throw new SaldoInsuficienteError("Informe pelo menos um valor pra reaplicar.");
+  }
+
+  if (idsConsumidos.length > 0) {
+    await tx.creditoCarteira.updateMany({
+      where: { id: { in: idsConsumidos } },
+      data: { utilizadoEm: new Date() },
+    });
   }
 
   await tx.aplicacao.create({

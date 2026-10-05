@@ -35,6 +35,7 @@ import { CARENCIA_MESES_PADRAO_BEM, calcularLiberacaoBem, LABEL_CATEGORIA_BEM } 
 import { confirmarAporte } from "@/lib/aportes";
 import { prepararDadosSaquePix, obterSnapshotInvestidor } from "@/lib/saque-pix";
 import { usuarioTemServicoAtivo } from "@/lib/servicos-contratacao";
+import { transacaoComRetentativa } from "@/lib/transacao";
 import { notificarSaqueCapitalSolicitado, mensagemSaqueCapitalRecebido } from "@/lib/notificacoes";
 
 // `aviso` é como `sucesso` (a operação foi registrada, não é um erro), mas pra casos que merecem
@@ -843,6 +844,17 @@ export async function definirReaplicacaoAutomatica(ativa: boolean): Promise<{ er
   return {};
 }
 
+/** Falha inesperada (não é saldo insuficiente) numa reaplicação — registra a causa real no log do
+ *  servidor e devolve uma mensagem no próprio formulário, em vez de derrubar a tela inteira com o
+ *  erro genérico. A transação é desfeita por inteiro, então nada foi reaplicado pela metade. */
+function erroInesperadoDeReaplicacao(origem: string, userId: string, e: unknown): AcaoState {
+  console.error(`Falha inesperada em ${origem} (usuário ${userId}):`, e);
+  return {
+    error:
+      "Não foi possível concluir a reaplicação agora e nada foi alterado no seu saldo. Aguarde alguns instantes e tente novamente.",
+  };
+}
+
 export async function reaplicar(
   _prevState: AcaoState,
   formData: FormData
@@ -863,12 +875,12 @@ export async function reaplicar(
   }
 
   try {
-    await prisma.$transaction((tx) => reaplicarSaldoDisponivel(tx, userId, valor));
+    await transacaoComRetentativa((tx) => reaplicarSaldoDisponivel(tx, userId, valor));
   } catch (e) {
     if (e instanceof SaldoInsuficienteError) {
       return { error: e.message };
     }
-    throw e;
+    return erroInesperadoDeReaplicacao("reaplicar", userId, e);
   }
 
   revalidatePath("/painel");
@@ -918,12 +930,12 @@ export async function reaplicarPorFonte(
   }
 
   try {
-    await prisma.$transaction((tx) => reaplicarSaldoPorFonte(tx, userId, itens));
+    await transacaoComRetentativa((tx) => reaplicarSaldoPorFonte(tx, userId, itens));
   } catch (e) {
     if (e instanceof SaldoInsuficienteError) {
       return { error: e.message };
     }
-    throw e;
+    return erroInesperadoDeReaplicacao("reaplicarPorFonte", userId, e);
   }
 
   revalidatePath("/painel");

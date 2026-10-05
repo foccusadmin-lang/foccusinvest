@@ -63,4 +63,30 @@ describe("reaplicarSaldoDisponivel — preserva a data original ao dividir um cr
     expect(restante.utilizadoEm).toBeNull();
     expect(restante.criadoEm.getTime()).toBe(dataOriginal.getTime());
   });
+
+  it("consome várias linhas inteiras (em lote) mais uma parcial, marcando só as consumidas", async () => {
+    for (let i = 0; i < 5; i++) {
+      await prisma.creditoCarteira.create({
+        data: {
+          userId,
+          tipo: "RENDIMENTO",
+          valor: 30,
+          moeda: "BRL",
+          origem: `PLR lote ${i}`,
+          criadoEm: new Date(Date.UTC(2020, 0, 1 + i, 15)),
+        },
+      });
+    }
+
+    await prisma.$transaction((tx) => reaplicarSaldoDisponivel(tx, userId, 100));
+
+    const linhas = await prisma.creditoCarteira.findMany({ where: { userId } });
+    const consumido = linhas.filter((l) => l.utilizadoEm !== null).reduce((a, l) => a + l.valor, 0);
+    const livre = linhas.filter((l) => l.utilizadoEm === null).reduce((a, l) => a + l.valor, 0);
+    expect(consumido).toBeCloseTo(100, 2);
+    expect(livre).toBeCloseTo(50, 2);
+
+    const aplicacao = await prisma.aplicacao.findFirst({ where: { userId, origem: "REAPLICACAO" } });
+    expect(aplicacao?.valor).toBeCloseTo(100, 2);
+  });
 });

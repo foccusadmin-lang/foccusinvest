@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { ultimasSextas, inicioDoMesBrasilia } from "@/lib/datas";
 import { sincronizarDistribuicoesDoUsuario } from "@/lib/distribuicao";
+import { transacaoComRetentativa } from "@/lib/transacao";
 import type { PontoRendimento } from "@/components/painel/rendimentos-chart";
 import type { ResumoFinanceiro } from "@/components/painel/dashboard";
 import type { Prisma, TipoCredito } from "@prisma/client";
@@ -48,7 +49,7 @@ function sextaDaSemanaDe(data: Date): string {
 }
 
 export async function getResumoCarteira(userId: string): Promise<ResumoFinanceiro> {
-  await prisma.$transaction(async (tx) => {
+  await transacaoComRetentativa(async (tx) => {
     await sincronizarDistribuicoesDoUsuario(tx, userId);
     await reaplicarAutomaticamenteSeNecessario(tx, userId);
   });
@@ -384,6 +385,9 @@ export async function reaplicarSaldoDisponivel(
   // separadas (RENDIMENTO, depois BONUS), cada uma FIFO por criadoEm — mesmo padrão de
   // `reservarCreditosParaSaque`.
   let restante = valor;
+  // Linhas consumidas por inteiro são marcadas num único updateMany (em vez de um UPDATE por
+  // linha) — com dezenas de créditos diários, um UPDATE de cada vez estourava o tempo da transação.
+  const idsConsumidos: string[] = [];
   for (const tipo of ["RENDIMENTO", "BONUS"] as const) {
     if (restante <= 0) break;
     const disponiveis = await tx.creditoCarteira.findMany({
@@ -395,10 +399,7 @@ export async function reaplicarSaldoDisponivel(
       disponiveis,
       restante,
       async (credito) => {
-        await tx.creditoCarteira.update({
-          where: { id: credito.id },
-          data: { utilizadoEm: new Date() },
-        });
+        idsConsumidos.push(credito.id);
       },
       async (credito, _valorConsumido, valorRestanteNaLinha) => {
         const cheio = await tx.creditoCarteira.findUniqueOrThrow({ where: { id: credito.id } });
@@ -423,6 +424,13 @@ export async function reaplicarSaldoDisponivel(
 
   if (restante > EPSILON) {
     throw new SaldoInsuficienteError("Saldo disponível insuficiente para reaplicação.");
+  }
+
+  if (idsConsumidos.length > 0) {
+    await tx.creditoCarteira.updateMany({
+      where: { id: { in: idsConsumidos } },
+      data: { utilizadoEm: new Date() },
+    });
   }
 
   await tx.aplicacao.create({
