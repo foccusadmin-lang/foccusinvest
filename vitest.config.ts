@@ -9,6 +9,10 @@ export default defineConfig({
   },
   test: {
     environment: "node",
+    // Os testes de integração fazem dezenas de idas e voltas a um banco remoto — o padrão de 5s
+    // estoura por latência de rede (não por lógica errada) em testes de vários passos.
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
     include: ["src/**/*.test.ts"],
     // Os testes de integração rodam contra o banco real (dev/prod compartilhado), e mais de um
     // arquivo cria/mexe na mesma EstrategiaOperacao "ativa" (singleton lógico) via
