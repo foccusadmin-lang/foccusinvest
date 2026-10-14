@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { ehErroDeAcaoObsoleta, recarregarSeNecessario } from "@/lib/acao-obsoleta";
 
 export default function PainelError({
   error,
@@ -11,6 +12,8 @@ export default function PainelError({
 }) {
   useEffect(() => {
     console.error("Erro no painel do investidor:", error);
+    // Aba aberta antes de um deploy chamando uma Server Action que não existe mais: recarrega.
+    if (ehErroDeAcaoObsoleta(error)) recarregarSeNecessario();
   }, [error]);
 
   return (
