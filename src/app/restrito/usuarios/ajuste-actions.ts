@@ -17,8 +17,7 @@ import {
   reservarIncentivoLiderancaParaSaque,
 } from "@/lib/incentivo-lideranca";
 import { prepararDadosSaquePix, obterSnapshotInvestidor } from "@/lib/saque-pix";
-import { arredondarParaCentavos } from "@/lib/valor-centavos";
-import { TAXA_SAQUE_CARENCIA, creditarTaxaSaqueCarencia } from "@/lib/taxa-saque-carencia";
+import { calcularSaqueCarencia, creditarTaxaSaqueCarencia } from "@/lib/taxa-saque-carencia";
 
 export type AjusteSaldoState = { error?: string; sucesso?: string } | undefined;
 
@@ -191,9 +190,12 @@ async function realizarSaqueAssistido(
   // taxaAntecipacao, não num tipo de saque próprio no banco).
   const tipoSaque = tipo === "INCENTIVO_LIDERANCA" ? "RENDIMENTO" : ehCapital ? "CAPITAL" : tipo;
 
-  const valorBruto = valor;
-  const taxaAntecipacao = tipo === "CAPITAL_CARENCIA" ? arredondarParaCentavos(valorBruto * TAXA_SAQUE_CARENCIA) : 0;
-  const valorAPagar = tipo === "CAPITAL_CARENCIA" ? arredondarParaCentavos(valorBruto - taxaAntecipacao) : valor;
+  // CAPITAL_CARENCIA: o valor digitado é o que o cliente RECEBE; a taxa de 15% é somada em cima e
+  // o bruto (valor + taxa) é o que sai do capital. Nos demais tipos não há taxa.
+  const calculoCarencia = tipo === "CAPITAL_CARENCIA" ? calcularSaqueCarencia(valor) : null;
+  const valorBruto = calculoCarencia ? calculoCarencia.valorBruto : valor;
+  const taxaAntecipacao = calculoCarencia ? calculoCarencia.taxa : 0;
+  const valorAPagar = calculoCarencia ? calculoCarencia.valorLiquido : valor;
 
   const { nome: investidorNome, email: investidorEmail } = await obterSnapshotInvestidor(userId);
   const preparo = await prepararDadosSaquePix({
@@ -335,9 +337,8 @@ export async function ajustarSaldoUsuario(
       .map((tipo) => {
         const valorDigitado = valoresSaque.get(tipo)!;
         if (tipo === "CAPITAL_CARENCIA") {
-          const taxa = arredondarParaCentavos(valorDigitado * TAXA_SAQUE_CARENCIA);
-          const liquido = arredondarParaCentavos(valorDigitado - taxa);
-          return `${LABEL_TIPO[tipo]}: ${formatMoeda(valorDigitado)} → paga ${formatMoeda(liquido)} (taxa ${formatMoeda(taxa)})`;
+          const { taxa, valorBruto } = calcularSaqueCarencia(valorDigitado);
+          return `${LABEL_TIPO[tipo]}: desconta ${formatMoeda(valorBruto)} do capital do cliente · Pix gerado: ${formatMoeda(valorDigitado)} (taxa de 15% ${formatMoeda(taxa)})`;
         }
         return `${LABEL_TIPO[tipo] ?? tipo}: ${formatMoeda(valorDigitado)}`;
       })

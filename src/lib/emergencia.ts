@@ -11,10 +11,9 @@ import { getConfiguracao } from "@/lib/configuracao";
 import { estimarSaqueEmergencial } from "@/lib/emergencia-calculo";
 import { usuarioTemServicoAtivo } from "@/lib/servicos-contratacao";
 import { prepararDadosSaquePix, obterSnapshotInvestidor } from "@/lib/saque-pix";
-import { arredondarParaCentavos } from "@/lib/valor-centavos";
 import { adicionarDiasUteis } from "@/lib/datas";
 import { formatMoeda } from "@/lib/format";
-import { TAXA_SAQUE_CARENCIA, creditarTaxaSaqueCarencia } from "@/lib/taxa-saque-carencia";
+import { calcularSaqueCarencia, creditarTaxaSaqueCarencia } from "@/lib/taxa-saque-carencia";
 import type { TipoLiberacaoEmergencial } from "@prisma/client";
 
 const EPSILON = 0.005;
@@ -66,7 +65,8 @@ export async function criarLiberacaoEmergencial(
   params: LiberarEmergenciaParams
 ): Promise<{ error?: string; liberacaoId?: string }> {
   const { aplicacaoId, adminId, tipoSaque, motivo, ip } = params;
-  let { valorMaximo, expiraEm } = params;
+  let { valorMaximo } = params;
+  const { expiraEm } = params;
 
   if (!motivo || motivo.trim().length < 10) {
     return { error: "Descreva a justificativa da liberação (mínimo 10 caracteres) — fica registrada na auditoria." };
@@ -422,7 +422,8 @@ export async function executarSaqueEmergencial(
 
 export type SaqueEmergenciaCarenciaParams = {
   userId: string;
-  valorBruto: number;
+  /** O que o cliente quer RECEBER; a taxa de 15% é somada em cima e sai do capital em carência. */
+  valorLiquido: number;
   chavePixTexto: string;
   chavePixTipo: string;
   idempotencyKey: string | null;
@@ -440,9 +441,9 @@ export type SaqueEmergenciaCarenciaParams = {
 export async function executarSaqueEmergenciaCarencia(
   params: SaqueEmergenciaCarenciaParams
 ): Promise<{ error?: string; sucesso?: string }> {
-  const { userId, valorBruto, chavePixTexto, chavePixTipo, idempotencyKey } = params;
+  const { userId, valorLiquido, chavePixTexto, chavePixTipo, idempotencyKey } = params;
 
-  if (!valorBruto || valorBruto <= 0 || Number.isNaN(valorBruto)) {
+  if (!valorLiquido || valorLiquido <= 0 || Number.isNaN(valorLiquido)) {
     return { error: "Informe um valor válido." };
   }
 
@@ -457,12 +458,10 @@ export async function executarSaqueEmergenciaCarencia(
   }
 
   const resumo = await getResumoCarteira(userId);
+  const { taxa: taxaAntecipacao, valorBruto, valorLiquido: valorAPagar } = calcularSaqueCarencia(valorLiquido);
   if (valorBruto > resumo.capitalCarencia + EPSILON) {
-    return { error: "O valor não pode passar do seu capital ainda em carência." };
+    return { error: "O valor mais a taxa de 15% não pode passar do seu capital ainda em carência." };
   }
-
-  const taxaAntecipacao = arredondarParaCentavos(valorBruto * TAXA_SAQUE_CARENCIA);
-  const valorAPagar = arredondarParaCentavos(valorBruto - taxaAntecipacao);
 
   const { nome: investidorNome, email: investidorEmail } = await obterSnapshotInvestidor(userId);
   const preparo = await prepararDadosSaquePix({
@@ -521,7 +520,7 @@ export async function executarSaqueEmergenciaCarencia(
   }
 
   return {
-    sucesso: `Saque de emergência solicitado: você recebe ${formatMoeda(valorAPagar)} (valor ${formatMoeda(valorBruto)} menos taxa de 15% de ${formatMoeda(taxaAntecipacao)}). Liberação em até ${DIAS_UTEIS_LIBERACAO_EMERGENCIA_CARENCIA} dias úteis.`,
+    sucesso: `Saque de emergência solicitado: você recebe ${formatMoeda(valorAPagar)}; saem ${formatMoeda(valorBruto)} do seu capital (valor + taxa de 15% de ${formatMoeda(taxaAntecipacao)}). Liberação em até ${DIAS_UTEIS_LIBERACAO_EMERGENCIA_CARENCIA} dias úteis.`,
   };
 }
 

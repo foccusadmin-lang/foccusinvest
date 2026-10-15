@@ -806,7 +806,7 @@ export async function solicitarSaqueEmergenciaCarencia(
 
   const resultado = await executarSaqueEmergenciaCarencia({
     userId,
-    valorBruto: parseValor(formData.get("valor")),
+    valorLiquido: parseValor(formData.get("valor")),
     chavePixTexto,
     chavePixTipo,
     idempotencyKey: String(formData.get("idempotencyKey") ?? "").trim() || null,

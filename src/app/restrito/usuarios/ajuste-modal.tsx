@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatMoeda } from "@/lib/format";
+import { calcularSaqueCarencia } from "@/lib/taxa-saque-carencia";
 import { MoneyInput } from "@/components/ui/money-input";
 import { ajustarSaldoUsuario } from "./ajuste-actions";
 import { LABEL_TIPO_CHAVE_PIX, type TipoChavePixForm } from "@/lib/pix-chave";
@@ -26,7 +27,6 @@ const TIPOS = [
   { valor: "INCENTIVO_LIDERANCA", label: "Incentivo de liderança", soLider: true },
 ] as const;
 
-const TAXA_SAQUE_CARENCIA = 0.15;
 
 export function AjusteSaldoButton({ usuario }: { usuario: Usuario }) {
   const [aberto, setAberto] = useState(false);
@@ -212,9 +212,9 @@ function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () 
                   Use pra ajudar quem tem dificuldade de sacar sozinho no app. Ignora a carência
                   do Capital (libera antes do prazo) e não tem restrição de dia ou horário — só
                   segue o modo automático/manual configurado. &ldquo;Capital em carência&rdquo;
-                  desconta o valor cheio do cliente, mas gera o Pix já com 15% de taxa de
-                  antecipação descontada — os 15% retidos viram fundo de caixa, creditados na
-                  conta da Foccus Administradora.
+                  você digita o valor que o cliente precisa receber: a taxa de 15% é somada em
+                  cima (R$ 4.000 → taxa de R$ 600, saem R$ 4.600 do capital e o Pix é de R$ 4.000).
+                  Os 15% retidos viram fundo de caixa, creditados na conta da Foccus Administradora.
                 </p>
               )}
             </div>
@@ -258,14 +258,13 @@ function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () 
                           />
                           {t.valor === "CAPITAL_CARENCIA" &&
                             (() => {
-                              const bruto = Number((valores[t.valor] ?? "").replace(/\./g, "").replace(",", ".")) || 0;
-                              if (bruto <= 0) return null;
-                              const taxa = bruto * TAXA_SAQUE_CARENCIA;
-                              const liquido = bruto - taxa;
+                              const digitado = Number((valores[t.valor] ?? "").replace(/\./g, "").replace(",", ".")) || 0;
+                              if (digitado <= 0) return null;
+                              const { valorBruto, taxa, valorLiquido } = calcularSaqueCarencia(digitado);
                               return (
                                 <p className="mt-1.5 text-xs text-amber-300/90">
-                                  Desconta {formatMoeda(bruto)} do capital do cliente · Pix gerado: {formatMoeda(liquido)}{" "}
-                                  (taxa de {formatMoeda(taxa)})
+                                  Desconta {formatMoeda(valorBruto)} do capital do cliente · Pix gerado: {formatMoeda(valorLiquido)}{" "}
+                                  (taxa de 15% {formatMoeda(taxa)})
                                 </p>
                               );
                             })()}

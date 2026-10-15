@@ -36,6 +36,7 @@ import {
   type AcaoState,
 } from "@/app/painel/actions";
 import { USDT_REDE, USDT_ENDERECO } from "@/lib/deposito-usdt";
+import { calcularSaqueCarencia, maximoLiquidoSaqueCarencia } from "@/lib/taxa-saque-carencia";
 import {
   DESCONTO_RENDIMENTO_EMERGENCIAL,
   estimarSaqueEmergencial,
@@ -1297,7 +1298,6 @@ function ToggleReaplicacaoAutomatica({
   );
 }
 
-const TAXA_EMERGENCIA_CARENCIA = 0.15;
 
 /** Saque de emergência (serviço ativo): saca capital em carência com taxa de 15% e liberação em
  *  15 dias úteis (ver executarSaqueEmergenciaCarencia, em lib/emergencia.ts). */
@@ -1328,9 +1328,9 @@ function SaqueEmergenciaCarenciaModal({
   }, [state]);
 
   const valor = Number(valorTexto.replace(/\./g, "").replace(",", ".")) || 0;
-  const taxa = Math.round(valor * TAXA_EMERGENCIA_CARENCIA * 100) / 100;
-  const liquido = Math.round((valor - taxa) * 100) / 100;
-  const excede = valor > capitalCarencia + 0.005;
+  // O cliente digita o que quer RECEBER; a taxa de 15% é somada em cima e sai do capital em carência.
+  const { taxa, valorBruto: debitado } = calcularSaqueCarencia(valor);
+  const excede = debitado > capitalCarencia + 0.005;
 
   return (
     <div
@@ -1345,7 +1345,7 @@ function SaqueEmergenciaCarenciaModal({
           <IconAlert width={18} height={18} /> Saque de emergência
         </h3>
         <p className="mt-1 text-sm text-muted">
-          Saque do capital que ainda está em carência. Taxa de 15% sobre o valor e liberação em até
+          Saque do capital que ainda está em carência. Taxa de 15% somada ao valor que você quer receber e liberação em até
           15 dias úteis (com confirmação do administrador ou automática, conforme a configuração).
         </p>
 
@@ -1366,7 +1366,7 @@ function SaqueEmergenciaCarenciaModal({
           <form action={action} className="mt-6 space-y-4">
             <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
             <label className="block text-sm">
-              <span className="mb-1 block font-medium text-foreground/90">Valor a sacar (R$)</span>
+              <span className="mb-1 block font-medium text-foreground/90">Valor que você quer receber (R$)</span>
               <div className="flex gap-2">
                 <MoneyInput
                   name="valor"
@@ -1381,7 +1381,10 @@ function SaqueEmergenciaCarenciaModal({
                   type="button"
                   onClick={() =>
                     setValorTexto(
-                      capitalCarencia.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                      maximoLiquidoSaqueCarencia(capitalCarencia).toLocaleString("pt-BR", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })
                     )
                   }
                   className="shrink-0 rounded-lg bg-sky-500/15 px-3 py-2 text-xs font-semibold text-sky-300 hover:bg-sky-500/25"
@@ -1391,16 +1394,16 @@ function SaqueEmergenciaCarenciaModal({
               </div>
               {excede && (
                 <span className="mt-1 block text-xs text-red-400">
-                  Esse valor passa do seu capital em carência.
+                  Esse valor mais a taxa de 15% passa do seu capital em carência.
                 </span>
               )}
             </label>
 
             {valor > 0 && !excede && (
               <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
-                <div className="flex justify-between"><span>Valor debitado do capital</span><span>{formatMoeda(valor, moeda)}</span></div>
-                <div className="mt-1 flex justify-between"><span>Taxa de 15%</span><span>− {formatMoeda(taxa, moeda)}</span></div>
-                <div className="mt-1 flex justify-between font-semibold text-amber-100"><span>Você recebe</span><span>{formatMoeda(liquido, moeda)}</span></div>
+                <div className="flex justify-between"><span>Você recebe (Pix)</span><span>{formatMoeda(valor, moeda)}</span></div>
+                <div className="mt-1 flex justify-between"><span>Taxa de 15%</span><span>+ {formatMoeda(taxa, moeda)}</span></div>
+                <div className="mt-1 flex justify-between font-semibold text-amber-100"><span>Debitado do capital em carência</span><span>{formatMoeda(debitado, moeda)}</span></div>
               </div>
             )}
 

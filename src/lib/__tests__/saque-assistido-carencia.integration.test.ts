@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
  * (restrito/usuarios/ajuste-actions.ts) — mesmo padrão de saque-pix.integration.test.ts: rodam
  * contra o banco de desenvolvimento real, sempre com contas descartáveis (`teste.*@example.com`).
  *
- * A regra: o admin digita o valor CHEIO (ex: R$300) — esse valor é descontado integralmente do
+ * A regra: o admin digita o valor que o cliente precisa RECEBER (ex: R$300) e a taxa de 15% é somada em cima (R$45) — saem R$345 do capital e o Pix é de R$300. Antes (regra antiga): o valor digitado era descontado integralmente do
  * capital do investidor, mas o Pix gerado (o que o cliente recebe de fato) já sai com 15% de
  * taxa de antecipação descontada (R$300 → paga R$255, taxa de R$45).
  */
@@ -93,7 +93,7 @@ describe("Saque assistido — Capital em carência (taxa de 15%)", () => {
     return ajustarSaldoUsuario(undefined, formData);
   }
 
-  it("desconta o valor cheio do capital do investidor, mas gera o Pix com 15% de desconto", async () => {
+  it("soma 15% de taxa em cima do valor digitado: desconta valor + taxa do capital e gera o Pix só do valor", async () => {
     // Prazo maior que o padrão: gera QR Code de verdade (imagem PNG) além dos round-trips no
     // banco, e essa combinação passou do timeout padrão de 5s em execução real.
     const resultado = await saqueCarencia("300,00");
@@ -104,16 +104,17 @@ describe("Saque assistido — Capital em carência (taxa de 15%)", () => {
     saqueIds.push(saque.id);
 
     expect(saque.tipo).toBe("CAPITAL"); // grava como CAPITAL — a distinção fica em valorBruto/taxaAntecipacao
-    expect(saque.valorBruto).toBeCloseTo(300, 2);
+    // O admin digitou 300 (o que o cliente precisa receber): taxa = 15% de 300 = 45, bruto = 345.
+    expect(saque.valorBruto).toBeCloseTo(345, 2);
     expect(saque.taxaAntecipacao).toBeCloseTo(45, 2);
-    expect(saque.valor).toBeCloseTo(255, 2); // o que de fato é pago via Pix
+    expect(saque.valor).toBeCloseTo(300, 2); // o que de fato é pago via Pix
 
-    // O capital do investidor foi reduzido no valor CHEIO (300), não no valor líquido (255).
+    // O capital do investidor foi reduzido em valor + taxa (345), não só nos 300 pagos.
     const aplicacoes = await prisma.aplicacao.findMany({ where: { userId: investidorId } });
     const livre = aplicacoes.filter((a) => a.status === "CONFIRMADA").reduce((acc, a) => acc + a.valor, 0);
     const reservado = aplicacoes.filter((a) => a.status === "SAQUE_SOLICITADO").reduce((acc, a) => acc + a.valor, 0);
-    expect(livre).toBeCloseTo(700, 2); // 1000 - 300
-    expect(reservado).toBeCloseTo(300, 2);
+    expect(livre).toBeCloseTo(655, 2); // 1000 - 345
+    expect(reservado).toBeCloseTo(345, 2);
 
     // Os 15% retidos (R$45) foram creditados como fundo de caixa na conta real da Foccus
     // Administradora.
@@ -125,10 +126,10 @@ describe("Saque assistido — Capital em carência (taxa de 15%)", () => {
     expect(creditoTaxa.valor).toBeCloseTo(45, 2);
   }, 20000);
 
-  it("recusa quando o valor cheio passa do capital disponível (mesmo com o valor líquido cabendo)", async () => {
-    // 1200 > 1000 de capital disponível — deve recusar mesmo que 1200*0.85=1020 também passe,
-    // porque quem precisa caber no saldo é o valor CHEIO, não o líquido.
-    const resultado = await saqueCarencia("1200,00");
+  it("recusa quando valor + taxa passa do capital disponível (mesmo com o valor digitado cabendo)", async () => {
+    // 900 cabe nos 1000 de capital, mas 900 + 15% (135) = 1035 não — quem precisa caber no saldo é
+    // o bruto (valor + taxa), não só o valor digitado.
+    const resultado = await saqueCarencia("900,00");
     expect(resultado?.error).toBeDefined();
     expect(resultado?.error).toMatch(/capital insuficiente/i);
 

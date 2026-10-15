@@ -86,7 +86,7 @@ describe("Saque de emergência self-service (capital em carência)", () => {
 
   const pedido = (valorBruto: number) => ({
     userId,
-    valorBruto,
+    valorLiquido: valorBruto,
     chavePixTexto: "teste@example.com",
     chavePixTipo: "EMAIL",
     idempotencyKey: null,
@@ -98,7 +98,7 @@ describe("Saque de emergência self-service (capital em carência)", () => {
     expect(await prisma.solicitacaoSaque.count({ where: { userId } })).toBe(0);
   });
 
-  it("com o serviço ativo: debita o bruto, paga 85%, credita a taxa e agenda 15 dias úteis", async () => {
+  it("com o serviço ativo: debita valor + 15%, paga o valor pedido, credita a taxa e agenda 15 dias úteis", async () => {
     await contratarServicos(userId, ["SAQUE_EMERGENCIA"], "INDIVIDUAL", crypto.randomUUID());
 
     const r = await executarSaqueEmergenciaCarencia(pedido(300));
@@ -107,14 +107,14 @@ describe("Saque de emergência self-service (capital em carência)", () => {
     const saque = await prisma.solicitacaoSaque.findFirstOrThrow({ where: { userId } });
     expect(saque.status).toBe("SOLICITADO");
     expect(saque.emergencial).toBe(true);
-    expect(saque.valorBruto).toBeCloseTo(300, 2);
+    expect(saque.valorBruto).toBeCloseTo(345, 2); // 300 + 15%
     expect(saque.taxaAntecipacao).toBeCloseTo(45, 2);
-    expect(saque.valor).toBeCloseTo(255, 2);
+    expect(saque.valor).toBeCloseTo(300, 2);
     expect(saque.liberacaoAutomaticaEm).not.toBeNull();
     expect(saque.liberacaoAutomaticaEm!.getTime()).toBeGreaterThan(Date.now() + 14 * 86400000);
 
     const reservados = await prisma.aplicacao.findMany({ where: { solicitacaoSaqueId: saque.id } });
-    expect(reservados.reduce((a, l) => a + l.valor, 0)).toBeCloseTo(300, 2);
+    expect(reservados.reduce((a, l) => a + l.valor, 0)).toBeCloseTo(345, 2);
 
     const administradora = await prisma.user.findFirstOrThrow({ where: { email: EMAIL_ADMINISTRADORA } });
     const taxa = await prisma.creditoCarteira.findFirst({
