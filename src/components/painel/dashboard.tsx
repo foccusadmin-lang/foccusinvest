@@ -6,6 +6,7 @@ import { HeaderMenu } from "./header-menu";
 import { ViewSwitcher } from "@/components/admin/view-switcher";
 import { ConvidarAmigoButton } from "./convidar-amigo-button";
 import { VitrineOperacao, type VitrineOperacaoProps } from "./vitrine-operacao";
+import { PerfilOperacaoCard } from "./perfil-operacao-card";
 import { RentabilidadeVsIndices, type PontoComparativoClient } from "./rentabilidade-vs-indices";
 import { formatMoeda, formatData } from "@/lib/format";
 import { IconWallet, IconTrendingUp, IconGift, IconVerified, IconUsers } from "@/components/icons";
@@ -271,6 +272,13 @@ export function PainelDashboard({
         />
 
         {vitrineOperacao && <VitrineOperacao {...vitrineOperacao} />}
+
+        <PerfilOperacaoCard
+          retornoDiario={
+            vitrineOperacao && vitrineOperacao.serieComparativo.length > 0 ? vitrineOperacao.ontem : null
+          }
+          dataReferencia={vitrineOperacao?.serieComparativo.at(-1)?.data ?? null}
+        />
 
         <p className="mb-3 mt-10 text-xs font-semibold uppercase tracking-[0.15em] text-muted">
           Atividade
