@@ -3,16 +3,21 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { EstrategiaForm } from "./estrategia-form";
 import { PontosLista } from "./pontos-lista";
+import { SecoesPainelToggles } from "./secoes-painel-toggles";
+import { getConfiguracao } from "@/lib/configuracao";
 
 export default async function RestritoEstrategiaPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
   if (session.user.perfil !== "ADMIN") redirect("/painel");
 
-  const estrategia = await prisma.estrategiaOperacao.findFirst({
-    orderBy: { criadoEm: "desc" },
-    include: { pontos: { orderBy: { data: "desc" } } },
-  });
+  const [estrategia, configuracao] = await Promise.all([
+    prisma.estrategiaOperacao.findFirst({
+      orderBy: { criadoEm: "desc" },
+      include: { pontos: { orderBy: { data: "desc" } } },
+    }),
+    getConfiguracao(),
+  ]);
 
   return (
     <div>
@@ -22,6 +27,18 @@ export default async function RestritoEstrategiaPage() {
         esperada de resultado) e lance a variação percentual de cada dia — o acumulado e o
         gráfico Comparativo são calculados automaticamente a partir desses lançamentos.
       </p>
+
+      <div className="mt-6">
+        <SecoesPainelToggles
+          inicial={{
+            mostrarEstrategia: configuracao.mostrarEstrategia,
+            mostrarComparativo: configuracao.mostrarComparativo,
+            mostrarPerfilOperacao: configuracao.mostrarPerfilOperacao,
+            mostrarEvolucaoRendimentos: configuracao.mostrarEvolucaoRendimentos,
+            mostrarRentabilidadeIndices: configuracao.mostrarRentabilidadeIndices,
+          }}
+        />
+      </div>
 
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="rounded-2xl border border-border bg-surface p-5">

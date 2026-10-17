@@ -13,6 +13,9 @@ export type VitrineOperacaoProps = {
   acumulado: number;
   ontem: number;
   serieComparativo: PontoComparativo[];
+  /** Admin pode ocultar cada bloco (Vitrine de Operação → Exibição no painel); padrão: visível. */
+  mostrarEstrategia?: boolean;
+  mostrarComparativo?: boolean;
 };
 
 function formatPct(v: number): string {
@@ -172,6 +175,8 @@ export function VitrineOperacao({
   acumulado,
   ontem,
   serieComparativo,
+  mostrarEstrategia = true,
+  mostrarComparativo = true,
 }: VitrineOperacaoProps) {
   const inicial = moedas.trim().slice(0, 2).toUpperCase() || "OP";
 
@@ -185,6 +190,9 @@ export function VitrineOperacao({
         )}
         <h2 className="text-lg font-bold text-foreground">Operações</h2>
       </div>
+
+      {mostrarEstrategia && (
+        <>
       <p className="text-[10px] uppercase tracking-[0.2em] text-muted">— {nome} —</p>
 
       <div className="mt-3 flex items-center justify-between rounded-xl border border-border bg-surface-2 px-4 py-2.5">
@@ -233,6 +241,10 @@ export function VitrineOperacao({
         </div>
       </div>
 
+        </>
+      )}
+
+      {mostrarComparativo && (
       <div className="mt-4 rounded-2xl border border-border bg-surface p-5">
         <p className="text-sm font-semibold text-foreground">Comparativo</p>
         <p className="text-[10px] uppercase tracking-[0.2em] text-muted">— {nome} —</p>
@@ -247,6 +259,7 @@ export function VitrineOperacao({
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }

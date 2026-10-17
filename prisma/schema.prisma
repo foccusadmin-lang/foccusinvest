@@ -657,6 +657,16 @@ model ConfiguracaoSistema {
   // /restrito/distribuicoes). Automático: usa a campanha ativa em CampanhaPlrAutomatica pra
   // gerar uma Distribuição por dia sozinho (ver lib/plr-automatico.ts).
   modoPLR                 ModoProcessamento @default(MANUAL)
+
+  // Quais blocos aparecem no dashboard do investidor — o admin liga/desliga em /restrito/estrategia
+  // (Vitrine de Operação). Todos começam ligados (comportamento de sempre); desligado = oculto pra
+  // todos os investidores. Ver lib/secoes-painel.ts.
+  mostrarEstrategia           Boolean @default(true)
+  mostrarComparativo          Boolean @default(true)
+  mostrarPerfilOperacao       Boolean @default(true)
+  mostrarEvolucaoRendimentos  Boolean @default(true)
+  mostrarRentabilidadeIndices Boolean @default(true)
+
   updatedAt               DateTime          @updatedAt
 }
 

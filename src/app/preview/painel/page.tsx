@@ -1,8 +1,19 @@
 import { PainelDashboard } from "@/components/painel/dashboard";
 import { ultimasSextas } from "@/lib/datas";
 import { janelaSaqueAberta } from "@/lib/janela-saque";
+import { SECOES_PAINEL, SECOES_PAINEL_PADRAO } from "@/lib/secoes-painel";
 
-export default function PreviewPainelPage() {
+// `?ocultar=perfilOperacao,comparativo` simula o admin desligando esses blocos na Vitrine de Operação.
+export default async function PreviewPainelPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ ocultar?: string }>;
+}) {
+  const { ocultar } = await searchParams;
+  const ocultos = new Set((ocultar ?? "").split(",").map((c) => c.trim()));
+  const secoesPainel = { ...SECOES_PAINEL_PADRAO };
+  for (const s of SECOES_PAINEL) if (ocultos.has(s.chave)) secoesPainel[s.chave] = false;
+
   const sextas = ultimasSextas(8);
   const valores = [42.1, 38.5, 51.2, 47.8, 60.3, 55.9, 64.1, 71.42];
 
@@ -38,6 +49,7 @@ export default function PreviewPainelPage() {
         historicoRendimentos: sextas.map((data, i) => ({ data, valor: valores[i] })),
       }}
       janelaSaqueAberta={janelaSaqueAberta()}
+      secoesPainel={secoesPainel}
       vitrineOperacao={{
         nome: "Estratégia WEM",
         moedas: "USD, EUR, XAU (Ouro)",

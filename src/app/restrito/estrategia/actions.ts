@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { ehCampoSecaoPainel } from "@/lib/secoes-painel";
 
 export type EstrategiaState = { error?: string; sucesso?: string } | undefined;
 
@@ -88,4 +89,29 @@ export async function excluirPontoAction(pontoId: string): Promise<void> {
   await prisma.pontoEstrategia.delete({ where: { id: pontoId } });
   revalidatePath("/restrito/estrategia");
   revalidatePath("/painel");
+}
+
+/** Liga/desliga um bloco do dashboard do investidor (Estratégia, Comparativo, Perfil de operação,
+ *  Evolução dos rendimentos, Rentabilidade versus índices). Vale pra todos os investidores, na
+ *  hora: desligado, o bloco some do painel; ligado, volta a aparecer. */
+export async function definirSecaoPainelAction(
+  campo: string,
+  ativo: boolean
+): Promise<{ error?: string }> {
+  const admin = await requireAdmin();
+
+  if (!ehCampoSecaoPainel(campo)) return { error: "Bloco inválido." };
+
+  await prisma.configuracaoSistema.upsert({
+    where: { id: "default" },
+    create: { id: "default", [campo]: ativo },
+    update: { [campo]: ativo },
+  });
+  await prisma.logAuditoria.create({
+    data: { userId: admin.id, acao: "painel_secao_visibilidade", detalhes: `${campo}=${ativo}` },
+  });
+
+  revalidatePath("/restrito/estrategia");
+  revalidatePath("/painel");
+  return {};
 }

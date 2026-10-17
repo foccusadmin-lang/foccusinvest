@@ -9,6 +9,7 @@ import { getConfiguracao } from "@/lib/configuracao";
 import { obterVitrineOperacaoAtiva } from "@/lib/estrategia";
 import { obterComparativoRentabilidade } from "@/lib/indices-mercado";
 import { usuarioTemServicoAtivo } from "@/lib/servicos-contratacao";
+import { secoesDaConfiguracao } from "@/lib/secoes-painel";
 
 export default async function PainelPage() {
   const session = await auth();
@@ -42,8 +43,16 @@ export default async function PainelPage() {
   const reaplicacaoAutomaticaServicoAtivo = await usuarioTemServicoAtivo(user.id, "REAPLICACAO_AUTOMATICA");
   const saqueEmergenciaServicoAtivo = await usuarioTemServicoAtivo(user.id, "SAQUE_EMERGENCIA");
   const configuracao = await getConfiguracao();
-  const vitrineOperacao = await obterVitrineOperacaoAtiva();
-  const comparativoRentabilidade = await obterComparativoRentabilidade(6);
+  const secoesPainel = secoesDaConfiguracao(configuracao);
+  // Só busca o que de fato vai ser exibido (a vitrine alimenta Estratégia, Comparativo e o Perfil
+  // de operação; o comparativo com índices só serve ao bloco de Rentabilidade versus índices).
+  const vitrineOperacao =
+    secoesPainel.estrategia || secoesPainel.comparativo || secoesPainel.perfilOperacao
+      ? await obterVitrineOperacaoAtiva()
+      : null;
+  const comparativoRentabilidade = secoesPainel.rentabilidadeIndices
+    ? await obterComparativoRentabilidade(6)
+    : [];
 
   const aportesAnteriores = await prisma.aplicacao.count({
     where: {
@@ -92,6 +101,7 @@ export default async function PainelPage() {
       }}
       resumo={resumo}
       janelaSaqueAberta={janelaSaqueAberta()}
+      secoesPainel={secoesPainel}
       vitrineOperacao={
         vitrineOperacao
           ? {

@@ -7,6 +7,7 @@ import { ViewSwitcher } from "@/components/admin/view-switcher";
 import { ConvidarAmigoButton } from "./convidar-amigo-button";
 import { VitrineOperacao, type VitrineOperacaoProps } from "./vitrine-operacao";
 import { PerfilOperacaoCard } from "./perfil-operacao-card";
+import { SECOES_PAINEL_PADRAO, type SecoesPainel } from "@/lib/secoes-painel";
 import { RentabilidadeVsIndices, type PontoComparativoClient } from "./rentabilidade-vs-indices";
 import { formatMoeda, formatData } from "@/lib/format";
 import { IconWallet, IconTrendingUp, IconGift, IconVerified, IconUsers } from "@/components/icons";
@@ -69,12 +70,15 @@ export function PainelDashboard({
   janelaSaqueAberta,
   vitrineOperacao,
   comparativoRentabilidade,
+  secoesPainel = SECOES_PAINEL_PADRAO,
 }: {
   usuario: PainelUsuario;
   resumo: ResumoFinanceiro;
   janelaSaqueAberta: boolean;
   vitrineOperacao?: VitrineOperacaoProps | null;
   comparativoRentabilidade?: PontoComparativoClient[];
+  /** Quais blocos o admin deixou visíveis (Vitrine de Operação → Exibição no painel). */
+  secoesPainel?: SecoesPainel;
 }) {
   const moeda = usuario.moeda ?? "BRL";
   const status = statusLabel[usuario.statusCadastro] ?? statusLabel.INCOMPLETO;
@@ -271,21 +275,34 @@ export function PainelDashboard({
           saqueEmergenciaServicoAtivo={usuario.saqueEmergenciaServicoAtivo ?? false}
         />
 
-        {vitrineOperacao && <VitrineOperacao {...vitrineOperacao} />}
+        {vitrineOperacao && (secoesPainel.estrategia || secoesPainel.comparativo) && (
+          <VitrineOperacao
+            {...vitrineOperacao}
+            mostrarEstrategia={secoesPainel.estrategia}
+            mostrarComparativo={secoesPainel.comparativo}
+          />
+        )}
 
-        <PerfilOperacaoCard
-          retornoDiario={
-            vitrineOperacao && vitrineOperacao.serieComparativo.length > 0 ? vitrineOperacao.ontem : null
-          }
-          dataReferencia={vitrineOperacao?.serieComparativo.at(-1)?.data ?? null}
-        />
+        {secoesPainel.perfilOperacao && (
+          <PerfilOperacaoCard
+            retornoDiario={
+              vitrineOperacao && vitrineOperacao.serieComparativo.length > 0 ? vitrineOperacao.ontem : null
+            }
+            dataReferencia={vitrineOperacao?.serieComparativo.at(-1)?.data ?? null}
+          />
+        )}
 
-        <p className="mb-3 mt-10 text-xs font-semibold uppercase tracking-[0.15em] text-muted">
-          Atividade
-        </p>
-        <RendimentosChart pontos={resumo.historicoRendimentos} moeda={moeda} />
+        {(secoesPainel.evolucaoRendimentos ||
+          (secoesPainel.rentabilidadeIndices && !!comparativoRentabilidade?.length)) && (
+          <p className="mb-3 mt-10 text-xs font-semibold uppercase tracking-[0.15em] text-muted">
+            Atividade
+          </p>
+        )}
+        {secoesPainel.evolucaoRendimentos && (
+          <RendimentosChart pontos={resumo.historicoRendimentos} moeda={moeda} />
+        )}
 
-        {comparativoRentabilidade && comparativoRentabilidade.length > 0 && (
+        {secoesPainel.rentabilidadeIndices && comparativoRentabilidade && comparativoRentabilidade.length > 0 && (
           <div className="mt-4">
             <RentabilidadeVsIndices pontos={comparativoRentabilidade} />
           </div>
