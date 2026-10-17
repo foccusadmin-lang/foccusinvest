@@ -70,24 +70,30 @@ export function PerfilOperacaoCard({
       </dl>
 
       {atual && retornoDiario !== null ? (
-        <div className={`mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3 ${ESTILO[atual.codigo].badge}`}>
-          <div>
-            <p className="text-[10px] uppercase tracking-wider opacity-80">Operando agora no perfil</p>
-            <p className="mt-0.5 text-base font-bold">
-              <span aria-hidden>{atual.icone}</span> {atual.nome}
-            </p>
+        <div className={`mt-4 rounded-xl border px-4 py-3 ${ESTILO[atual.codigo].badge}`}>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-[10px] uppercase tracking-wider opacity-80">Perfil do último lançamento</p>
+              <p className="mt-0.5 text-base font-bold">
+                <span aria-hidden>{atual.icone}</span> {atual.nome}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-lg font-bold">{formatPctBR(retornoDiario)}</p>
+              <p className="text-[11px] opacity-80">
+                {dataReferencia ? `lançado no dia ${formatDataBR(dataReferencia)}` : "lançado no último dia"}
+                {" · "}Risco {atual.risco}
+              </p>
+            </div>
           </div>
-          <div className="text-right">
-            <p className="text-lg font-bold">{formatPctBR(retornoDiario)} ao dia</p>
-            <p className="text-[11px] opacity-80">
-              Risco {atual.risco}
-              {dataReferencia ? ` · lançamento de ${formatDataBR(dataReferencia)}` : ""}
-            </p>
-          </div>
+          <p className="mt-2 border-t border-current/20 pt-2 text-[11px] opacity-80">
+            Esse foi o percentual lançado nesse dia. Ele muda a cada dia — amanhã pode ser outro valor,
+            e o perfil acompanha o lançamento mais recente.
+          </p>
         </div>
       ) : (
         <p className="mt-4 rounded-xl border border-border bg-surface-2 px-4 py-3 text-xs text-muted">
-          O perfil de operação aparece aqui assim que o primeiro percentual diário for lançado.
+          O perfil de operação aparece aqui assim que o primeiro percentual for lançado.
         </p>
       )}
 
@@ -96,7 +102,7 @@ export function PerfilOperacaoCard({
           <thead className="text-[10px] uppercase tracking-wider text-muted">
             <tr>
               <th className="px-2 py-2 font-semibold">Perfil</th>
-              <th className="px-2 py-2 font-semibold">Retorno diário</th>
+              <th className="px-2 py-2 font-semibold">Retorno no dia</th>
               <th className="px-2 py-2 font-semibold">Risco</th>
               <th className="px-2 py-2 font-semibold">Cor</th>
             </tr>
