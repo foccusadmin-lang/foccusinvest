@@ -375,51 +375,57 @@ function ehViolacaoDeUnicidade(e: unknown): boolean {
   return typeof e === "object" && e !== null && "code" in e && (e as { code?: string }).code === "P2002";
 }
 
+/** Dia útil (segunda a sexta) de uma data `YYYY-MM-DD` — sem feriados, igual à regra do cron. */
+function ehDiaUtilStr(diaStr: string): boolean {
+  const d = new Date(`${diaStr}T12:00:00-03:00`).getUTCDay();
+  return d !== 0 && d !== 6;
+}
+
+/** Quantos dias úteis pra trás o catch-up olha, no máximo — limita o trabalho de cada chamada. */
+const DIAS_MAX_CATCHUP = 7;
+
+/** Primeiro dia (Brasília) em que o catch-up automático passa a valer. Dias úteis anteriores sem
+ *  incentivo (06/10, 09/10, 12/10 e 16/10/2026) NÃO são creditados sozinhos por esse caminho: foram
+ *  perdas já identificadas e só entram por um lançamento retroativo explicitamente confirmado
+ *  (ver liberarIncentivoDoDia, exportada pra isso). */
+export const CATCHUP_INCENTIVO_A_PARTIR_DE = "2026-10-19";
+
+/** Dias úteis ANTERIORES a `hoje` (`YYYY-MM-DD`, Brasília) que o catch-up deve conferir: até `max`
+ *  dias pra trás e nunca antes de `aPartirDe`, do mais antigo pro mais recente. */
+export function diasUteisParaCatchup(hoje: string, aPartirDe: string, max: number): string[] {
+  const dias: string[] = [];
+  for (let atras = max; atras >= 1; atras--) {
+    const diaStr = hojeBrasiliaStr(new Date(new Date(`${hoje}T12:00:00-03:00`).getTime() - atras * 24 * 60 * 60 * 1000));
+    if (diaStr >= aPartirDe && ehDiaUtilStr(diaStr)) dias.push(diaStr);
+  }
+  return dias;
+}
+
 /**
- * Libera o incentivo automático de hoje pra todos os líderes SE ainda não tiver sido liberado —
- * é a mesma lógica do cron (/api/cron/liberar-incentivo-lideranca), mas chamada como fallback de
- * qualquer página carregada pelo admin depois das 19h. Existe porque um cron do Vercel que falha
- * silenciosamente (CRON_SECRET não configurado, plano sem cron, etc) não pode ser a ÚNICA forma
- * do incentivo automático funcionar — mesmo padrão de resiliência já usado pra distribuições
- * (sincronizarDistribuicoesDoUsuario, que roda toda vez que a carteira é consultada).
- *
- * Como essa função roda em toda carga de página depois das 19h (não só uma vez por dia, como o
- * cron), duas chamadas quase simultâneas — cron + uma ou mais páginas carregadas ao mesmo tempo —
- * podiam passar as duas pela checagem "já rodou hoje?" antes de qualquer uma credencial escrever,
- * duplicando o incentivo do dia. A checagem abaixo continua existindo como atalho barato (evita
- * tocar o banco de novo na maioria das chamadas, depois que o dia já foi liberado), mas quem
- * garante mesmo que só uma liberação aconteça é a reivindicação atômica em
- * LiberacaoIncentivoDiaria: `dia` é único, então só a PRIMEIRA chamada consegue criar o
- * marcador — as demais recebem violação de unicidade (P2002) e desistem sem duplicar.
+ * Libera o incentivo automático de UM dia útil específico (`diaStr`, em Brasília) pra todos os
+ * líderes — idempotente: quem garante que só uma liberação aconteça por dia é a reivindicação
+ * atômica em LiberacaoIncentivoDiaria (`dia` é único; a 2ª chamada, concorrente ou não, recebe
+ * P2002 e desiste sem duplicar). Os créditos levam a data/hora das 19h daquele dia (quando o cron
+ * normal teria rodado), pra o extrato mostrar o dia certo mesmo num lançamento atrasado. O valor
+ * é 0,10% do capital que cada líder tem NO MOMENTO da liberação (não dá pra reconstruir o capital
+ * de dias passados).
  */
-export async function liberarIncentivoAutomaticoSeNecessario(): Promise<ResultadoLiberacaoAutomatica> {
-  const config = await getConfiguracao();
-  if (config.modoIncentivoLideranca !== "AUTOMATICO") {
-    return { creditados: 0, total: 0, pulou: "modo manual" };
-  }
+export async function liberarIncentivoDoDia(diaStr: string): Promise<ResultadoLiberacaoAutomatica> {
+  const inicioDoDia = new Date(`${diaStr}T00:00:00-03:00`);
+  const fimDoDia = new Date(`${diaStr}T23:59:59.999-03:00`);
 
-  const { diaSemana, hora } = agoraBrasilia();
-  if (diaSemana === 0 || diaSemana === 6) {
-    return { creditados: 0, total: 0, pulou: "fim de semana" };
-  }
-  if (hora < 19) {
-    return { creditados: 0, total: 0, pulou: "ainda não são 19h em Brasília" };
-  }
-
-  const inicioDoDia = new Date(`${hojeBrasiliaStr()}T00:00:00-03:00`);
-
-  const jaRodouHoje = await prisma.creditoCarteira.findFirst({
-    where: { origem: { startsWith: ORIGEM_INCENTIVO_AUTOMATICO }, criadoEm: { gte: inicioDoDia } },
+  // Atalho barato (evita tocar o marcador na maioria das chamadas, depois que o dia já foi
+  // liberado) — o marcador único abaixo é que garante de verdade.
+  const jaRodou = await prisma.creditoCarteira.findFirst({
+    where: { origem: { startsWith: ORIGEM_INCENTIVO_AUTOMATICO }, criadoEm: { gte: inicioDoDia, lte: fimDoDia } },
   });
-  if (jaRodouHoje) {
-    return { creditados: 0, total: 0, pulou: "já liberado hoje" };
-  }
+  if (jaRodou) return { creditados: 0, total: 0, pulou: "já liberado nesse dia" };
 
   try {
     await prisma.liberacaoIncentivoDiaria.create({ data: { dia: inicioDoDia } });
   } catch (err) {
     if (ehViolacaoDeUnicidade(err)) {
-      return { creditados: 0, total: 0, pulou: "já liberado hoje (reivindicado por outra chamada)" };
+      return { creditados: 0, total: 0, pulou: "já liberado nesse dia (reivindicado por outra chamada)" };
     }
     throw err;
   }
@@ -428,7 +434,7 @@ export async function liberarIncentivoAutomaticoSeNecessario(): Promise<Resultad
   try {
     resultado = await liberarIncentivoParaTodosLideres(
       PERCENTUAL_INCENTIVO_AUTOMATICO,
-      new Date(),
+      new Date(`${diaStr}T19:00:00-03:00`),
       " (automático)"
     );
   } catch (err) {
@@ -441,11 +447,51 @@ export async function liberarIncentivoAutomaticoSeNecessario(): Promise<Resultad
   await prisma.logAuditoria.create({
     data: {
       acao: "liberar_incentivo_lideranca_automatico",
-      detalhes: `${PERCENTUAL_INCENTIVO_AUTOMATICO}% para ${resultado.creditados} líder(es), total ${resultado.total.toFixed(2)}`,
+      detalhes: `${PERCENTUAL_INCENTIVO_AUTOMATICO}% para ${resultado.creditados} líder(es), total ${resultado.total.toFixed(2)} (dia ${diaStr})`,
     },
   });
 
   return resultado;
+}
+
+/**
+ * Libera o incentivo automático pra todos os líderes: o de hoje (dia útil, depois das 19h de
+ * Brasília) E o de qualquer dia útil anterior que tenha ficado sem liberação (catch-up).
+ *
+ * Existe como fallback de qualquer página carregada pelo admin e também roda no cron
+ * (/api/cron/liberar-incentivo-lideranca), porque um cron que falha em silêncio não pode ser a
+ * ÚNICA forma do incentivo funcionar — e, antes do catch-up, um dia em que o cron falhasse e
+ * ninguém abrisse o painel de admin depois das 19h ficava sem incentivo PRA SEMPRE (aconteceu em
+ * 06/10, 09/10, 12/10 e 16/10/2026: nenhum líder recebeu os 0,10% desses dias). Agora, na próxima
+ * chamada (mesmo num fim de semana ou de manhã), o dia perdido é liberado.
+ */
+export async function liberarIncentivoAutomaticoSeNecessario(): Promise<ResultadoLiberacaoAutomatica> {
+  const config = await getConfiguracao();
+  if (config.modoIncentivoLideranca !== "AUTOMATICO") {
+    return { creditados: 0, total: 0, pulou: "modo manual" };
+  }
+
+  const hoje = hojeBrasiliaStr();
+
+  // Dias úteis anteriores perdidos, do mais antigo pro mais recente.
+  let creditadosAtrasados = 0;
+  let totalAtrasados = 0;
+  for (const diaStr of diasUteisParaCatchup(hoje, CATCHUP_INCENTIVO_A_PARTIR_DE, DIAS_MAX_CATCHUP)) {
+    const r = await liberarIncentivoDoDia(diaStr);
+    creditadosAtrasados += r.creditados;
+    totalAtrasados += r.total;
+  }
+
+  const { diaSemana, hora } = agoraBrasilia();
+  if (diaSemana === 0 || diaSemana === 6) {
+    return { creditados: creditadosAtrasados, total: totalAtrasados, pulou: "fim de semana" };
+  }
+  if (hora < 19) {
+    return { creditados: creditadosAtrasados, total: totalAtrasados, pulou: "ainda não são 19h em Brasília" };
+  }
+
+  const r = await liberarIncentivoDoDia(hoje);
+  return { ...r, creditados: r.creditados + creditadosAtrasados, total: r.total + totalAtrasados };
 }
 
 export type LiderResumo = {
