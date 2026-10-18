@@ -28,6 +28,7 @@ export type ResumoFinanceiro = {
   incentivoLiderancaAcumulado: number;
   incentivoLiderancaDisponivel: number;
   valoresReaplicados: number;
+  valoresReaplicadosAutomaticamente: number;
   valoresEmProcessamento: number;
   saquesPendentes: number;
   aportesEmAnalise: number;
@@ -136,7 +137,11 @@ export function PainelDashboard({
             icon={<IconTrendingUp width={18} height={18} />}
             label="Rendimentos"
             value={formatMoeda(resumo.distribuicoesDisponiveis, moeda)}
-            hint="Total disponível de todos os meses"
+            hint={
+              resumo.valoresReaplicadosAutomaticamente > 0
+                ? `Já reaplicado automaticamente: ${formatMoeda(resumo.valoresReaplicadosAutomaticamente, moeda)} (está no seu Capital)`
+                : "Total disponível de todos os meses"
+            }
           />
           <SummaryCard
             tone="purple"

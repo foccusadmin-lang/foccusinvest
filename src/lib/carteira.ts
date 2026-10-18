@@ -71,6 +71,9 @@ export async function getResumoCarteira(userId: string): Promise<ResumoFinanceir
   let capitalCarencia = 0;
   let capitalDisponivel = 0;
   let valoresReaplicados = 0;
+  // Parte do total acima que veio da reaplicação AUTOMÁTICA — o rendimento "some" do cartão de
+  // Rendimentos (vira capital na hora), então esse valor é mostrado ali pra não parecer que sumiu.
+  let valoresReaplicadosAutomaticamente = 0;
   let aportesEmAnalise = 0;
 
   // USDT é um saldo totalmente separado do capital em R$ — nunca somado no mesmo total (uma
@@ -112,6 +115,7 @@ export async function getResumoCarteira(userId: string): Promise<ResumoFinanceir
     }
     if (!usdt && (ap.origem === "REAPLICACAO" || ap.origem === "REAPLICACAO_AUTOMATICA")) {
       valoresReaplicados += ap.valor;
+      if (ap.origem === "REAPLICACAO_AUTOMATICA") valoresReaplicadosAutomaticamente += ap.valor;
     }
   }
 
@@ -201,6 +205,7 @@ export async function getResumoCarteira(userId: string): Promise<ResumoFinanceir
     incentivoLiderancaAcumulado,
     incentivoLiderancaDisponivel,
     valoresReaplicados,
+    valoresReaplicadosAutomaticamente,
     valoresEmProcessamento,
     saquesPendentes,
     aportesEmAnalise,
