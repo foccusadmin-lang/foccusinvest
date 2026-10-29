@@ -4,12 +4,14 @@ import { janelaSaqueAberta } from "@/lib/janela-saque";
 import { SECOES_PAINEL, SECOES_PAINEL_PADRAO } from "@/lib/secoes-painel";
 
 // `?ocultar=perfilOperacao,comparativo` simula o admin desligando esses blocos na Vitrine de Operação.
+// `?lider=1` simula um líder: PLR R$ 32,44 e incentivo R$ 48,05 em cartões separados.
 export default async function PreviewPainelPage({
   searchParams,
 }: {
-  searchParams: Promise<{ ocultar?: string }>;
+  searchParams: Promise<{ ocultar?: string; lider?: string }>;
 }) {
-  const { ocultar } = await searchParams;
+  const { ocultar, lider } = await searchParams;
+  const ehLider = lider === "1";
   const ocultos = new Set((ocultar ?? "").split(",").map((c) => c.trim()));
   const secoesPainel = { ...SECOES_PAINEL_PADRAO };
   for (const s of SECOES_PAINEL) if (ocultos.has(s.chave)) secoesPainel[s.chave] = false;
@@ -25,6 +27,7 @@ export default async function PreviewPainelPage({
         codigoIndicacao: "7K2QX-WALDIR",
         moeda: "BRL",
         modoBonusIndicacao: "MANUAL",
+        ehLider,
       }}
       resumo={{
         capitalPrincipal: 4506.17,
@@ -35,10 +38,13 @@ export default async function PreviewPainelPage({
         capitalDisponivelUsdt: 0,
         aportesEmAnaliseUsdt: 0,
         distribuicoesAcumuladas: valores.reduce((a, b) => a + b, 0),
-        distribuicoesDisponiveis: 71.42,
+        // Líder: o total de rendimento (PLR + incentivo) é 80,49, mas o cartão mostra só o PLR (32,44).
+        distribuicoesDisponiveis: ehLider ? 80.49 : 71.42,
+        plrAcumulado: valores.reduce((a, b) => a + b, 0),
+        plrDisponivel: ehLider ? 32.44 : 71.42,
         bonusIndicacao: 0,
-        incentivoLiderancaAcumulado: 0,
-        incentivoLiderancaDisponivel: 0,
+        incentivoLiderancaAcumulado: ehLider ? 218.14 : 0,
+        incentivoLiderancaDisponivel: ehLider ? 48.05 : 0,
         valoresReaplicados: 103,
         valoresReaplicadosAutomaticamente: 103,
         valoresEmProcessamento: 0,

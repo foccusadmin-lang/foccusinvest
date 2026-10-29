@@ -120,6 +120,11 @@ export async function getResumoCarteira(userId: string): Promise<ResumoFinanceir
   }
 
   let distribuicoesAcumuladas = 0;
+  // PLR PURO (sem o incentivo de liderança) — o que o investidor vê no cartão "Rendimentos". As
+  // somas acima/abaixo continuam incluindo o incentivo porque saque e reaplicação de rendimento
+  // consomem os dois juntos.
+  let plrAcumuladoLiquido = 0;
+  let plrDisponivel = 0;
   let distribuicoesJaSaiu = 0;
   let distribuicoesDisponiveis = 0;
   let bonusIndicacao = 0;
@@ -141,6 +146,9 @@ export async function getResumoCarteira(userId: string): Promise<ResumoFinanceir
       if (c.origem.startsWith("Incentivo de liderança")) {
         incentivoLiderancaAcumulado += c.valor;
         if (!c.utilizadoEm && !c.solicitacaoSaqueId) incentivoLiderancaDisponivel += c.valor;
+      } else {
+        if (!c.utilizadoEm) plrAcumuladoLiquido += c.valor;
+        if (!c.utilizadoEm && !c.solicitacaoSaqueId) plrDisponivel += c.valor;
       }
     } else if (c.tipo === "BONUS") {
       if (!c.utilizadoEm && !c.solicitacaoSaqueId) bonusIndicacao += c.valor;
@@ -178,6 +186,8 @@ export async function getResumoCarteira(userId: string): Promise<ResumoFinanceir
   const totaisPorSemana = new Map<string, number>();
   for (const c of creditos) {
     if (c.tipo !== "RENDIMENTO") continue;
+    // "Evolução dos rendimentos" é só PLR — o incentivo de liderança tem o próprio cartão.
+    if (c.origem.startsWith("Incentivo de liderança")) continue;
     const chave = sextaDaSemanaDe(c.criadoEm);
     totaisPorSemana.set(chave, (totaisPorSemana.get(chave) ?? 0) + c.valor);
   }
@@ -200,6 +210,8 @@ export async function getResumoCarteira(userId: string): Promise<ResumoFinanceir
     capitalDisponivelUsdt,
     aportesEmAnaliseUsdt,
     distribuicoesAcumuladas: distribuicoesAcumuladasLiquido,
+    plrAcumulado: plrAcumuladoLiquido,
+    plrDisponivel,
     distribuicoesDisponiveis,
     bonusIndicacao,
     incentivoLiderancaAcumulado,

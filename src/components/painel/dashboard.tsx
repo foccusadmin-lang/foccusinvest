@@ -24,6 +24,9 @@ export type ResumoFinanceiro = {
   aportesEmAnaliseUsdt: number;
   distribuicoesAcumuladas: number;
   distribuicoesDisponiveis: number;
+  // Só o PLR (sem o incentivo de liderança, que tem valores próprios abaixo).
+  plrAcumulado: number;
+  plrDisponivel: number;
   bonusIndicacao: number;
   incentivoLiderancaAcumulado: number;
   incentivoLiderancaDisponivel: number;
@@ -82,6 +85,10 @@ export function PainelDashboard({
   secoesPainel?: SecoesPainel;
 }) {
   const moeda = usuario.moeda ?? "BRL";
+  // Líder vê PLR e incentivo em cartões separados; pra não-líder (que não tem o cartão de
+  // incentivo) continua o total, pra não esconder rendimento que sobrou de uma fase anterior.
+  const rendimentoExibido = usuario.ehLider ? resumo.plrDisponivel : resumo.distribuicoesDisponiveis;
+  const rendimentoAcumuladoExibido = usuario.ehLider ? resumo.plrAcumulado : resumo.distribuicoesAcumuladas;
   const status = statusLabel[usuario.statusCadastro] ?? statusLabel.INCOMPLETO;
 
   return (
@@ -136,7 +143,7 @@ export function PainelDashboard({
             tone="green"
             icon={<IconTrendingUp width={18} height={18} />}
             label="Rendimentos"
-            value={formatMoeda(resumo.distribuicoesDisponiveis, moeda)}
+            value={formatMoeda(rendimentoExibido, moeda)}
             hint={
               resumo.valoresReaplicadosAutomaticamente > 0
                 ? `Já reaplicado automaticamente: ${formatMoeda(resumo.valoresReaplicadosAutomaticamente, moeda)} (está no seu Capital)`
@@ -166,7 +173,7 @@ export function PainelDashboard({
           <MiniStat label="Em carência" value={formatMoeda(resumo.capitalCarencia, moeda)} />
           <MiniStat
             label="Rend. disponível"
-            value={formatMoeda(resumo.distribuicoesDisponiveis, moeda)}
+            value={formatMoeda(rendimentoExibido, moeda)}
           />
           <MiniStat label="Reaplicado" value={formatMoeda(resumo.valoresReaplicados, moeda)} />
           <MiniStat
@@ -263,7 +270,7 @@ export function PainelDashboard({
           capitalDisponivel={resumo.capitalDisponivel}
           capitalCarencia={resumo.capitalCarencia}
           rendimentoDisponivel={resumo.distribuicoesDisponiveis}
-          distribuicoesAcumuladas={resumo.distribuicoesAcumuladas}
+          distribuicoesAcumuladas={rendimentoAcumuladoExibido}
           proximaLiberacao={resumo.proximaLiberacao}
           moeda={usuario.moeda ?? "BRL"}
           liberacaoEmergencial={usuario.liberacaoEmergencial ?? null}
