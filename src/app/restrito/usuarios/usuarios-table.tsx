@@ -31,6 +31,7 @@ export type LinhaUsuario = {
   capitalDisponivel: number;
   capitalCarencia: number;
   rendimento: number;
+  plrDisponivel: number;
   bonus: number;
   incentivoLideranca: number;
   statusCadastro: StatusCadastro;
@@ -155,6 +156,7 @@ export function UsuariosTable({ usuarios }: { usuarios: LinhaUsuario[] }) {
                         email: u.email,
                         capital: u.capital,
                         rendimento: u.rendimento,
+                        plrDisponivel: u.plrDisponivel,
                         bonus: u.bonus,
                         incentivoLideranca: u.incentivoLideranca,
                         ehLider: u.perfil === "LIDER",

@@ -14,6 +14,8 @@ type Usuario = {
   email: string;
   capital: number;
   rendimento: number;
+  /** PLR puro (rendimento sem o incentivo de liderança) — o que dá pra reaplicar. Padrão: rendimento. */
+  plrDisponivel?: number;
   bonus: number;
   incentivoLideranca?: number;
   ehLider?: boolean;
@@ -47,7 +49,7 @@ export function AjusteSaldoButton({ usuario }: { usuario: Usuario }) {
 
 function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () => void }) {
   const [state, action, pending] = useActionState(ajustarSaldoUsuario, undefined);
-  const [operacao, setOperacao] = useState<"ADICIONAR" | "DEFINIR" | "APAGAR" | "SAQUE">("ADICIONAR");
+  const [operacao, setOperacao] = useState<"ADICIONAR" | "DEFINIR" | "APAGAR" | "SAQUE" | "REAPLICAR">("ADICIONAR");
   const [tipos, setTipos] = useState<string[]>([]);
   const [valores, setValores] = useState<Record<string, string>>({});
   const [chavePix, setChavePix] = useState("");
@@ -55,10 +57,15 @@ function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () 
   const router = useRouter();
   const processado = useRef(false);
 
+  const plrDisponivel = usuario.plrDisponivel ?? usuario.rendimento;
+  const mostraIncentivo = usuario.ehLider || (usuario.incentivoLideranca ?? 0) > 0;
+
   const tiposDisponiveis = TIPOS.filter(
     (t) =>
       (!("soLider" in t && t.soLider) || usuario.ehLider) &&
-      (!("soSaque" in t && t.soSaque) || operacao === "SAQUE")
+      (!("soSaque" in t && t.soSaque) || operacao === "SAQUE") &&
+      // Reaplicar vale só pro PLR disponível.
+      (operacao !== "REAPLICAR" || t.valor === "RENDIMENTO")
   );
 
   useEffect(() => {
@@ -82,6 +89,10 @@ function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () 
   // desmarcar sozinho no submit).
   function mudarOperacao(nova: typeof operacao) {
     setOperacao(nova);
+    if (nova === "REAPLICAR") {
+      setTipos(["RENDIMENTO"]);
+      return;
+    }
     if (nova !== "SAQUE") setTipos((atual) => atual.filter((t) => t !== "CAPITAL_CARENCIA"));
   }
 
@@ -100,7 +111,7 @@ function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () 
           <p className="font-semibold text-foreground">{usuario.nome}</p>
           <p className="text-xs text-muted">{usuario.email}</p>
           <div
-            className={`mt-3 grid gap-2 text-center text-xs ${usuario.ehLider ? "grid-cols-4" : "grid-cols-3"}`}
+            className={`mt-3 grid gap-2 text-center text-xs ${mostraIncentivo ? "grid-cols-4" : "grid-cols-3"}`}
           >
             <div>
               <p className="text-muted">Capital</p>
@@ -108,13 +119,13 @@ function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () 
             </div>
             <div>
               <p className="text-muted">PLR disp.</p>
-              <p className="font-semibold text-gold-light">{formatMoeda(usuario.rendimento)}</p>
+              <p className="font-semibold text-gold-light">{formatMoeda(plrDisponivel)}</p>
             </div>
             <div>
               <p className="text-muted">Bônus</p>
               <p className="font-semibold text-fuchsia-300">{formatMoeda(usuario.bonus)}</p>
             </div>
-            {usuario.ehLider && (
+            {mostraIncentivo && (
               <div>
                 <p className="text-muted">Incentivo</p>
                 <p className="font-semibold text-gold-light">
@@ -141,6 +152,16 @@ function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () 
                   e.preventDefault();
                 }
               }
+              if (operacao === "REAPLICAR") {
+                const digitado = valores["RENDIMENTO"] ?? "";
+                if (
+                  !confirm(
+                    `Reaplicar R$ ${digitado} do PLR disponível de ${usuario.nome}? Vira um novo lote de capital com carência de 90 dias e não pode ser desfeito.`
+                  )
+                ) {
+                  e.preventDefault();
+                }
+              }
               if (operacao === "SAQUE") {
                 const labels = tipos
                   .map((t) => TIPOS.find((item) => item.valor === t)?.label ?? t)
@@ -163,7 +184,7 @@ function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () 
               <span className="mb-1 block text-sm font-medium text-foreground/90">
                 Tipo de operação
               </span>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
                 <button
                   type="button"
                   onClick={() => mudarOperacao("ADICIONAR")}
@@ -199,6 +220,17 @@ function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () 
                 </button>
                 <button
                   type="button"
+                  onClick={() => mudarOperacao("REAPLICAR")}
+                  className={`rounded-lg py-2 text-xs font-semibold transition sm:text-sm ${
+                    operacao === "REAPLICAR"
+                      ? "bg-violet-500/20 text-violet-300"
+                      : "bg-white/5 text-muted"
+                  }`}
+                >
+                  ↻ Reaplicar
+                </button>
+                <button
+                  type="button"
                   onClick={() => mudarOperacao("APAGAR")}
                   className={`rounded-lg py-2 text-xs font-semibold transition sm:text-sm ${
                     operacao === "APAGAR" ? "bg-red-500/20 text-red-300" : "bg-white/5 text-muted"
@@ -207,6 +239,14 @@ function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () 
                   ✕ Apagar
                 </button>
               </div>
+              {operacao === "REAPLICAR" && (
+                <p className="mt-2 text-xs text-muted">
+                  Reaplica o PLR disponível do cliente como um novo lote de capital (carência de 90
+                  dias), como se ele mesmo tivesse reaplicado — mas sem o valor mínimo de R$ 100,00:
+                  pode ser qualquer valor a partir de R$ 0,01, até o PLR disponível. Não mexe no
+                  bônus nem no incentivo de liderança.
+                </p>
+              )}
               {operacao === "SAQUE" && (
                 <p className="mt-2 text-xs text-muted">
                   Use pra ajudar quem tem dificuldade de sacar sozinho no app. Ignora a carência
@@ -256,6 +296,26 @@ function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () 
                             required
                             className="mt-2 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground outline-none focus:border-gold/60"
                           />
+                          {operacao === "REAPLICAR" && t.valor === "RENDIMENTO" && (
+                            <div className="mt-1.5 flex items-center justify-between text-xs text-muted">
+                              <span>Disponível pra reaplicar: {formatMoeda(plrDisponivel)}</span>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setValores((atual) => ({
+                                    ...atual,
+                                    RENDIMENTO: plrDisponivel.toLocaleString("pt-BR", {
+                                      minimumFractionDigits: 2,
+                                      maximumFractionDigits: 2,
+                                    }),
+                                  }))
+                                }
+                                className="rounded-md bg-sky-500/15 px-2 py-1 font-semibold text-sky-300 hover:bg-sky-500/25"
+                              >
+                                Máximo
+                              </button>
+                            </div>
+                          )}
                           {t.valor === "CAPITAL_CARENCIA" &&
                             (() => {
                               const digitado = Number((valores[t.valor] ?? "").replace(/\./g, "").replace(",", ".")) || 0;
@@ -349,7 +409,9 @@ function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () 
                     ? "bg-red-500/80 text-white hover:bg-red-500"
                     : operacao === "SAQUE"
                       ? "bg-amber-500/90 text-black hover:bg-amber-500"
-                      : "bg-gradient-to-br from-[#f2d675] via-[#d4af37] to-[#93731f] text-black"
+                      : operacao === "REAPLICAR"
+                        ? "bg-violet-500/90 text-white hover:bg-violet-500"
+                        : "bg-gradient-to-br from-[#f2d675] via-[#d4af37] to-[#93731f] text-black"
                 }`}
               >
                 {pending
@@ -360,7 +422,9 @@ function AjusteSaldoModal({ usuario, onClose }: { usuario: Usuario; onClose: () 
                       ? "Definir valores"
                       : operacao === "SAQUE"
                         ? "Realizar saque"
-                        : "Apagar valores"}
+                        : operacao === "REAPLICAR"
+                          ? "Reaplicar PLR"
+                          : "Apagar valores"}
               </button>
             </div>
           </form>

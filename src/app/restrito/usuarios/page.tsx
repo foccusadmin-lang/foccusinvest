@@ -129,6 +129,8 @@ export default async function RestritoUsuariosPage() {
     capitalDisponivel: capitalDisponivelPorId.get(u.id) ?? 0,
     capitalCarencia: capitalCarenciaPorId.get(u.id) ?? 0,
     rendimento: rendimentoPorId.get(u.id) ?? 0,
+    // PLR puro (sem o incentivo de liderança): é o que o admin pode reaplicar em "Ajuste de saldo".
+    plrDisponivel: Math.max(0, (rendimentoPorId.get(u.id) ?? 0) - (incentivoLiderancaPorId.get(u.id) ?? 0)),
     bonus: bonusPorId.get(u.id) ?? 0,
     incentivoLideranca: incentivoLiderancaPorId.get(u.id) ?? 0,
     statusCadastro: u.statusCadastro,

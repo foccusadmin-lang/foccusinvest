@@ -15,7 +15,10 @@ import {
   definirIncentivoLideranca,
   zerarIncentivoLideranca,
   reservarIncentivoLiderancaParaSaque,
+  reaplicarSaldoPorFonte,
 } from "@/lib/incentivo-lideranca";
+import { transacaoComRetentativa } from "@/lib/transacao";
+import { arredondarParaCentavos } from "@/lib/valor-centavos";
 import { prepararDadosSaquePix, obterSnapshotInvestidor } from "@/lib/saque-pix";
 import { calcularSaqueCarencia, creditarTaxaSaqueCarencia } from "@/lib/taxa-saque-carencia";
 
@@ -283,7 +286,7 @@ export async function ajustarSaldoUsuario(
   const tipos = formData.getAll("tipos").map(String);
 
   if (!userId) return { error: "Usuário inválido." };
-  if (operacao !== "ADICIONAR" && operacao !== "DEFINIR" && operacao !== "APAGAR" && operacao !== "SAQUE") {
+  if (operacao !== "ADICIONAR" && operacao !== "DEFINIR" && operacao !== "APAGAR" && operacao !== "SAQUE" && operacao !== "REAPLICAR") {
     return { error: "Operação inválida." };
   }
   if (tipos.length === 0) {
@@ -295,6 +298,47 @@ export async function ajustarSaldoUsuario(
 
   if (tipos.includes("INCENTIVO_LIDERANCA") && usuario.perfil !== "LIDER") {
     return { error: "Incentivo de liderança só pode ser ajustado pra quem é líder." };
+  }
+
+  // Reaplicação feita pelo admin em nome do investidor: consome só o PLR disponível (sem o incentivo
+  // de liderança nem o bônus) e cria um novo lote de capital com a carência normal de 90 dias — igual
+  // à reaplicação feita pelo próprio investidor, MAS sem o valor mínimo de R$ 100,00 (o admin pode
+  // reaplicar até R$ 0,01). O mínimo mora só na ação do investidor (painel/actions.ts), não em
+  // reaplicarSaldoPorFonte.
+  if (operacao === "REAPLICAR") {
+    if (tipos.length !== 1 || tipos[0] !== "RENDIMENTO") {
+      return { error: "Só é possível reaplicar o PLR / Rendimento disponível." };
+    }
+    const valor = arredondarParaCentavos(parseValor(formData.get("valor_RENDIMENTO")));
+    if (!valor || Number.isNaN(valor) || valor < 0.01) {
+      return { error: "Informe um valor válido (mínimo R$ 0,01)." };
+    }
+
+    try {
+      await transacaoComRetentativa((tx) => reaplicarSaldoPorFonte(tx, userId, [{ fonte: "PLR", valor }]));
+    } catch (e) {
+      if (e instanceof SaldoInsuficienteError) return { error: e.message };
+      throw e;
+    }
+
+    await prisma.logAuditoria.create({
+      data: {
+        userId: session.user.id,
+        acao: "reaplicar_plr_admin",
+        detalhes: `${usuario.email} | PLR reaplicado pelo admin: ${formatMoeda(valor)} (sem valor mínimo)`,
+      },
+    });
+
+    revalidatePath("/restrito/usuarios");
+    revalidatePath("/restrito/painel");
+    revalidatePath("/restrito/reaplicacoes");
+    revalidatePath("/restrito/historico");
+    revalidatePath("/painel");
+    revalidatePath("/painel/historico");
+
+    return {
+      sucesso: `${formatMoeda(valor)} de PLR reaplicados pra ${usuario.name ?? usuario.email}. Novo lote de capital com carência de 90 dias criado.`,
+    };
   }
 
   if (operacao === "SAQUE") {
